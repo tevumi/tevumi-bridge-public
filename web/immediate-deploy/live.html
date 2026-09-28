@@ -1,0 +1,11 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tevumi · 即时版小额往返</title><link rel="stylesheet" href="./style.css"></head><body><main>
+<p class="eyebrow">TEVUMI · MAINNET DEVELOPMENT TEST</p><h1>币安人生小额往返</h1>
+<p class="lead">每次固定 0.000001 枚。先在两条链解除币安人生合约暂停，再精确授权、BSC → Arc 发送、核验到账、Arc → BSC 发送并核验返回。每一步单独确认；CAT 保持暂停。</p>
+<div class="warning">解除暂停后，此通道对所有钱包开放，直到重新暂停。每笔上限 0.000001 枚，合约锁仓容量 0.000100 枚。请勿在到账状态不明时重发。钱包签名、消息费和跨链到账均是真实主网操作。</div>
+<section class="card"><h2>连接与链上状态</h2><p id="wallet-state">未连接钱包</p><button id="connect">连接钱包</button><button id="refresh" class="secondary">刷新状态</button><p id="chain-state">正在读取…</p><p id="message" role="status"></p></section>
+<section class="card"><h2>1. 开放测试通道</h2><p>仅指定管理钱包可操作。请依次签署 BSC、Arc 各一笔解除暂停交易。状态不明时按哈希恢复。</p><button id="open-bsc">BSC 解除暂停</button><button id="open-arc">Arc 解除暂停</button></section>
+<section class="card"><h2>2. 小额往返</h2><p>任何钱包均可发送。BSC 首次需要精确授权，随后再次点击 BSC 发送。先核验 Arc 到账，再发起返回。</p><button id="send-bsc">BSC 精确授权 / 发送</button><button id="check-arc" class="secondary">核验 Arc 到账</button><button id="send-arc">Arc 返回 BSC</button><button id="check-bsc" class="secondary">核验 BSC 返回</button><button id="next-round" class="secondary">已核验往返，开始下一轮</button><p id="transfer-state"></p></section>
+<section class="card"><h2>3. 重新暂停</h2><p>指定 guardian 钱包可直接暂停两链币安人生合约。暂停发送或接收时，在途消息可能无法到账；请先核验往返。</p><button id="pause-bsc" class="secondary">暂停 BSC</button><button id="pause-arc" class="secondary">暂停 Arc</button></section>
+<details><summary>交易哈希恢复与记录</summary><p>钱包返回不明或页面刷新时，先用原交易哈希核验；不要重复发起。记录只存于当前浏览器。</p><select id="recover-kind"><option value="open-bsc">BSC 解除暂停</option><option value="open-arc">Arc 解除暂停</option><option value="approve-bsc">BSC 精确授权</option><option value="send-bsc">BSC 发送</option><option value="send-arc">Arc 返回</option><option value="pause-bsc">暂停 BSC</option><option value="pause-arc">暂停 Arc</option></select><input id="recover-hash" placeholder="原交易哈希 0x…" aria-label="原交易哈希"><button id="recover" class="secondary">按哈希核验</button><button id="export" class="secondary">导出记录</button><pre id="records"></pre></details>
+<p class="foot"><a href="/">返回状态首页</a> · 本页面不自动重复广播任何交易。</p>
+</main><script type="module" src="./live.js"></script></body></html>

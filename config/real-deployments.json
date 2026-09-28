@@ -1,0 +1,46 @@
+[
+  {
+    "assetId": "binancelife",
+    "kind": "RestrictedAssetAdapter",
+    "chainId": 56,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x924fa68a0FC644485b8df8AbfA0A41C2e7744444",
+    "dataHash": "0xcf5a3bf50c7aa47df8d552ac41306e0ab733aa75b86be365b7f1ef05815b1867",
+    "bytecodeHash": "0x6bdd7f888dd050d43326d960f0b6c9e17990ece2ffae9f59db39665d7733556a",
+    "txHash": "0x415827a974d9bcf83fda0d403620330022cdf683d898f88df29d0e2b2c0b6c3e",
+    "address": "0x926C7EB8118BCd13e3A89ef9C24925533CC21473"
+  },
+  {
+    "assetId": "binancelife",
+    "kind": "RestrictedAssetOFTV2",
+    "chainId": 5042,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x924fa68a0FC644485b8df8AbfA0A41C2e7744444",
+    "dataHash": "0x4728813bc5489fe9c87cd1d509a4233e3cf5dc1aa77fac6cfedb6a38238cf731",
+    "bytecodeHash": "0x89a6e0e870cc12aaa51a157422fdee030f4dacf4cd55920ede4bf10ce4d8bc81",
+    "txHash": "0xd2c7811c2a2e92ddd1520fe25976f867958147440d8469d7d5c65ae96acad82c",
+    "address": "0x9a713e4204Fdfc2F88851D1d53900c2611134F1C"
+  },
+  {
+    "assetId": "cat",
+    "kind": "RestrictedAssetAdapter",
+    "chainId": 56,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x6894CDe390a3f51155ea41Ed24a33A4827d3063D",
+    "dataHash": "0x1258a03edb850d27c61f0b58ed76b96ce50cc28a951205d197c15b66b1ec3d8a",
+    "bytecodeHash": "0x6bdd7f888dd050d43326d960f0b6c9e17990ece2ffae9f59db39665d7733556a",
+    "txHash": "0xc1ed79d50ca7f5a7e773eb60d249912460093985776bc6e3fe5f8886764babd2",
+    "address": "0x4bD6F21a7B01e2D291147394e78c99B207Bda787"
+  },
+  {
+    "assetId": "cat",
+    "kind": "RestrictedAssetOFTV2",
+    "chainId": 5042,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x6894CDe390a3f51155ea41Ed24a33A4827d3063D",
+    "dataHash": "0x766817bb4ec1c343ed67febace96796eceae69aef17ef8a148bb92134dafe7cf",
+    "bytecodeHash": "0x89a6e0e870cc12aaa51a157422fdee030f4dacf4cd55920ede4bf10ce4d8bc81",
+    "txHash": "0xe9b0a99eb031e3c48d2b8775bafd50797c114899cd5f43e1ea075a3b581b9394",
+    "address": "0xbbC257586d9F0E7ed31F92D74a81daB94025C1ab"
+  }
+]

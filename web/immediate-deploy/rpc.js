@@ -1,0 +1,43 @@
+// Public, read-only RPCs. Wallet signing remains on the injected provider.
+const endpoints = {
+  56: ['https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed-public.bnbchain.org', 'https://bsc-rpc.publicnode.com'],
+  5042: ['https://rpc.mainnet.arc.io'],
+};
+
+export const hasRpc = chainId => Array.isArray(endpoints[chainId]);
+
+export async function rpc(chainId, method, params) {
+  // BSC dataseed nodes reject eth_getLogs even for a single block. PublicNode
+  // supports the delivery-event query used by the live roundtrip page.
+  const urls = chainId === 56 && method === 'eth_getLogs'
+    ? [endpoints[56][2], ...endpoints[56].slice(0, 2)]
+    : endpoints[chainId];
+  if (!urls) throw Error('不支持的只读网络。');
+  let lastReason = '网络不可用';
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        signal: AbortSignal.timeout(chainId === 5042 ? 30000 : 12000),
+      });
+      if (!response.ok) { lastReason = `HTTP ${response.status}`; continue; }
+      const body = await response.json();
+      if (body.error) {
+        const reason = String(body.error.message || '查询失败').slice(0, 120);
+        if (method === 'eth_getLogs' && /limit exceeded|rate limit|too many requests/i.test(reason)) {
+          lastReason = reason;
+          continue;
+        }
+        throw Object.assign(Error(`只读节点拒绝 ${method}：${reason}`), { rpcRevert: true });
+      }
+      if (body.result == null) { lastReason = '空结果'; continue; }
+      return body.result;
+    } catch (error) {
+      if (error.rpcRevert) throw error;
+      lastReason = error.name === 'TimeoutError' ? '超时' : '连接失败';
+    }
+  }
+  throw Error(`只读 RPC ${method} ${lastReason}；尚未请求钱包签名。可稍后点击“继续”，页面会先复核链上状态。`);
+}

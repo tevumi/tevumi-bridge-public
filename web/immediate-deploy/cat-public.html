@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tevumi Bridge · CAT 跨链</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body class="public-bridge" data-asset="cat">
+  <main>
+    <header class="public-header"><div class="brand">TEVUMI <span>BRIDGE</span></div><span class="network-badge">BNB Chain ↔ Arc · 主网小额版</span></header>
+    <h1>CAT 跨链</h1>
+    <p class="lead">在 BNB Chain 和 Arc 之间转移 CAT。当前每笔固定 0.000001 枚；是否开放以页面读取的链上状态为准。</p>
+    <div class="warning">这里使用真实资产和真实主网手续费。请核对钱包弹窗中的网络与金额；发送后先核验到账，状态不明时不要重复发送。两链通道解除暂停前不能发送。</div>
+
+    <section class="card"><h2>连接钱包</h2><p id="wallet-state">未连接钱包</p><button id="connect">连接钱包</button><button id="refresh" class="secondary">刷新链上状态与费用</button><p id="chain-state">正在读取链上状态…</p><div id="fee-state" class="fee-state" aria-live="polite">连接钱包后显示余额和双向消息费报价。</div><p id="message" role="status" aria-live="polite"></p></section>
+
+    <section class="card transfer-card"><div class="route-heading"><span>01</span><h2>BNB Chain → Arc</h2></div><p>首次使用时，先在钱包确认精确授权；授权成功后再次点击同一按钮发送。两笔操作分别需要钱包确认和 BNB 手续费。</p><button id="send-bsc">授权或发送 0.000001</button><button id="check-arc" class="secondary">核验 Arc 到账</button></section>
+
+    <section class="card transfer-card"><div class="route-heading"><span>02</span><h2>Arc → BNB Chain</h2></div><p>Arc 到账核验成功后可以发起返回。发送需要 Arc 原生币支付手续费；随后核验 BNB Chain 到账。</p><button id="send-arc">从 Arc 返回 0.000001</button><button id="check-bsc" class="secondary">核验 BNB Chain 到账</button></section>
+
+    <section class="card"><h2>本次进度</h2><p id="transfer-state"></p><button id="next-round" class="secondary">本轮完成，开始下一轮</button></section>
+
+    <details><summary>交易哈希恢复与导出记录</summary><p>钱包结果不明或页面刷新后，先按原交易哈希核验。不要重新发送。记录只保存在当前浏览器。</p><select id="recover-kind"><option value="approve-bsc">BNB Chain 精确授权</option><option value="send-bsc">BNB Chain 发送</option><option value="send-arc">Arc 返回</option></select><input id="recover-hash" placeholder="原交易哈希 0x…" aria-label="原交易哈希"><button id="recover" class="secondary">按哈希核验</button><button id="export" class="secondary">导出记录</button><pre id="records"></pre></details>
+    <p class="foot"><a href="/">返回首页</a> · 固定单笔上限 0.000001 枚，总锁仓容量 0.000100 枚。本页不会自动重复广播交易。</p>
+  </main>
+  <script type="module" src="./live.js"></script>
+</body>
+</html>

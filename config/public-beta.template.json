@@ -1,0 +1,11 @@
+{
+  "releaseId": "tevumi-public-beta-1",
+  "governanceMode": "direct-eoa",
+  "delaySeconds": 86400,
+  "bsc": {"deployer": null, "startNonce": null, "governor": null, "guardian": null},
+  "arc": {"deployer": null, "startNonce": null, "governor": null, "guardian": null},
+  "assets": {
+    "binancelife": {"capacityLD": null, "bsc": {"outbound": null, "inbound": null}, "arc": {"outbound": null, "inbound": null}},
+    "cat": {"capacityLD": null, "bsc": {"outbound": null, "inbound": null}, "arc": {"outbound": null, "inbound": null}}
+  }
+}

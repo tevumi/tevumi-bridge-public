@@ -1,0 +1,46 @@
+[
+  {
+    "assetId": "binancelife",
+    "kind": "RestrictedAssetAdapter",
+    "chainId": 56,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x924fa68a0FC644485b8df8AbfA0A41C2e7744444",
+    "dataHash": "0xcf5a3bf50c7aa47df8d552ac41306e0ab733aa75b86be365b7f1ef05815b1867",
+    "bytecodeHash": "0x6bdd7f888dd050d43326d960f0b6c9e17990ece2ffae9f59db39665d7733556a",
+    "txHash": "0x415827a974d9bcf83fda0d403620330022cdf683d898f88df29d0e2b2c0b6c3e",
+    "address": "0x926C7EB8118BCd13e3A89ef9C24925533CC21473"
+  },
+  {
+    "assetId": "binancelife",
+    "kind": "RestrictedAssetOFT",
+    "chainId": 5042,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x924fa68a0FC644485b8df8AbfA0A41C2e7744444",
+    "dataHash": "0x4415c5804c427de1b34769a7f37b3a2f4d45b0676ca107853005b1b79b096a09",
+    "bytecodeHash": "0xc92392b91472d2b993e67283aaa89b07d75e9c3df3ddb6345cc983cea4aca812",
+    "txHash": "0xa33a8ea07ce078531e355deb4c7a2d9409bb05961dcfc03d7152eeb69a66e1c9",
+    "address": "0x8641222880C929D1F1c124B890ed478C9C9c79B1"
+  },
+  {
+    "assetId": "cat",
+    "kind": "RestrictedAssetAdapter",
+    "chainId": 56,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x6894CDe390a3f51155ea41Ed24a33A4827d3063D",
+    "dataHash": "0x1258a03edb850d27c61f0b58ed76b96ce50cc28a951205d197c15b66b1ec3d8a",
+    "bytecodeHash": "0x6bdd7f888dd050d43326d960f0b6c9e17990ece2ffae9f59db39665d7733556a",
+    "txHash": "0xc1ed79d50ca7f5a7e773eb60d249912460093985776bc6e3fe5f8886764babd2",
+    "address": "0x4bD6F21a7B01e2D291147394e78c99B207Bda787"
+  },
+  {
+    "assetId": "cat",
+    "kind": "RestrictedAssetOFT",
+    "chainId": 5042,
+    "account": "0x489594537CB76aC256079D710B6E18498E1a5402",
+    "sourceToken": "0x6894CDe390a3f51155ea41Ed24a33A4827d3063D",
+    "dataHash": "0x511962be7d2d20986975012c95a8c0fa4eb90bbdcd4b79ba73ca273ce8b0a1b5",
+    "bytecodeHash": "0xc92392b91472d2b993e67283aaa89b07d75e9c3df3ddb6345cc983cea4aca812",
+    "txHash": "0xdae542e9aa1b5cd51501c98d763bb1441acc25dfd670f0b655b4f3cd5302a2d4",
+    "address": "0xf3A3DcfB99d3E6525A1ed53377E450C4017b366E"
+  }
+]

@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tevumi · 公网测试版部署签名</title><link rel="stylesheet" href="./style.css"></head><body>
+<main><p class="eyebrow">TEVUMI · MAINNET RELEASE</p><h1>公网测试版部署</h1><p class="lead">两条链的 6 份合约已完成主网部署和独立核验，业务合约仍暂停。本页保留部署交易的核验与恢复入口。</p><p><a href="/deploy-beta/config.html">进入下一步：安排双链延时配置 →</a></p><div class="warning">本页不会自动授权代币、解除暂停或发送资产。若某笔广播结果不明，页面会停止；先恢复原交易哈希，不要重复发起。</div>
+<section class="card"><h2>发布参数</h2><dl id="summary"></dl><p id="wallet-state" role="status">正在加载部署计划…</p><button id="connect">连接部署钱包</button><button id="deploy-all" disabled>开始 / 继续部署</button><button id="refresh" class="secondary">重新核验链上状态</button><div id="message" role="status"></div></section>
+<details><summary>查看逐笔状态与异常恢复</summary><section id="steps"></section></details><section class="card"><h2>交易记录</h2><p>记录仅保存在这个浏览器。请导出保存；换浏览器后可按原哈希恢复。</p><button id="export" class="secondary">导出记录</button></section>
+<p class="foot">部署完成后还需逐链提交延时配置，并等待至少 24 小时才能执行；真实消息投递和小额往返验收后才会开放交易页。</p></main><script type="module" src="./main.js"></script></body></html>

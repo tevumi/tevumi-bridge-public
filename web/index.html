@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Tevumi · 实验工作台</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%232c5949'/%3E%3Cpath d='M16 20h32v8H36v23h-8V28H16z' fill='%23e8f2dc'/%3E%3C/svg%3E"></head>
+<body>
+<div class="shell">
+  <header><a class="brand" href="/" aria-label="Tevumi 首页"><span class="mark">t</span>tevumi<span class="tag">PILOT</span></a><button id="connect" disabled class="button dark">连接钱包 <span>↗</span></button></header>
+  <main>
+    <div class="eyebrow"><span class="dot"></span> BSC ↔ ARC · 主网实验准备</div>
+    <section class="intro"><div><h1>让资产的下一站，<br><em>清晰可见。</em></h1><p>先确认每一步，再连接两条链。<br>这里是 Tevumi 的受限实验工作台，尚未开放公众跨链。</p></div><div class="route-art" aria-hidden="true"><span class="orbit one"></span><span class="orbit two"></span><span class="chain-node bsc">B</span><span class="route-dots">···········</span><span class="chain-node arc">A</span><small>ONE ASSET. TWO CHAINS.</small></div></section>
+    <div class="notice"><span>实验阶段</span><p>仅部署无价值测试代币。页面不会自动签名或转账，每笔主网交易都需要你在钱包中确认。</p></div>
+    <div id="message" class="message" role="status" aria-live="polite">连接浏览器钱包，开始检查。</div>
+    <div class="workspace">
+      <section class="panel setup"><div class="section-top"><span class="number">01</span><h2>钱包与测试参数</h2></div>
+        <dl class="wallet-info"><dt>当前地址</dt><dd id="account">未连接</dd><dt>当前网络</dt><dd id="network">—</dd><dt>可用手续费余额</dt><dd id="balance">—</dd></dl>
+        <div class="network-actions"><button id="switch-bsc" class="button secondary">切换到 BSC</button><button id="switch-arc" class="button secondary">切换到 Arc</button></div>
+        <div class="rule"></div><h3>实验额度</h3><p class="hint">单位为 TVPILOT 测试代币。两侧必须一致，部署后不可修改；累计额度不会因赎回恢复。</p>
+        <label for="single">每笔最多 <input id="single" type="text" inputmode="decimal" value="0.000001" autocomplete="off"></label>
+        <label for="total">累计最多 <input id="total" type="text" inputmode="decimal" value="0.000010" autocomplete="off"></label>
+        <p class="hint">测试钱包与管理员均为当前连接地址。管理员仍可修改可信合约及验证配置；本阶段不是完全去中心化系统。</p>
+      </section>
+      <section class="panel deployment"><div class="section-top"><span class="number">02</span><h2>部署实验合约</h2><span class="subtag">逐笔确认</span></div>
+        <div class="step"><div class="step-icon">B</div><div class="step-content"><h3>测试代币 <span>BSC</span></h3><p>固定 1,000 枚 TVPILOT，无外部增发入口。</p><div id="state-PilotToken" class="contract-state">未记录部署</div></div><button class="button secondary prepare" data-kind="PilotToken">检查并估算</button></div>
+        <div class="step"><div class="step-icon">B</div><div class="step-content"><h3>锁仓合约 <span>BSC</span></h3><p>锁定测试代币，收到反向消息后解锁。</p><div id="state-PilotAdapter" class="contract-state">先部署测试代币</div></div><button class="button secondary prepare" data-kind="PilotAdapter">检查并估算</button></div>
+        <div class="step"><div class="step-icon arc-icon">A</div><div class="step-content"><h3>对应代币 <span>ARC</span></h3><p>初始供应量为零，经过验证的跨链消息才能铸造。</p><div id="state-PilotOFT" class="contract-state">未记录部署</div></div><button class="button secondary prepare" data-kind="PilotOFT">检查并估算</button></div>
+        <div class="deployment-footer"><button id="refresh" class="text-button">↻ 核验部署记录</button><button id="export" class="text-button">导出记录 ↓</button></div>
+        <p class="hint">记录保存在当前浏览器，建议导出备份。切换账号后只显示该账号的记录；链上回执是部署结果的依据。</p>
+      </section>
+    </div>
+    <section class="panel bridge-panel"><div class="section-top"><span class="number">03</span><h2>核验并连接两条链</h2></div>
+      <p class="hint">先完成三个实验合约部署。每侧需要设置可信合约、消息库、两家验证服务和执行服务；每次仅预览一笔待配置交易，由你逐笔签名。</p>
+      <div class="flow-actions"><button id="check-route" class="button secondary" disabled>核验两侧配置</button><button id="prepare-config" class="button secondary" disabled>预览当前链下一项配置</button></div>
+      <p id="route-state" class="message">尚未核验。完成配置也不代表跨链消息已送达。</p><div id="route-details" class="route-details"></div>
+      <details><summary>查看实验验证服务与执行配置</summary><pre id="route-policy"></pre></details>
+    </section>
+    <section class="panel bridge-panel"><div class="section-top"><span class="number">04</span><h2>小额跨链与赎回</h2></div>
+      <p class="hint">方向取决于当前钱包网络：BSC 发送到 Arc，Arc 赎回到 BSC。接收地址固定为同一个测试钱包。数量单位为 TVPILOT，无市场价值。</p>
+      <label for="bridge-amount">本次数量 <input id="bridge-amount" type="text" inputmode="decimal" value="0.000001" autocomplete="off"></label>
+      <div class="flow-actions"><button id="prepare-approve" class="button secondary" disabled>授权 / 修正额度（BSC）</button><button id="prepare-send" class="button dark" disabled>检查并估算跨链费用</button></div>
+      <p class="hint">授权过多时，点击“授权 / 修正额度”可改为本次数量。在钱包中保持指定额度，不要选择无限授权。授权和发送是两笔独立交易。源链发送成功后自动查询并核验目标链到账；关闭页面后暂停，重新连接后继续。不会自动重发。配置、余额或 RPC 无法核验时，停止发送预览。</p>
+    </section>
+    <section class="panel bridge-panel"><div class="section-top"><span class="number">05</span><h2>操作与到账记录</h2></div>
+      <div class="flow-actions"><button id="refresh-operations" class="button secondary" disabled>核验操作与到账记录</button><button id="export-operations" class="text-button" disabled>导出全部实验记录 ↓</button></div>
+      <div id="operations" class="operations"><p class="hint">暂无操作记录。</p></div>
+      <p class="hint">页面连接钱包且可见时，每 15 秒自动查询目标链到账；也可手动填写目标交易哈希核验。查询失败会重试，不会自动重发交易；查询网站本身不作为到账依据。状态以查询时的链上回执为准，不保证最终性。记录仅保存在当前浏览器，请及时导出。</p>
+    </section>
+  </main>
+  <footer><span>Tevumi · Build with clarity.</span><span>受限实验工作台 · 尚未开放公众跨链</span></footer>
+</div>
+<dialog id="review"><div class="modal-top"><span class="eyebrow">TRANSACTION REVIEW</span><button id="close-review" class="text-button" aria-label="关闭交易预览">✕</button></div><h2>确认这笔部署</h2><p class="hint">检查网络、钱包和额度。确认后会打开你的钱包，最终由你签名。</p><dl id="review-details" class="review-details"></dl><details><summary>查看完整交易数据</summary><pre id="tx-data"></pre></details><label class="ack"><input id="ack" type="checkbox">我已核对，这是主网交易，会消耗真实手续费。</label><button id="sign" class="button dark" disabled>在钱包中确认部署 ↗</button><p class="hint">估算不是最终账单，实际费用以钱包及链上回执为准。</p></dialog>
+<script type="module" src="/src/main.js"></script>
+<dialog id="flow-review"><div class="modal-top"><span class="eyebrow">TRANSACTION REVIEW</span><button id="flow-close" class="text-button" aria-label="关闭操作预览">✕</button></div><h2 id="flow-title">确认操作</h2><p class="hint">两家验证服务必须共同验证。管理员仍可更改安全配置，本阶段不是完全去中心化服务。</p><dl id="flow-details" class="review-details"></dl><details><summary>查看完整交易数据及配置</summary><pre id="flow-data"></pre></details><label class="ack"><input id="flow-ack" type="checkbox">我已核对网络、地址、数量与费用，同意打开钱包确认。</label><button id="flow-sign" class="button dark" disabled>在钱包中确认这笔操作 ↗</button></dialog>
+</body></html>

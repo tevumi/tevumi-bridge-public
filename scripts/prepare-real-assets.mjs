@@ -1,0 +1,8 @@
+// Generates unsigned deployment data only. Does not connect to a wallet or RPC.
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {ContractFactory,parseEther,keccak256} from 'ethers';
+import {compile} from './compile.mjs';
+const build=compile(),registry=JSON.parse(readFileSync('config/meme-candidates.json')),net=JSON.parse(readFileSync('config/networks.json'));
+const owner='0x489594537CB76aC256079D710B6E18498E1a5402',single=parseEther('0.000001'),total=parseEther('0.000010'),drafts=[];
+for(const asset of registry.assets){for(const side of ['bsc','arc']){const name=side==='bsc'?'RestrictedAssetAdapter':'RestrictedAssetOFT';const artifact=Object.values(build).find(f=>f[name])[name];const common=[net[side].endpoint,owner,owner,side==='bsc'?30417:30102,single,total];const args=side==='bsc'?[asset.sourceToken,...common]:[asset.name,asset.id==='cat'?'CAT':'BNLIFE',asset.sourceToken,...common];const bytecode='0x'+artifact.evm.bytecode.object;const tx=await new ContractFactory(artifact.abi,bytecode).getDeployTransaction(...args);drafts.push({assetId:asset.id,chainId:net[side].chainId,contract:name,from:owner,value:'0',constructorArgs:args.map(v=>typeof v==='bigint'?String(v):v),data:tx.data,bytecodeHash:keccak256(bytecode)});}}
+mkdirSync('research/real-assets',{recursive:true});writeFileSync('research/real-assets/deployment-drafts.json',JSON.stringify({preparedAt:new Date().toISOString(),status:'UNSIGNED_UNDEPLOYED_NOT_GAS_ESTIMATED',limitations:['No peer configuration; addresses unknown until deployment.','Not an audit or approval to deploy.','Current UI real-asset signing remains disabled.'],drafts},null,2)+'\n');console.log('Prepared four unsigned drafts; no RPC or wallet used.');

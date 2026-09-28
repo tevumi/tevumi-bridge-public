@@ -1,0 +1,27 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tevumi · 本地开发测试</title></head><body><div class="shell">
+<header><strong class="brand">tevumi</strong><span class="tag">本地开发测试</span></header>
+<main><div class="notice"><span>模拟环境</span><p>测试代币没有价值。只使用本机两条模拟链和模拟账户，不连接钱包或主网。</p></div>
+<div class="workspace"><section class="panel"><h1>跨链流程测试</h1>
+<label for="asset">资产<select id="asset"><option value="binancelife">币安人生（模拟）</option><option value="cat">CAT（模拟）</option></select></label>
+<label for="account">模拟账户<select id="account"><option value="0">账户 A</option><option value="1">账户 B</option></select></label>
+<label for="side">方向<select id="side"><option value="bsc">BSC 模拟链 → Arc 模拟链</option><option value="arc">Arc 模拟链 → BSC 模拟链</option></select></label>
+<label for="amount">数量<input id="amount" type="text" inputmode="decimal" value="1"></label>
+<p class="hint">单笔最多 10 枚，托管容量 50 枚。同一模拟账户接收。</p>
+<div id="balances" class="wallet-info"></div><p id="message" role="status" aria-live="polite">正在启动本地测试环境…</p>
+<button id="prepare" class="button dark" disabled>检查并预览</button><button id="refresh" class="button secondary" disabled>刷新状态</button>
+<p class="hint" id="session"></p></section>
+<section class="panel"><h2>投递与异常恢复</h2>
+<label><input id="auto-deliver" type="checkbox" checked>发送后自动模拟目标到账</label>
+<label><input id="pause-receive" type="checkbox">暂停两端接收（测试待到账与重试）</label>
+<label><input id="fail-send" type="checkbox">源端发送回滚（测试余额与授权保持）</label>
+<button id="faults" class="button secondary" disabled>应用模拟条件</button>
+<p class="hint">接收恢复后，点击记录中的“投递 / 重试原消息”。这不会重新发送源交易。</p>
+<div id="accounting"></div><details><summary>本地合约与链</summary><pre id="addresses"></pre></details>
+<button id="reset" class="text-button" disabled>归档并重建本地测试环境</button>
+</section></div>
+<section class="panel history-panel"><h2>本次测试记录</h2><p class="hint">本地记录会保存；服务重启后核验恢复。重建环境会归档旧记录并创建新模拟链。</p><div id="records"></div></section>
+</main></div>
+<dialog id="review"><h2 id="review-title"></h2><p class="hint">这是本地模拟确认，不会打开真实钱包。</p><pre id="review-details"></pre>
+<label class="ack"><input id="ack" type="checkbox">我已核对本地测试账户、方向与数量。</label>
+<button id="confirm" class="button dark" disabled>模拟确认</button><button id="cancel" class="button secondary">取消</button></dialog>
+<script type="module" src="/app.js"></script></body></html>

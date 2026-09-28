@@ -1,0 +1,36 @@
+{
+  "updatedAt": "2026-09-20",
+  "purpose": "Candidate display and unsigned deployment drafts only; real-asset signing remains disabled",
+  "assets": [
+    {
+      "id": "binancelife",
+      "name": "币安人生",
+      "sourceChainId": 56,
+      "sourceToken": "0x924fa68a0fc644485b8df8abfa0a41c2e7744444",
+      "destinationChainId": 5042,
+      "sourceDecimals": 18,
+      "sharedDecimals": 6,
+      "sourceAdapter": null,
+      "destinationToken": null,
+      "enabled": false,
+      "status": "selected-pending-deployment-design",
+      "sourceName": "币安人生",
+      "sourceSymbol": "币安人生"
+    },
+    {
+      "id": "cat",
+      "name": "Simon's Cat",
+      "sourceChainId": 56,
+      "sourceToken": "0x6894cde390a3f51155ea41ed24a33a4827d3063d",
+      "destinationChainId": 5042,
+      "sourceDecimals": 18,
+      "sharedDecimals": 6,
+      "sourceAdapter": null,
+      "destinationToken": null,
+      "enabled": false,
+      "status": "selected-pending-deployment-design",
+      "sourceName": "Simons Cat",
+      "sourceSymbol": "CAT"
+    }
+  ]
+}

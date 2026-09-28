@@ -1,0 +1,44 @@
+{
+  "name": "tevumi-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "overrides": {
+    "ws": "8.21.3",
+    "tmp": "0.2.7"
+  },
+  "type": "module",
+  "description": "BSC–Arc bridge development and restricted mainnet validation",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test:development": "npm run app:prepare && node --test test/flow-errors.test.mjs test/read-provider.test.mjs test/candidate-persistence.test.mjs && playwright test --config playwright.candidate.config.js && playwright test test/browser/real-transfer.spec.js && vite build --config vite.config.js",
+    "dev:candidate": "npm run compile && vite --config vite.candidate.config.js",
+    "test:candidate": "npm run compile && playwright test --config playwright.candidate.config.js",
+    "app:prepare": "node scripts/prepare-app.mjs",
+    "dev": "npm run app:prepare && vite --config vite.config.js",
+    "build": "npm run app:prepare && vite build --config vite.config.js",
+    "test:ui": "npm run app:prepare && playwright test",
+    "preflight": "node --env-file-if-exists=.env scripts/preflight.mjs",
+    "compile": "node scripts/compile.mjs",
+    "check:fork": "node --env-file-if-exists=.env scripts/fork-check.mjs",
+    "test": "node --test test/*.test.mjs",
+    "candidate:reset": "node dev/candidate/reset.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "hardhat": "3.17.0",
+    "solc": "0.8.30",
+    "vite": "8.3.0"
+  },
+  "dependencies": {
+    "@layerzerolabs/lz-evm-messagelib-v2": "3.0.168",
+    "@layerzerolabs/lz-evm-protocol-v2": "3.0.168",
+    "@layerzerolabs/oapp-evm": "0.4.1",
+    "@layerzerolabs/oft-evm": "4.0.1",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@safe-global/safe-deployments": "1.37.63",
+    "ethers": "6.17.0"
+  }
+}
