@@ -2,29 +2,35 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge 支持**币安人生**与 **CAT** 在 BNB Chain 和 Arc 之间分别跨链。同一资产在两条链之间转移，**不提供币安人生与 CAT 的互换**。“币安人生”是代币名称，在英文和中文界面都保留中文。
+Tevumi Bridge 支持**币安人生**、**CAT** 和社区演示代币 **Wobble Otter（WOTR）** 在 BNB Chain 与 Arc 之间分别跨链。每种资产都有独立通道，跨链后仍是同一种资产；“币安人生”在中英文界面都保留中文名称。
 
-跨链入口：**https://bridge.tevumi.com/**
+**线上入口：**https://bridge.tevumi.com/ · **状态核对日期：**2026-10-03
 
-公网跨链桥目前处于主网小额开发验证阶段。币安人生和 CAT 均已完成独立核验的 BNB Chain → Arc 及 Arc → BNB Chain 跨链。截至 2026 年 9 月 27 日，已核验的双向单笔上限是每资产 **0.000002 枚**。每笔最低 **0.000001 枚**；发送前会重新核对链上限额及可用额度。这里使用真实主网资产，并支付真实消息费和 Gas。钱包确认前请核对网络、合约、数量及费用；交易结果不明时，先用原交易哈希核验，不要直接重发。
+## 已上线与已验证范围
 
-未连接钱包时，网站默认显示英文。连接后，右上角出现语言切换，可选择 English 或简体中文；选择保存在当前浏览器中。断开钱包后页面回到英文。
-
-## 开发
-
-使用 Node.js 24，通过 `npm ci` 安装锁定的依赖。先运行 `npm run app:prepare` 生成本地合约产物，再运行 `npm test`；`npm run build` 也会生成产物并构建浏览器应用。项目使用 LayerZero V2，为每个接入资产分别配置 BNB Chain 的 OFTAdapter 和 Arc 的 OFT。
-
-项目不在 BNB Chain 或 Arc 公共测试网部署。先进行本地测试与主网分叉检查，再进行受控的小额主网验证。不得把私钥或 RPC 凭据写入仓库。
-
-此公开源码快照包含桥合约、应用代码、本地测试和跨链记录索引服务，不包含内部运维记录或部署凭据。公开说明同时提供英文和简体中文。
-
-## 主网证据
-
-下表每行是一笔跨链，由来源链交易和目标链到账交易组成。两种资产均另有独立核验的 Arc→BNB Chain 返回；公开哈希可从线上应用的跨链记录查看。
-
-| 资产 | BNB Chain 发送 | Arc 到账 |
+| 路线 | 已验证结果 | 当前边界 |
 | --- | --- | --- |
-| CAT | [发送交易](https://bscscan.com/tx/0x8609f47dee546e8d9e5671dde2921df419d7d5be49430c5930670d35fe91131d) | [到账交易](https://explorer.arc.io/tx/0x24cffb2ce643383d7fa844948aeabbe51acb9ba9df538aecca6ad276a18cbae9) |
-| 币安人生 | [发送交易](https://bscscan.com/tx/0x9b88d57294261c6652898f6181b6ce7b5ad373fe9394664ee325f6e053b33522) | [到账交易](https://explorer.arc.io/tx/0x6492b6e601b783a5bff3823a5c13d4a7e24356c99fc7161fe0bedc5e0b20b0e8) |
+| 币安人生与 CAT 跨链 | 两种资产的双向主网发送和目标链到账回执均已独立核验。 | 仍为小额主网开发路线；页面在签名前读取当前链上限额与费用。 |
+| WOTR 跨链 | 独立 BNB Chain ↔ Arc 通道及 500、700 WOTR 的真实主网往返均已独立核验。 | WOTR 与流动性由社区钱包控制，桥由另一管理钱包控制；发送前应重新核对实时暂停状态。 |
+| WOTR 两侧池子 | BNB Chain 的 WOTR/BNB PancakeSwap V2 池与 Arc 的 WOTR/原生 USDC Uniswap V4 池均已建立并核验。 | 报价随实时池状态变化，建池和报价不保证交易收益。 |
+| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。 | 每个操作需单独在钱包确认，必要时还有代币授权。Arc 兑换调用通过隔离主网分叉测试；新版页面的真实钱包完整三步尚未验收。 |
 
-本桥未获两种原币发行方背书。Arc 上的对应资产应以桥合约地址识别；当前不声称已拥有 Arc DEX 流动性或第三方代币上架。
+10 月 3 日已独立核验测试钱包在 Arc 的 **500 WOTR → Permit2 授权**成功。这只是授权，**不是兑换成 USDC**。最后一次核对时，后续的 Router 授权与实际 Arc 兑换尚未完成。
+
+WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5) `0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5`；[Arc](https://explorer.arc.io/address/0x70Cedd901366ad932203BBB08B22DcD4d4510028) `0x70Cedd901366ad932203BBB08B22DcD4d4510028`。
+
+## 使用页面
+
+选择 **Bridge an asset** 可直接跨链；选择 **WOTR journey · 3 steps** 可按购买、跨链、兑换的顺序操作。这些都是独立的真实主网交易，必要的授权也需单独确认。每次签名前核对钱包里的网络、合约、数量、最低到账、消息费和 Gas。Arc 使用原生 USDC 支付 Gas，目标钱包需保留少量 USDC。交易结果仍在核验时，先用原交易哈希确认链上结果，不要重复发送。
+
+未连接钱包时网站默认英文，且隐藏语言切换；连接后仍保持英文，只有用户主动选择才切换为简体中文；断开后恢复英文。
+
+## 开发与文档
+
+本仓库是经过筛查的公开源码快照，与私有工作仓库分开。包含桥合约、公开页面及三步体验、本地测试和跨链记录索引；不包含内部运维文档、部署计划、服务器配置、凭据或私有 Git 历史。公开的合约地址与交易哈希属于链上数据，并非钱包凭据。
+
+使用 Node.js 24 或更高版本，通过 `npm ci` 安装依赖。先运行 `npm run app:prepare` 生成本地产物，再运行 `npm test`；线上首页用 `npx vite build --config vite.home.config.js` 构建，`npm run build` 准备并构建另一套应用产物。跨链基于 LayerZero V2，为每种接入资产分别使用 BNB Chain OFTAdapter 和 Arc OFT。
+
+项目先做本地测试和隔离主网分叉，再做受限主网验证；不在 BNB Chain/Arc 公共测试网部署真实资产服务，也不使用模拟钱包或 MockEndpoint 部署真实资产服务。私钥、助记词、令牌和含凭据的 RPC URL 不得提交到仓库。
+
+本桥与币安人生或 CAT 的原币发行方没有从属关系。本仓库有意排除内部运维记录；当前状态及跨链记录请查看[线上页面](https://bridge.tevumi.com/)。

@@ -1,4 +1,4 @@
-import {BrowserProvider,Contract,Interface,formatEther,getAddress,keccak256,parseEther,zeroPadValue} from 'ethers';
+import {BrowserProvider,Contract,Interface,formatEther,getAddress,id,keccak256,parseEther,zeroPadValue} from 'ethers';
 import {rpc} from './rpc.js';
 import {arcFeeParams} from './arc-fees.js';
 import {classifyWalletSendError} from './wallet-result.js';
@@ -7,17 +7,23 @@ import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/pr
 const $=id=>document.getElementById(id);
 const owner='0x489594537CB76aC256079D710B6E18498E1a5402';
 let assetId=document.body.dataset.asset==='cat'?'cat':'binancelife';
-let assetName=assetId==='cat'?'CAT':'币安人生';
+const assetNames={binancelife:'币安人生',cat:'CAT',wotr:'WOTR'};
+let assetName=assetNames[assetId];
 const pairs={
  binancelife:{sourceToken:'0x924fa68a0fc644485b8df8abfa0a41c2e7744444',bsc:'0x89F3A44786C97618cc4b45721D433c9a83921ec4',arc:'0x9aF52E914DCC692Af046A136AC1c59f98F7347E7'},
  cat:{sourceToken:'0x6894cde390a3f51155ea41ed24a33a4827d3063d',bsc:'0x561750f93BAC5BC237De7FE092b9A40e1cC20b06',arc:'0x503200C60aaA078899B31268833c5F090693E30B'},
+ wotr:{sourceToken:'0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5',bsc:'0xAC93aA5DFD4dFF9FC57C470FC6C9172F7a9bfbcf',arc:'0x70Cedd901366ad932203BBB08B22DcD4d4510028'},
 };
 let pair=pairs[assetId];
-const admin={bsc:'0xB2039D774574d9171E143cA30aAb48bB25b3F8e8',arc:'0x01dba01e9E6f40669d8D3036316967221Bc0081C'};
+const admins={
+ legacy:{bsc:'0xB2039D774574d9171E143cA30aAb48bB25b3F8e8',arc:'0x01dba01e9E6f40669d8D3036316967221Bc0081C'},
+ wotr:{bsc:'0xD43448999ce7fA1FFE4783aB9D2D623FC9AC32db',arc:'0x95A128fbdc89f20b16b735b06bFBe0DF92AA68Df'},
+};
+const activeAdmin=()=>admins[assetId==='wotr'?'wotr':'legacy'];
 const networks={bsc:{chainId:56,eid:30102,endpoint:'0x1a44076050125825900e736c501f859c50fe728c'},arc:{chainId:5042,eid:30417,endpoint:'0x6f475642a6e85809b1c36fa62763669b1b48dd5b'}};
 const options='0x00030100110100000000000000000000000000030d40';
 const legacyAmountLD=parseEther('0.000001');
-let amount='0.000001',limits={bsc:null,arc:null};
+let amount='0.000001',limits={bsc:null,arc:null},routeState=null;
 const adminAbi=['function owner() view returns(address)','function executeBatch(address[] targets,bytes[] payloads)'];
 const appAbi=[...candidateAppAbi,'function owner() view returns(address)','function guardian() view returns(address)','function setPauses(bool,bool)','function pause(bool,bool)',
  'event OFTSent(bytes32 indexed guid,uint32 dstEid,address indexed fromAddress,uint256 amountSentLD,uint256 amountReceivedLD)',
@@ -29,7 +35,8 @@ let account=null,busy=false,records={};
 let walletEventsBound=false;
 let selectedSide='bsc';
 const activeTrackers=new Set();
-export const bridgeView=()=>({account,assetId,selectedSide,amount,limitLD:limits[selectedSide],records,busy});
+const activeReconciliations=new Set();
+export const bridgeView=()=>({account,assetId,selectedSide,amount,limitLD:limits[selectedSide],routeReady:routeState!==null,routePaused:routeState?routeState[selectedSide].sendPaused||routeState[selectedSide==='bsc'?'arc':'bsc'].receivePaused:null,records,busy});
 export function amountValidation(value=amount){
  if(!/^(0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value)||!Number.isFinite(Number(value)))return '请输入最多 6 位小数的数量。';
  let amountLD;
@@ -72,7 +79,7 @@ async function publishTransfer(side,hash){
  }catch{/* Browser records retain the original hash; history service may be retried later. */}
 }
 function renderRecords(){
- $('records').textContent=Object.entries(records).map(([kind,item])=>`${kind}: ${item.hash??'广播结果不明'} ${item.guid??''} ${item.deliveredHash??''}`).join('\n')||'暂无记录';
+ if($('records'))$('records').textContent=Object.entries(records).map(([kind,item])=>`${kind}: ${item.hash??'广播结果不明'} ${item.guid??''} ${item.deliveredHash??''}`).join('\n')||'暂无记录';
  $('transfer-state').textContent=`BSC 发送：${records['send-bsc']?.hash??'未记录'}；Arc 到账：${records['send-bsc']?.deliveredHash??'未核验'}；Arc 返回：${records['send-arc']?.hash??'未记录'}；BSC 到账：${records['send-arc']?.deliveredHash??'未核验'}`;
  emitView();
 }
@@ -86,6 +93,7 @@ async function connect(){
  }
  const list=await window.ethereum.request({method:'eth_requestAccounts'});account=getAddress(list[0]);load();await clearVerifiedLegacyArcAttempt();
  for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}
+ for(const kind of ['approve-bsc','send-bsc','send-arc'])if(records[kind]?.unknown)trackUnknown(kind);
  $('wallet-state').textContent=`已连接 ${account}`;await refresh(true);
 }
 async function switchTo(side){
@@ -102,8 +110,8 @@ async function state(side){
   provider.getNetwork(),provider.getCode(pair[side]),app.owner(),app.guardian(),app.peers(networks[other].eid),
   side==='bsc'?app.depositsPaused():app.sendsPaused(),app.receivesPaused(),app.outbound(),app.inbound(),
  ]);
- ensure(Number(chain.chainId)===networks[side].chainId&&code!=='0x'&&same(appOwner,admin[side])&&same(guardian,owner)&&same(peer,zeroPadValue(pair[other],32)),`${side} 合约身份或 peer 不匹配。`);
- const governor=new Contract(admin[side],adminAbi,provider);
+ ensure(Number(chain.chainId)===networks[side].chainId&&code!=='0x'&&same(appOwner,activeAdmin()[side])&&same(guardian,owner)&&same(peer,zeroPadValue(pair[other],32)),`${side} 合约身份或 peer 不匹配。`);
+ const governor=new Contract(activeAdmin()[side],adminAbi,provider);
  ensure(same(await governor.owner(),owner),`${side} 管理权限不匹配。`);
  return {sendPaused,receivePaused,outboundSingleLD:outbound.single*10n**12n,inboundSingleLD:inbound.single*10n**12n};
 }
@@ -150,10 +158,12 @@ export async function selectDirection(side){
  if(account)await quoteStatus();
 }
 async function refresh(withQuote=false){
+ routeState=null;emitView();
  const [b,a]=await Promise.all([state('bsc'),state('arc')]);
+ routeState={bsc:b,arc:a};
  limits={bsc:b.outboundSingleLD<a.inboundSingleLD?b.outboundSingleLD:a.inboundSingleLD,arc:a.outboundSingleLD<b.inboundSingleLD?a.outboundSingleLD:b.inboundSingleLD};
  $('chain-state').textContent=`BSC：发送${b.sendPaused?'暂停':'开放'} / 接收${b.receivePaused?'暂停':'开放'}；Arc：发送${a.sendPaused?'暂停':'开放'} / 接收${a.receivePaused?'暂停':'开放'}。`;
- renderRecords();if(withQuote)await quoteStatus();return {bsc:b,arc:a};
+ renderRecords();if(withQuote)await quoteStatus();return routeState;
 }
 async function request(side,to,data,value=0n){
  const chainId=networks[side].chainId;
@@ -181,9 +191,9 @@ async function submit(kind,side,to,data,value=0n,amountLD){
  ensure(!records[kind]?.hash&&!records[kind]?.unknown,`${kind} 已有交易或结果不明；先核验原哈希。`);
  await switchTo(side);
  const tx=await request(side,to,data,value);
- const targetStart=kind.startsWith('send-')?await providers[side==='bsc'?'arc':'bsc'].getBlockNumber():undefined;
+ const [sourceStart,targetStart]=await Promise.all([providers[side].getBlockNumber(),kind.startsWith('send-')?providers[side==='bsc'?'arc':'bsc'].getBlockNumber():undefined]);
  const nonceBefore=await rpc(networks[side].chainId,'eth_getTransactionCount',[account,'pending']);
- records[kind]={unknown:true,to,dataHash:keccak256(data),account,side,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
+ records[kind]={unknown:true,to,dataHash:keccak256(data),account,side,sourceStart,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
  note(`${kind} 正在请求钱包确认；请核对网络、合约和费用。`);
  let hash;
  try{hash=await window.ethereum.request({method:'eth_sendTransaction',params:[tx]});}
@@ -191,9 +201,9 @@ async function submit(kind,side,to,data,value=0n,amountLD){
   const outcome=classifyWalletSendError(error);
   if(outcome==='rejected'){delete records[kind];save();throw Error('已在钱包拒绝，未提交交易。');}
   if(outcome==='not_submitted'){delete records[kind];save();throw Error(`钱包未提交交易：${errorText(error)}`);}
-  throw Error(`钱包未返回交易哈希：${errorText(error)}。不要重发，请按原哈希恢复。`);
+  trackUnknown(kind);throw Error('正在核对上一笔交易，请勿重复发起。');
  }
- ensure(/^0x[0-9a-f]{64}$/i.test(hash),'钱包未返回有效哈希；请按广播结果不明处理。');
+ if(!/^0x[0-9a-f]{64}$/i.test(hash)){trackUnknown(kind);throw Error('正在核对上一笔交易，请勿重复发起。');}
  records[kind]={...records[kind],hash,unknown:false};save();
  if(kind.startsWith('send-'))void publishTransfer(side,hash);
  note(`${kind} 已提交 ${hash}；正在等待回执。`);
@@ -219,10 +229,70 @@ function trackDelivery(side,hash){
  };
  setTimeout(()=>poll(0),10000);
 }
+async function reconcileUnknown(kind){
+ const record=records[kind];
+ if(!record?.unknown||!record.dataHash||!same(record.account,account))return false;
+ const trackedAsset=assetId,trackedAccount=account,trackedPair=pair;
+ const stillCurrent=()=>assetId===trackedAsset&&same(account,trackedAccount)&&records[kind]===record;
+ const side=sideFor(kind),provider=providers[side],candidates=[];
+ if(kind.startsWith('send-')&&document.body.dataset.historyApi==='true'){
+  try{
+   const response=await fetch(`/api/transfers?account=${encodeURIComponent(account)}&page=0`,{signal:AbortSignal.timeout(8000)});
+   if(response.ok){
+    const result=await response.json();
+    for(const item of result.items??[])if(item.asset===trackedAsset&&item.chain===networks[side].chainId&&/^0x[0-9a-f]{64}$/i.test(item.source_hash))candidates.push(item.source_hash);
+   }
+  }catch{/* An indexed event scan remains available. */}
+ }
+ const tryCandidate=async hash=>{
+  if(!stillCurrent())return false;
+  try{
+   const tx=await provider.getTransaction(hash);
+   if(!stillCurrent())return false;
+   if(!tx||record.nonceBefore!==undefined&&BigInt(tx.nonce)!==BigInt(record.nonceBefore)||!same(tx.from,record.account)||!same(tx.to,record.to)||keccak256(tx.data)!==record.dataHash)return false;
+   await verifyRecord(kind,hash);
+  }catch{return false;}
+  if(!stillCurrent())return false;
+  try{await refresh();}catch{/* The verified source record is still retained. */}
+  if(kind.startsWith('send-')){
+   await publishTransfer(side,hash);
+   const destination=side==='bsc'?'arc':'bsc';
+   try{await delivered(destination);}catch{/* Keep the source record and continue checking arrival. */}
+   if(!records[kind]?.deliveredHash)trackDelivery(destination,hash);
+  }
+  return true;
+ };
+ for(const hash of candidates)if(await tryCandidate(hash))return true;
+ const head=await provider.getBlockNumber();
+ const first=Number.isSafeInteger(record.sourceStart)?Math.max(0,record.sourceStart-1):Math.max(0,head-8192);
+ const approval=kind==='approve-bsc';
+ const topic=approval?id('Approval(address,address,uint256)'):appIface.getEvent('OFTSent').topicHash;
+ const topics=approval?[topic,zeroPadValue(record.account,32),zeroPadValue(trackedPair.bsc,32)]:[topic,null,zeroPadValue(record.account,32)];
+ const address=approval?trackedPair.sourceToken:trackedPair[side];
+ for(let end=head;end>=first;end-=2000){
+  if(!stillCurrent())return false;
+  const logs=await provider.getLogs({address,topics,fromBlock:Math.max(first,end-1999),toBlock:end});
+  for(const log of logs.reverse())if(await tryCandidate(log.transactionHash))return true;
+ }
+ return false;
+}
+function trackUnknown(kind){
+ const trackedAsset=assetId,trackedAccount=account,key=`${trackedAsset}:${trackedAccount}:${kind}`;
+ if(activeReconciliations.has(key))return;
+ activeReconciliations.add(key);
+ const poll=async attempt=>{
+  if(assetId!==trackedAsset||!same(account,trackedAccount)||!records[kind]?.unknown){activeReconciliations.delete(key);return;}
+  try{if(await reconcileUnknown(kind)){activeReconciliations.delete(key);note('上一笔交易已核对，页面状态已更新。');return;}}catch{/* Keep the duplicate-send guard until chain evidence is available. */}
+  if(attempt>=29){activeReconciliations.delete(key);return;}
+  setTimeout(()=>poll(attempt+1),10000);
+ };
+ setTimeout(()=>poll(0),0);
+}
 async function verifyRecord(kind,hash){
- const record=records[kind];ensure(record?.dataHash,'缺少原始调用记录，无法核验交易身份。');
+ const record=records[kind],observedAsset=assetId,observedAccount=account;ensure(record?.dataHash,'缺少原始调用记录，无法核验交易身份。');
  const side=sideFor(kind),provider=providers[side];
  const [tx,receipt]=await Promise.all([provider.getTransaction(hash),provider.getTransactionReceipt(hash)]);
+ ensure(records[kind]===record&&assetId===observedAsset&&same(account,observedAccount),'钱包或资产已切换，请重新加载当前状态。');
  ensure(tx&&receipt&&receipt.status===1&&same(tx.from,record.account)&&same(tx.to,record.to)&&keccak256(tx.data)===record.dataHash,`原交易未确认成功或调用身份不匹配：${kind}`);
  if(kind.startsWith('send-')){
   const event=receipt.logs.filter(log=>same(log.address,pair[side])).map(log=>{try{return appIface.parseLog(log);}catch{return null;}}).find(x=>x?.name==='OFTSent');
@@ -236,7 +306,7 @@ async function open(side){
  ensure(same(account,owner),'解除暂停仅由指定管理钱包签署。');
  const before=await state(side);ensure(before.sendPaused&&before.receivePaused,`${side} 已非完全暂停，请刷新核对。`);
  const payload=appIface.encodeFunctionData('setPauses',[false,false]);
- await submit(`open-${side}`,side,admin[side],adminIface.encodeFunctionData('executeBatch',[[pair[side]],[payload]]));
+ await submit(`open-${side}`,side,activeAdmin()[side],adminIface.encodeFunctionData('executeBatch',[[pair[side]],[payload]]));
  const after=await state(side);ensure(!after.sendPaused&&!after.receivePaused,'解除暂停后链上状态不匹配。');
 }
 async function pause(side){
@@ -250,7 +320,7 @@ async function send(side){
  const chosenAmount=amount,chosenAmountLD=parseEther(chosenAmount);
  archiveCompletedTransfer(side);
  const before=await refresh();
- ensure(!before.bsc.sendPaused&&!before.bsc.receivePaused&&!before.arc.sendPaused&&!before.arc.receivePaused,'双链尚未全部解除暂停。');
+ ensure(!before[side].sendPaused&&!before[side==='bsc'?'arc':'bsc'].receivePaused,'发送链或目标链接收仍暂停。');
  const plan=await planCandidateTransfer({providers,networks,pair,side,account,amount:chosenAmount,extraOptions:options});
  if(plan.key==='approve'){
   ensure(side==='bsc'&&plan.amountLD===chosenAmountLD,'授权计划异常。');
@@ -320,6 +390,12 @@ async function delivered(side){
 async function recover(){
  const kind=$('recover-kind').value,hash=$('recover-hash').value.trim();ensure(/^0x[0-9a-f]{64}$/i.test(hash),'请输入完整交易哈希。');
  await verifyRecord(kind,hash);await refresh();note(`${kind} 已按原哈希核验。`);
+ if(kind.startsWith('send-')){
+  const destination=kind==='send-bsc'?'arc':'bsc';
+  await publishTransfer(sideFor(kind),hash);
+  try{await delivered(destination);}catch(error){note(`来源交易已核验，目标链暂未核验：${errorText(error)}。请稍后点到账核验，不要重新发送。`);}
+  if(!records[kind]?.deliveredHash)trackDelivery(destination,hash);
+ }
 }
 function exportRecords(){
  const archive=account?JSON.parse(localStorage.getItem(accountKey()+':archive')||'[]'):[];
@@ -342,9 +418,9 @@ export async function selectAsset(id){
  if(id===assetId)return;
  busy=true;for(const button of document.querySelectorAll('button'))button.disabled=true;
  try{
- assetId=id;assetName=id==='cat'?'CAT':'币安人生';pair=pairs[id];limits={bsc:null,arc:null};
+ assetId=id;assetName=assetNames[id];pair=pairs[id];amount=id==='wotr'?'500':'0.000001';limits={bsc:null,arc:null};routeState=null;
  records={};
- if(account){load();await clearVerifiedLegacyArcAttempt();for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}}else renderRecords();
+ if(account){load();await clearVerifiedLegacyArcAttempt();for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}for(const kind of ['approve-bsc','send-bsc','send-arc'])if(records[kind]?.unknown)trackUnknown(kind);}else renderRecords();
  $('chain-state').textContent='正在读取所选资产的链上状态…';
  $('fee-state').textContent=document.body.dataset.balanceOnly==='true'?(account?'正在读取所选资产余额…':'连接钱包后显示所选资产的余额。'):(account?'正在读取双向余额和消息费报价…':'连接钱包后显示余额和双向消息费报价。');
  note('');
@@ -358,5 +434,5 @@ for(const side of ['bsc','arc']){
  $(`send-${side}`).onclick=()=>run(()=>send(side));
  $ (`check-${side}`).onclick=()=>run(()=>delivered(side));
 }
-$('connect').onclick=()=>run(connect);$('refresh').onclick=()=>run(()=>refresh(true));$('recover').onclick=()=>run(recover);$('export').onclick=exportRecords;$('next-round').onclick=()=>run(nextRound);
+$('connect').onclick=()=>run(connect);$('refresh').onclick=()=>run(()=>refresh(true));if($('recover'))$('recover').onclick=()=>run(recover);if($('export'))$('export').onclick=exportRecords;$('next-round').onclick=()=>run(nextRound);
 renderRecords();refresh().catch(error=>note(errorText(error)));

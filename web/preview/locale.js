@@ -1,13 +1,44 @@
-// The public bridge defaults to English. A visitor's explicit choice is local to
-// this browser; no IP lookup or wallet/account data is involved.
-const key = 'tevumi-bridge-language';
-let preferred = 'en';
-try { preferred = localStorage.getItem(key) === 'zh-CN' ? 'zh-CN' : 'en'; }
-catch { /* English remains the default. */ }
+// The public bridge opens in English. Language controls become available after
+// wallet connection; a connection never restores an older language choice.
 let connected = false;
 let language = 'en';
 
 const exact = new Map(Object.entries({
+  '单独跨链': 'Bridge an asset',
+  'WOTR 三步体验': 'WOTR journey · 3 steps',
+  '从 BNB 到 Arc USDC': 'From BNB to Arc USDC',
+  '三笔独立交易 · 主网': '3 independent transactions · Mainnet',
+  '在 BNB Chain 买入 WOTR，跨链到 Arc，再兑换成 USDC。每笔交易都需要在钱包确认。你可以离开页面，稍后回来查看进度。': 'Buy WOTR on BNB Chain, bridge it to Arc, then swap it for USDC. Confirm each transaction in your wallet. You can leave and return to check progress.',
+  '购买 WOTR': 'Buy WOTR',
+  '跨链 WOTR': 'Bridge WOTR',
+  '兑换 USDC': 'Swap to USDC',
+  '在 BNB Chain 买入 WOTR': 'Buy WOTR on BNB Chain',
+  'PancakeSwap V2 · WOTR/BNB 池': 'PancakeSwap V2 · WOTR/BNB pool',
+  '你支付 · BNB': 'You pay · BNB',
+  '预计收到': 'Estimated receive',
+  '连接钱包后刷新实时报价。': 'Connect your wallet, then refresh the live quote.',
+  '刷新报价': 'Refresh quote',
+  '跨链 WOTR 到 Arc': 'Bridge WOTR to Arc',
+  'Tevumi Bridge · 两链使用同一钱包': 'Tevumi Bridge · same wallet on both chains',
+  '使用现有 WOTR 跨链表单选择数量并查看实时消息费。': 'Use the existing WOTR bridge form to choose the amount and review the live message fee.',
+  '打开 WOTR 跨链': 'Open WOTR bridge',
+  '在 Arc 将 WOTR 兑换为 USDC': 'Swap WOTR for USDC on Arc',
+  'Uniswap V4 · WOTR/USDC 池': 'Uniswap V4 · WOTR/USDC pool',
+  '你卖出 · WOTR': 'You sell · WOTR',
+  '连接钱包后刷新 Arc 池报价。最后兑换需要 Arc 原生 USDC 支付 Gas。': 'Connect your wallet, then refresh the Arc pool quote. Arc native USDC is needed for gas.',
+  '检查授权': 'Review approval',
+  '体验进度': 'JOURNEY PROGRESS',
+  '前往 Arc USDC': 'Your journey to Arc USDC',
+  '在 BNB Chain 购买 WOTR': 'Purchase WOTR on BNB Chain',
+  '跨链到 Arc': 'Bridge to Arc',
+  '从 BNB Chain 向 Arc 跨链 WOTR': 'Send WOTR from BNB Chain to Arc',
+  '在 Arc 将 WOTR 兑换为原生 USDC': 'Swap WOTR for native USDC on Arc',
+  '你的路线': 'YOUR ROUTE',
+  '清晰的三步': 'Three clear steps',
+  '连接钱包即可开始。': 'Connect your wallet to get started.',
+  '连接后将在这里显示实时余额。': 'Live balances appear here after connection.',
+  '每一步都需要单独的钱包交易。最终到账数量取决于当前池子、费用和市场价格。签名前请查看最新报价。': 'Each step uses a separate wallet transaction. The amount you get depends on the current pools, fees and market price. Read the latest quote before signing.',
+  'Arc 使用原生 USDC 支付 Gas。最后兑换前请在 Arc 钱包保留一些 USDC。': 'Arc uses native USDC for gas. Keep some USDC in your Arc wallet before the final swap.',
   'Tevumi Bridge 首页': 'Tevumi Bridge home',
   '你的资产不止一条链': 'Your assets go beyond one chain',
   '跨链转移': 'Bridge assets',
@@ -39,22 +70,11 @@ const exact = new Map(Object.entries({
   '目标链到账': 'Destination-chain arrival',
   '发送后自动核验到账事件': 'Arrival is checked automatically after sending',
   '选择方向并连接钱包后即可开始。': 'Choose a direction and connect your wallet to begin.',
-  '使用真实资产和主网手续费。请核对钱包中的网络、合约和费用；交易状态不明时不要重复发送。': 'This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. If a transaction status is unclear, do not send it again.',
+  '使用真实资产和主网手续费。请核对钱包中的网络、合约和费用；交易处理中不要重复发送。': 'This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. Do not send again while a transaction is being checked.',
   '跨链记录': 'Transfer history',
   '连接钱包后查看跨链记录。': 'Connect your wallet to view transfer history.',
   '展开后查看跨链记录。': 'Expand to view transfer history.',
   '加载更多': 'Load more',
-  '交易状态核验': 'Transaction status verification',
-  '交易结果暂不明确': 'Transaction result unclear',
-  '请先查钱包活动记录，再输入原交易哈希核验。不要重复发送。': 'Check your wallet activity, then verify the original transaction hash. Do not send again.',
-  '交易类型': 'Transaction type',
-  'BNB Chain 精确授权': 'BNB Chain exact approval',
-  'BNB Chain 发送': 'BNB Chain transfer',
-  'Arc 返回': 'Arc return transfer',
-  '原交易哈希 0x…': 'Original transaction hash 0x…',
-  '原交易哈希': 'Original transaction hash',
-  '按哈希核验': 'Verify by hash',
-  '导出本地记录': 'Export local records',
   '跨链说明': 'About this bridge',
   '各自跨链': 'Bridge each asset',
   '资产在两条链之间流转，不进行币种互换。': 'Move the same asset between chains. This is not a token swap.',
@@ -64,11 +84,15 @@ const exact = new Map(Object.entries({
   '使用真实资产；还需支付对应链上的消息费与 Gas。': 'Uses real assets. Message fees and gas are paid on the source chain.',
   '返回资产选择': 'Back to asset selection',
   '小额开放': 'Small transfers open',
+  '按链上状态': 'Live chain status',
+  '当前方向的桥仍暂停，暂不能发送。桥管理钱包开放后请刷新页面。': 'This route is paused. Reload the page after the bridge admin opens it.',
+  '发送链或目标链接收仍暂停。': 'Sending or destination receiving is still paused.',
   '请输入最多 6 位小数的数量。': 'Enter an amount with at most 6 decimal places.',
   '数量超出可用范围。': 'Amount is outside the supported range.',
   '最小数量为 0.000001 枚。': 'Minimum amount is 0.000001 tokens.',
   '当前操作尚未完成，请等待结果。': 'The current operation is still in progress. Please wait.',
-  '钱包结果不明。请在下方按原哈希核验；不要重新发送。': 'Wallet result unclear. Verify the original hash below; do not send again.',
+  '正在核对上一笔交易，请勿重复发起。核对完成后页面会自动更新。': 'Checking the previous transaction. Please do not send again. The page will update automatically.',
+  '上一笔交易已核对，页面状态已更新。': 'The previous transaction has been checked. The page is up to date.',
   '已到账目标链。可以在交易记录中查看哈希，或发起下一笔。': 'Arrived on the destination chain. View the transaction hashes in history or start another transfer.',
   '来源链交易已提交，正在自动核验目标链到账。请勿重复发送。': 'Source-chain transaction submitted. Destination arrival is being checked automatically. Do not send again.',
   '请选择搜索结果后继续。': 'Select an asset from the search results to continue.',
@@ -157,7 +181,7 @@ const patterns = [
   [/^超过当前单笔上限 ([\d.]+) 枚。$/, (_, n) => `Exceeds the current per-transfer limit of ${n} tokens.`],
   [/^当前单笔上限 ([\d.]+) 枚；发送前会复核可用额度。$/, (_, n) => `Current per-transfer limit: ${n} tokens. Available capacity is checked before sending.`],
   [/^已连接 (0x[\da-f]+)$/i, (_, account) => `Connected ${account}`],
-  [/^钱包余额：([\d.]+) (币安人生|CAT)$/, (_, amount, asset) => `Wallet balance: ${amount} ${asset}`],
+  [/^钱包余额：([\d.]+) (币安人生|CAT|WOTR)$/, (_, amount, asset) => `Wallet balance: ${amount} ${asset}`],
   [/^([\d.]+) 枚$/, (_, amount) => `${amount} tokens`],
   [/^(.+?) 合约身份或 peer 不匹配。$/, (_, side) => `${side} contract identity or peer does not match.`],
   [/^(.+?) 管理权限不匹配。$/, (_, side) => `${side} admin authority does not match.`],
@@ -231,16 +255,14 @@ function apply() {
   visit(document.body);
   const description = document.querySelector('meta[name="description"]');
   if (description) description.content = language === 'en'
-    ? 'Bridge 币安人生 or CAT between BNB Chain and Arc with Tevumi Bridge.'
-    : 'Tevumi Bridge：选择币安人生或 CAT，在 BNB Chain 与 Arc 之间跨链。';
+    ? 'Bridge 币安人生, CAT or WOTR between BNB Chain and Arc with Tevumi Bridge.'
+    : 'Tevumi Bridge：选择币安人生、CAT 或 WOTR，在 BNB Chain 与 Arc 之间跨链。';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-language]').forEach(button => button.addEventListener('click', () => {
     if (!connected) return;
-    preferred = button.dataset.language;
-    language = preferred;
-    try { localStorage.setItem(key, preferred); } catch { /* Private browsing may deny storage. */ }
+    language = button.dataset.language;
     apply();
     window.dispatchEvent(new Event('tevumi:locale-change'));
   }));
@@ -248,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextConnected = Boolean(event.detail?.account);
     if (connected === nextConnected) return;
     connected = nextConnected;
-    language = connected ? preferred : 'en';
+    if (!connected) language = 'en';
     apply();
     window.dispatchEvent(new Event('tevumi:locale-change'));
   });

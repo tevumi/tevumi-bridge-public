@@ -20,6 +20,7 @@ RPC = {
 ASSETS = {
     'binancelife': {56: '0x89f3a44786c97618cc4b45721d433c9a83921ec4', 5042: '0x9af52e914dcc692af046a136ac1c59f98f7347e7'},
     'cat': {56: '0x561750f93bac5bc237de7fe092b9a40e1cc20b06', 5042: '0x503200c60aaa078899b31268833c5f090693e30b'},
+    'wotr': {56: '0xac93aa5dfd4dff9fc57c470fc6c9172f7a9bfbcf', 5042: '0x70cedd901366ad932203bbb08b22dcd4d4510028'},
 }
 EIDS = {56: 30102, 5042: 30417}
 ADDRESS = re.compile(r'^0x[0-9a-f]{40}$', re.I)

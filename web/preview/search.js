@@ -6,6 +6,7 @@ import './history.js';
 const assets = [
   { key: 'binancelife', name: '币安人生', aliases: 'binancelife bnl', route: 'BNB Chain ↔ Arc', status: '小额开放' },
   { key: 'cat', name: 'CAT', aliases: '猫', route: 'BNB Chain ↔ Arc', status: '小额开放' },
+  { key: 'wotr', name: 'WOTR', aliases: 'Wobble Otter 水獭', route: 'BNB Chain ↔ Arc', status: '按链上状态' },
 ];
 const input = document.querySelector('#asset-search');
 const list = document.querySelector('#asset-options');
@@ -64,6 +65,11 @@ async function select(asset) {
   close();
   updateView();
 }
+export async function chooseAsset(key) {
+  const asset = assets.find(item => item.key === key);
+  if (!asset) throw Error('Unknown bridge asset.');
+  await select(asset);
+}
 input.addEventListener('focus', open);
 input.addEventListener('click', open);
 input.addEventListener('input', () => {
@@ -87,10 +93,11 @@ async function chooseDirection(next) {
   try { await selectDirection(next); }
   catch (error) { side = previous; updateView(); document.querySelector('#message').textContent = String(error?.message ?? error); }
 }
+export { chooseDirection };
 document.querySelector('#direction-bsc').addEventListener('click', () => { void chooseDirection('bsc'); });
 document.querySelector('#direction-arc').addEventListener('click', () => { void chooseDirection('arc'); });
 function updateView() {
-  const { account, records, busy, amount, limitLD } = bridgeView();
+  const { account, records, busy, amount, limitLD, routeReady, routePaused } = bridgeView();
   if (amountInput.value !== amount) amountInput.value = amount;
   amountInput.disabled = busy;
   const amountError = amountValidation();
@@ -112,22 +119,21 @@ function updateView() {
   if (action) {
     const button = document.querySelector(`#${action}`);
     button.hidden = false;
-    button.disabled = busy || searching || (action.startsWith('send-') && Boolean(amountError));
+    button.disabled = busy || searching || (action.startsWith('send-') && (Boolean(amountError) || !routeReady || routePaused));
   }
   document.querySelector('#send-bsc').textContent = source?.deliveredHash ? '再次跨链' : '授权并跨链';
   document.querySelector('#send-arc').textContent = source?.deliveredHash ? '再次跨链' : '开始跨链';
   document.querySelector('#approval-note').hidden = side !== 'bsc';
   const summary = document.querySelector('#status-summary');
-  if (unknownKind) summary.textContent = '钱包结果不明。请在下方按原哈希核验；不要重新发送。';
+  if (unknownKind) summary.textContent = '正在核对上一笔交易，请勿重复发起。核对完成后页面会自动更新。';
   else if (source?.deliveredHash) summary.textContent = `已到账目标链。可以在交易记录中查看哈希，或发起下一笔。`;
   else if (source?.hash) summary.textContent = '来源链交易已提交，正在自动核验目标链到账。请勿重复发送。';
   else if (searching) summary.textContent = '请选择搜索结果后继续。';
+  else if (routePaused) summary.textContent = '当前方向的桥仍暂停，暂不能发送。桥管理钱包开放后请刷新页面。';
   else summary.textContent = account ? '已连接钱包。核对资产和数量后开始跨链。' : '选择资产和方向，连接钱包后即可开始。';
   document.querySelector('#step-prepare').classList.toggle('active', !source?.hash);
   document.querySelector('#step-source').classList.toggle('active', Boolean(source?.hash && !source.deliveredHash));
   document.querySelector('#step-destination').classList.toggle('active', Boolean(source?.deliveredHash));
-  document.querySelector('#recovery-panel').hidden = !account || !unknownKind;
-  if (unknownKind) document.querySelector('#recover-kind').value = unknownKind;
 }
 window.addEventListener('tevumi:bridge-view', updateView);
 updateView();

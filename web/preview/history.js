@@ -34,7 +34,7 @@ function card(item) {
   const top = document.createElement('div');
   top.className = 'history-card-top';
   const route = document.createElement('strong');
-  route.textContent = `${item.asset === 'cat' ? 'CAT' : '币安人生'} · ${chainNames[item.chain]} → ${chainNames[item.target_chain]}`;
+  route.textContent = `${({cat:'CAT',binancelife:'币安人生',wotr:'WOTR'})[item.asset] ?? '未知资产'} · ${chainNames[item.chain]} → ${chainNames[item.target_chain]}`;
   const state = document.createElement('span');
   state.className = `history-status history-${item.status}`;
   state.textContent = text[item.status] || text.unknown;
