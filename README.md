@@ -29,6 +29,8 @@ Choose **Bridge an asset** for a direct transfer, or **WOTR journey · 3 steps**
 
 After the Arc swap transaction and native-USDC arrival are verified, step 3 shows an optional link to the official [Arc Portal](https://portal.arc.io/). The link opens a separate site; it does not grant access to the wallet, deposit USDC, or make another transaction. It remains hidden while verification is incomplete.
 
+On October 3, the user reported that the button appeared after the verified swap and opened Arc Portal when clicked. This is a user-reported navigation check, not evidence of a Portal deposit or other activity there.
+
 The disconnected site opens in English and hides the language control. Connecting a wallet keeps English; the user can then explicitly switch to Simplified Chinese. Disconnecting returns to the English view.
 
 ## Development and documentation
