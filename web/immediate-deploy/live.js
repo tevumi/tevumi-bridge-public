@@ -6,7 +6,7 @@ import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/pr
 
 const $=id=>document.getElementById(id);
 const owner='0x489594537CB76aC256079D710B6E18498E1a5402';
-let assetId=document.body.dataset.asset==='cat'?'cat':'binancelife';
+let assetId=document.body.dataset.asset==='wotr'?'wotr':document.body.dataset.asset==='cat'?'cat':'binancelife';
 const assetNames={binancelife:'币安人生',cat:'CAT',wotr:'WOTR'};
 let assetName=assetNames[assetId];
 const pairs={
@@ -23,7 +23,7 @@ const activeAdmin=()=>admins[assetId==='wotr'?'wotr':'legacy'];
 const networks={bsc:{chainId:56,eid:30102,endpoint:'0x1a44076050125825900e736c501f859c50fe728c'},arc:{chainId:5042,eid:30417,endpoint:'0x6f475642a6e85809b1c36fa62763669b1b48dd5b'}};
 const options='0x00030100110100000000000000000000000000030d40';
 const legacyAmountLD=parseEther('0.000001');
-let amount='0.000001',limits={bsc:null,arc:null},routeState=null;
+let amount=assetId==='wotr'?'500':'0.000001',limits={bsc:null,arc:null},routeState=null;
 const adminAbi=['function owner() view returns(address)','function executeBatch(address[] targets,bytes[] payloads)'];
 const appAbi=[...candidateAppAbi,'function owner() view returns(address)','function guardian() view returns(address)','function setPauses(bool,bool)','function pause(bool,bool)',
  'event OFTSent(bytes32 indexed guid,uint32 dstEid,address indexed fromAddress,uint256 amountSentLD,uint256 amountReceivedLD)',

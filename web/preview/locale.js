@@ -5,12 +5,12 @@ let language = 'en';
 
 const exact = new Map(Object.entries({
   '单独跨链': 'Bridge an asset',
+  'WOTR 跨链': 'Bridge WOTR',
   'WOTR 三步体验': 'WOTR journey · 3 steps',
   '从 BNB 到 Arc USDC': 'From BNB to Arc USDC',
   '三笔独立交易 · 主网': '3 independent transactions · Mainnet',
   '在 BNB Chain 买入 WOTR，跨链到 Arc，再兑换成 USDC。每笔交易都需要在钱包确认。你可以离开页面，稍后回来查看进度。': 'Buy WOTR on BNB Chain, bridge it to Arc, then swap it for USDC. Confirm each transaction in your wallet. You can leave and return to check progress.',
   '购买 WOTR': 'Buy WOTR',
-  '跨链 WOTR': 'Bridge WOTR',
   '兑换 USDC': 'Swap to USDC',
   '在 BNB Chain 买入 WOTR': 'Buy WOTR on BNB Chain',
   'PancakeSwap V2 · WOTR/BNB 池': 'PancakeSwap V2 · WOTR/BNB pool',
@@ -42,6 +42,7 @@ const exact = new Map(Object.entries({
   'Tevumi Bridge 首页': 'Tevumi Bridge home',
   '你的资产不止一条链': 'Your assets go beyond one chain',
   '跨链转移': 'Bridge assets',
+  '跨链 WOTR': 'Bridge WOTR',
   '主网': 'Mainnet',
   'BNB Chain ↔ Arc · 主网': 'BNB Chain ↔ Arc · Mainnet',
   '选择方向': 'Choose direction',
@@ -77,12 +78,17 @@ const exact = new Map(Object.entries({
   '加载更多': 'Load more',
   '跨链说明': 'About this bridge',
   '各自跨链': 'Bridge each asset',
+  'WOTR 跨链流转': 'WOTR across chains',
+  'WOTR 跨链后仍是 WOTR；到达 Arc 后可自行选择是否兑换。': 'Bridge WOTR as WOTR, then choose whether to swap it on Arc.',
+  '实时限额': 'Live limits',
+  '每次跨链前检查链上限额与钱包余额。': 'On-chain limits and balances are checked before each transfer.',
   '资产在两条链之间流转，不进行币种互换。': 'Move the same asset between chains. This is not a token swap.',
   '小额通道': 'Small-transfer route',
   '每笔至少 0.000001 枚，发送前会复核链上限额与余额。': 'Minimum 0.000001 tokens per transfer. On-chain limits and balances are checked before sending.',
   '真实主网': 'Live mainnet',
   '使用真实资产；还需支付对应链上的消息费与 Gas。': 'Uses real assets. Message fees and gas are paid on the source chain.',
   '返回资产选择': 'Back to asset selection',
+  '返回 WOTR 三步体验': 'Back to WOTR journey',
   '小额开放': 'Small transfers open',
   '按链上状态': 'Live chain status',
   '当前方向的桥仍暂停，暂不能发送。桥管理钱包开放后请刷新页面。': 'This route is paused. Reload the page after the bridge admin opens it.',
@@ -255,8 +261,8 @@ function apply() {
   visit(document.body);
   const description = document.querySelector('meta[name="description"]');
   if (description) description.content = language === 'en'
-    ? 'Bridge 币安人生, CAT or WOTR between BNB Chain and Arc with Tevumi Bridge.'
-    : 'Tevumi Bridge：选择币安人生、CAT 或 WOTR，在 BNB Chain 与 Arc 之间跨链。';
+    ? 'Buy WOTR on BNB Chain, bridge to Arc, and swap for native USDC with Tevumi Bridge.'
+    : 'Tevumi Bridge：在 BNB Chain 购买 WOTR，跨链到 Arc，再兑换为原生 USDC。';
 }
 
 document.addEventListener('DOMContentLoaded', () => {

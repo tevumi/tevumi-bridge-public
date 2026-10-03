@@ -2,10 +2,8 @@ import { amountValidation, bridgeView, selectAmount, selectAsset, selectDirectio
 import { formatEther } from 'ethers';
 import './history.js';
 
-// Add future routes here; the search list and count derive from this catalog.
+// Public asset catalog. Historical routes remain in the controller for receipt recovery.
 const assets = [
-  { key: 'binancelife', name: '币安人生', aliases: 'binancelife bnl', route: 'BNB Chain ↔ Arc', status: '小额开放' },
-  { key: 'cat', name: 'CAT', aliases: '猫', route: 'BNB Chain ↔ Arc', status: '小额开放' },
   { key: 'wotr', name: 'WOTR', aliases: 'Wobble Otter 水獭', route: 'BNB Chain ↔ Arc', status: '按链上状态' },
 ];
 const input = document.querySelector('#asset-search');

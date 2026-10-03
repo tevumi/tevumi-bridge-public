@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f6f1">
-  <meta name="description" content="Bridge 币安人生, CAT or WOTR between BNB Chain and Arc with Tevumi Bridge.">
+  <meta name="description" content="Buy WOTR on BNB Chain, bridge to Arc, and swap for native USDC with Tevumi Bridge.">
   <title>Tevumi Bridge · BNB Chain ↔ Arc</title>
   <link rel="icon" type="image/svg+xml" href="/brand/tevumi.svg">
   <link rel="stylesheet" href="./style.css">
@@ -12,7 +12,7 @@
   <script type="module" src="./search.js"></script>
   <script type="module" src="./journey.js"></script>
 </head>
-<body data-balance-only="true" data-history-api="true">
+<body data-asset="wotr" data-balance-only="true" data-history-api="true">
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute"><symbol id="tevumi-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="19" fill="#122b3b"/><path d="M15 19h34v9H36v20h-9V28H15z" fill="#fff"/><path d="M36 28h13v9H36z" fill="#51d5b1"/></symbol></svg>
   <div class="page-shell">
     <header class="site-header">
@@ -26,19 +26,19 @@
         </div>
         <div class="hero-art" aria-hidden="true"><span class="hero-node">BNB</span><span class="hero-line"></span><svg viewBox="0 0 64 64" width="90" height="90"><use href="#tevumi-mark"/></svg><span class="hero-line"></span><span class="hero-node">ARC</span></div>
       </section>
-      <nav class="experience-tabs" aria-label="Choose experience"><button id="tab-bridge" type="button" aria-pressed="true">Bridge an asset</button><button id="tab-journey" type="button" aria-pressed="false">WOTR journey · 3 steps</button></nav>
+      <nav class="experience-tabs" aria-label="Choose experience"><button id="tab-journey" type="button" aria-pressed="true">WOTR journey · 3 steps</button><button id="tab-bridge" type="button" aria-pressed="false">Bridge WOTR</button></nav>
       <section class="bridge-workspace" id="asset-picker" aria-labelledby="operation-title">
-        <div class="workspace-heading"><div><p class="eyebrow">BRIDGE</p><h2 id="operation-title">Bridge assets</h2></div><span class="operation-badge">BNB Chain ↔ Arc · Mainnet</span></div>
+        <div class="workspace-heading"><div><p class="eyebrow">BRIDGE</p><h2 id="operation-title">Bridge WOTR</h2></div><span class="operation-badge">BNB Chain ↔ Arc · Mainnet</span></div>
         <div class="workspace-grid">
           <div class="bridge-form">
             <div class="field-heading"><span>Choose direction</span><span id="wallet-state">Wallet not connected</span></div>
             <div class="direction-picker" role="group" aria-label="Bridge direction"><button id="direction-bsc" type="button" class="active" aria-pressed="true">BNB Chain → Arc</button><button id="direction-arc" type="button" aria-pressed="false">Arc → BNB Chain</button></div>
-            <div class="asset-combobox">
+            <div class="asset-combobox" hidden>
               <label for="asset-search">Asset</label>
-              <input id="asset-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="asset-options" autocomplete="off" placeholder="Search 币安人生, CAT, WOTR…" spellcheck="false">
+              <input id="asset-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="asset-options" autocomplete="off" placeholder="WOTR" spellcheck="false">
               <ul id="asset-options" class="asset-options" role="listbox" aria-label="Available assets" hidden><li id="asset-empty" class="asset-empty" role="status" hidden>No matching assets found.</li></ul>
             </div>
-            <div class="amount-box"><div><label class="field-label" for="send-amount">Amount to send</label><input id="send-amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.000001" aria-describedby="amount-note" aria-invalid="false"></div><span id="selected-name">币安人生</span></div>
+            <div class="amount-box"><div><label class="field-label" for="send-amount">Amount to send</label><input id="send-amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="500" aria-describedby="amount-note" aria-invalid="false"></div><span id="selected-name">WOTR</span></div>
             <p id="amount-note" class="amount-note" aria-live="polite">Loading the current per-transfer limit…</p>
             <div id="fee-state" class="fee-state" aria-live="polite">Connect your wallet to see the selected asset balance.</div>
             <div class="primary-action"><button id="connect">Connect wallet</button><button id="send-bsc" hidden>Approve and bridge</button><button id="send-arc" hidden>Bridge now</button><button id="check-arc" hidden>Check arrival on Arc</button><button id="check-bsc" hidden>Check arrival on BNB Chain</button></div>
@@ -64,12 +64,12 @@
         </div>
       </section>
       <section class="facts" aria-label="About this bridge">
-        <div><strong>Bridge each asset</strong><p>Move the same asset between chains. This is not a token swap.</p></div>
-        <div><strong>Small-transfer route</strong><p>Minimum 0.000001 tokens per transfer. On-chain limits and balances are checked before sending.</p></div>
+        <div><strong>WOTR across chains</strong><p>Bridge WOTR as WOTR, then choose whether to swap it on Arc.</p></div>
+        <div><strong>Live limits</strong><p>On-chain limits and balances are checked before each transfer.</p></div>
         <div><strong>Live mainnet</strong><p>Uses real assets. Message fees and gas are paid on the source chain.</p></div>
       </section>
     </main>
-    <footer><span>© 2026 Tevumi</span><span>BNB Chain ↔ Arc</span><a href="#asset-picker">Back to asset selection</a></footer>
+    <footer><span>© 2026 Tevumi</span><span>BNB Chain ↔ Arc</span><a href="#wotr-journey">Back to WOTR journey</a></footer>
   </div>
 </body>
 </html>

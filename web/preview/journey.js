@@ -37,7 +37,7 @@ let buyQuote = null;
 let swapQuote = null;
 let balanceData = null;
 let busy = false;
-let activeTab = 'bridge';
+let activeTab = 'journey';
 let activeStep = 'buy';
 
 function key(kind) { return `tevumi-journey-v1:${account?.toLowerCase()}:${kind}`; }
@@ -342,4 +342,5 @@ window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if
 window.addEventListener('tevumi:locale-change',()=>{renderLiveText();draw();});
 setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30000);
 draw();
+setTab(activeTab);
 setStep(activeStep);

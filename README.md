@@ -2,9 +2,9 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge moves **币安人生**, **CAT**, and the community demonstration token **Wobble Otter (WOTR)** between BNB Chain and Arc. Each asset has its own route and remains the same asset when bridged. The token name 币安人生 stays in Chinese in both website languages.
+Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available. Earlier 币安人生 and CAT routes were small mainnet experiments and are no longer offered in the public asset picker; their historical receipts remain available.
 
-**Live app:** https://bridge.tevumi.com/ · **Status checked:** October 3, 2026
+**Live app:** https://bridge.tevumi.com/ · **Status checked:** October 4, 2026
 
 Tevumi Bridge has been submitted to **Arc Microgrants**. The submission confirmation showed it under review; no award is claimed. This public repository is a reviewed source snapshot for Arc reviewers, developers and test users. The full working repository is private and contains internal operations and research; it is not mirrored here. This submission does not imply endorsement by Arc or Circle.
 
@@ -12,7 +12,7 @@ Tevumi Bridge has been submitted to **Arc Microgrants**. The submission confirma
 
 | Route | Verified result | Current product boundary |
 | --- | --- | --- |
-| 币安人生 and CAT bridging | Mainnet transfers in both directions, including destination receipts, have been independently checked. | Small-transfer development routes. The page reads current on-chain limits and fees before signing. |
+| 币安人生 and CAT bridging | Earlier mainnet transfers in both directions, including destination receipts, were independently checked. | Retired from the public asset picker on October 4. This product change does not erase contracts or historical receipts. |
 | WOTR bridging | The dedicated BNB Chain ↔ Arc route and real mainnet round trips of 500 and 700 WOTR have been independently checked. | The community controls WOTR and its liquidity; the bridge is administered separately. Recheck live pause state before sending. |
 | WOTR pools | A WOTR/BNB PancakeSwap V2 pool on BNB Chain and a WOTR/native-USDC Uniswap V4 pool on Arc have been created and verified. | Prices depend on those live pools and can change. A pool or a quote does not guarantee a profitable trade. |
 | Guided WOTR journey | The live app guides users through buying WOTR with BNB, bridging it to Arc, and swapping it for native USDC. The existing independent bridge remains available. A time-ordered buy → GUID-matched bridge → Arc swap by the same test wallet has now been independently verified on mainnet. | The user reports using the guided page; chain data cannot identify the browser session. Existing WOTR balances contributed to the bridge and swap amounts. |
@@ -25,7 +25,7 @@ WOTR contract addresses: [BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdB
 
 ## Using the app
 
-Choose **Bridge an asset** for a direct transfer, or **WOTR journey · 3 steps** for the buy → bridge → swap path. The journey is a sequence of separate mainnet transactions, including token approvals where needed. Review the network, contract, amount, minimum received, message fee, and gas in your wallet before each confirmation. Arc uses native USDC for gas, so keep some in the destination wallet. If a result is still being checked, use the original transaction hash and wait for chain verification before trying again.
+The homepage opens on **WOTR journey · 3 steps** for the buy → bridge → swap path. Choose **Bridge WOTR** for a direct transfer in either direction. The journey is a sequence of separate mainnet transactions, including token approvals where needed. Review the network, contract, amount, minimum received, message fee, and gas in your wallet before each confirmation. Arc uses native USDC for gas, so keep some in the destination wallet. If a result is still being checked, use the original transaction hash and wait for chain verification before trying again.
 
 After the Arc swap transaction and native-USDC arrival are verified, step 3 shows an optional link to the official [Arc Portal](https://portal.arc.io/). The link opens a separate site; it does not grant access to the wallet, deposit USDC, or make another transaction. It remains hidden while verification is incomplete.
 
