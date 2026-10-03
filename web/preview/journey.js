@@ -132,6 +132,31 @@ async function verify(kind) {
   if (kind === 'swap') {
     const parsed = new Interface(routerAbi).parseTransaction({data:transaction.data,value:transaction.value});
     assert(parsed?.name === 'execute' && same(parsed.args.commands,'0x10'), 'Arc transaction is not the planned Uniswap v4 swap.');
+    // A successful router receipt alone is not enough to offer the next step.
+    // Check the WOTR debit and the wallet's native-USDC increase in this block.
+    if (item.usdcArrivalVerified !== true && item.minOut && item.amountIn && receipt.blockNumber > 0) {
+      const transfers = new Interface(tokenAbi);
+      let wotrSpent = 0n;
+      for (const log of receipt.logs) {
+        if (!same(log.address,A.arcWotr)) continue;
+        try {
+          const event = transfers.parseLog(log);
+          if (event?.name === 'Transfer' && same(event.args.from,account) && same(event.args.to,A.poolManager)) wotrSpent += event.args.value;
+        } catch { /* ignore unrelated WOTR events */ }
+      }
+      if (wotrSpent === BigInt(item.amountIn)) {
+        try {
+          const [before,after] = await Promise.all([
+            reader.getBalance(account,receipt.blockNumber-1),reader.getBalance(account,receipt.blockNumber),
+          ]);
+          const received = after - before + receipt.gasUsed * receipt.gasPrice;
+          if (received >= BigInt(item.minOut) && received > 0n) {
+            item.usdcArrivalVerified = true;
+            item.nativeUsdcReceived = received.toString();
+          }
+        } catch { /* keep the Portal link hidden until the historical balance can be checked */ }
+      }
+    }
   }
   const verified = {...item,state:'verified',block:receipt.blockNumber};
   save(kind,verified);
@@ -255,7 +280,9 @@ async function refreshAll() {
   else if (buyRecord?.state === 'failed') status('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
   else if (buyRecord) status('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
-  if (swapRecord?.state === 'verified') status('swap',local(`Arc swap confirmed in block ${swapRecord.block} · ${swapRecord.hash}`,`Arc 兑换已在区块 ${swapRecord.block} 确认 · ${swapRecord.hash}`));
+  if (swapRecord?.state === 'verified') status('swap',swapRecord.usdcArrivalVerified === true
+    ? local(`Arc swap and USDC arrival verified in block ${swapRecord.block} · ${swapRecord.hash}`,`Arc 兑换与 USDC 到账已在区块 ${swapRecord.block} 核验 · ${swapRecord.hash}`)
+    : local(`Arc swap confirmed in block ${swapRecord.block}; checking USDC arrival · ${swapRecord.hash}`,`Arc 兑换已在区块 ${swapRecord.block} 确认，正在核验 USDC 到账 · ${swapRecord.hash}`));
   else if (swapRecord?.state === 'failed') status('swap',local('Arc swap failed on-chain. Refresh the quote before retrying.','Arc 兑换链上失败。刷新报价后再试。'));
   else if (swapRecord) status('swap',local(`Arc swap is being checked${swapRecord.hash ? ': '+swapRecord.hash : ''}. Do not submit again.`,`正在核对 Arc 兑换${swapRecord.hash ? '：'+swapRecord.hash : ''}。请勿重复提交。`));
   else if (permitRecord?.state === 'failed') status('swap',local('Swap access approval failed on-chain. Refresh the quote before retrying.','兑换权限授权链上失败。刷新报价后再试。'));
@@ -282,6 +309,11 @@ function draw() {
   const bridgeDone = Boolean(view.assetId==='wotr' && view.records['send-bsc']?.deliveredHash);
   $('journey-route-bridge').classList.toggle('done',bridgeDone);
   $('journey-route-swap').classList.toggle('done',record('swap')?.state==='verified');
+  const portalReady = Boolean(account && record('swap')?.state === 'verified' && record('swap')?.usdcArrivalVerified === true);
+  $('journey-portal').hidden = !portalReady;
+  $('journey-portal-title').textContent = local('USDC arrived on Arc','USDC 已到达 Arc');
+  $('journey-portal-copy').textContent = local('Your swap is confirmed. Explore what you can do with USDC in Arc Portal. This opens a separate site; nothing is transferred automatically.','兑换已确认。前往 Arc Portal 探索 USDC 的用途。将打开独立网站，不会自动转移资产。');
+  $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
   for (const [step,done] of [['buy',record('buy')?.state==='verified'],['bridge',bridgeDone],['swap',record('swap')?.state==='verified']]) {
     $('journey-progress-'+step)?.classList.toggle('done',Boolean(done));
   }

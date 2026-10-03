@@ -27,6 +27,8 @@ WOTR contract addresses: [BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdB
 
 Choose **Bridge an asset** for a direct transfer, or **WOTR journey · 3 steps** for the buy → bridge → swap path. The journey is a sequence of separate mainnet transactions, including token approvals where needed. Review the network, contract, amount, minimum received, message fee, and gas in your wallet before each confirmation. Arc uses native USDC for gas, so keep some in the destination wallet. If a result is still being checked, use the original transaction hash and wait for chain verification before trying again.
 
+After the Arc swap transaction and native-USDC arrival are verified, step 3 shows an optional link to the official [Arc Portal](https://portal.arc.io/). The link opens a separate site; it does not grant access to the wallet, deposit USDC, or make another transaction. It remains hidden while verification is incomplete.
+
 The disconnected site opens in English and hides the language control. Connecting a wallet keeps English; the user can then explicitly switch to Simplified Chinese. Disconnecting returns to the English view.
 
 ## Development and documentation
