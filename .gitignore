@@ -23,6 +23,7 @@ web/beta-deploy/public/plan.json
 web/beta-deploy/public/config-plan.json
 web/immediate-deploy/public/plan.json
 web/immediate-deploy/public/config-plan.json
+web/immediate-deploy/limits-plan.json
 web/community-token/public/plan.json
 __pycache__/
 web/generated/
