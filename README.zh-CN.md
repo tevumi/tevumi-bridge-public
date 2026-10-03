@@ -15,9 +15,11 @@ Tevumi Bridge 已提交 **Arc Microgrants** 申请，提交成功页当时显示
 | 币安人生与 CAT 跨链 | 两种资产的双向主网发送和目标链到账回执均已独立核验。 | 仍为小额主网开发路线；页面在签名前读取当前链上限额与费用。 |
 | WOTR 跨链 | 独立 BNB Chain ↔ Arc 通道及 500、700 WOTR 的真实主网往返均已独立核验。 | WOTR 与流动性由社区钱包控制，桥由另一管理钱包控制；发送前应重新核对实时暂停状态。 |
 | WOTR 两侧池子 | BNB Chain 的 WOTR/BNB PancakeSwap V2 池与 Arc 的 WOTR/原生 USDC Uniswap V4 池均已建立并核验。 | 报价随实时池状态变化，建池和报价不保证交易收益。 |
-| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。测试钱包在 Arc 主网真实将 500 WOTR 兑换为 `0.026254461000066494` 原生 USDC，已独立核验。 | 每个操作需单独在钱包确认，必要时还有代币授权；各步独立交易证据不足以证明新版页面在同一次钱包会话中连续完成全部三步。 |
+| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。同一测试钱包依次完成买入、GUID 匹配的跨链到账及 Arc 兑换，主网链上已独立核验。 | 用户报告通过三步页面操作；链上不能证明具体网页会话。桥接与兑换数量包括钱包原有 WOTR。 |
 
-10 月 3 日已独立核验测试钱包在 Arc 的 **500 WOTR→Permit2 授权**、后续 Permit2→Router 授权及真实兑换。[兑换交易](https://explorer.arc.io/tx/0x821ee152a638fd695e793daaccea79dde4b176d56c8900fa9b1edb3f2480a691)从钱包转出 500 WOTR，同一钱包收到 `0.026254461000066494` 原生 USDC，另支付 `0.003656648866910364 USDC` Gas。
+10 月 3 日，同一测试钱包依次在主网[买入](https://bscscan.com/tx/0xa11949a9398a5bf245005c794c4a80d2ef1a86b385316f0b10e4762332bf0b92) `1024.763647745767238747 WOTR`、[跨链](https://bscscan.com/tx/0xef1a5b41c2aa0b55e21dc27d1ac372dd13c7c9c5e7eb195936cd06c2e3d1d737) `1049 WOTR`，在 Arc [到账](https://explorer.arc.io/tx/0xa385f2381f9abf5fe904c35d29b910a7ac4ef1988ebf0be525641decc7054a35)的 GUID 一致，随后[兑换](https://explorer.arc.io/tx/0x7118a0ef9fae75e8627d94ea28de929e918bffbd1e4920e0c312e7b6dd029418) `2549 WOTR` 得 `0.133832577596989233` 原生 USDC。BNB 买入前已有 `24.390009870517457009 WOTR`，Arc 到账前已有 `1500 WOTR`，不能把全部 USDC 归因于本次 BNB 买入。用户报告通过三步页面操作；链上可核对地址与顺序，不能核对具体浏览器会话。
+
+10 月 3 日早些时候已独立核验测试钱包在 Arc 的 **500 WOTR→Permit2 授权**、后续 Permit2→Router 授权及真实兑换。[兑换交易](https://explorer.arc.io/tx/0x821ee152a638fd695e793daaccea79dde4b176d56c8900fa9b1edb3f2480a691)从钱包转出 500 WOTR，同一钱包收到 `0.026254461000066494` 原生 USDC，另支付 `0.003656648866910364 USDC` Gas。
 
 WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5) `0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5`；[Arc](https://explorer.arc.io/address/0x70Cedd901366ad932203BBB08B22DcD4d4510028) `0x70Cedd901366ad932203BBB08B22DcD4d4510028`。
 
