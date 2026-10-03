@@ -4,6 +4,15 @@ let connected = false;
 let language = 'en';
 
 const exact = new Map(Object.entries({
+  '选择操作': 'Choose an action',
+  '购买': 'Buy',
+  '跨链': 'Bridge',
+  '兑换': 'Swap',
+  '路径': 'Route',
+  '来源链': 'From',
+  '目标链': 'To',
+  '数量': 'Amount',
+  '反转跨链方向': 'Reverse bridge direction',
   '单独跨链': 'Bridge an asset',
   'WOTR 跨链': 'Bridge WOTR',
   'WOTR 三步体验': 'WOTR journey · 3 steps',

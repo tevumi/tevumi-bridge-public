@@ -1,8 +1,8 @@
 import { chromium } from '@playwright/test';
 
-const origin = process.argv.includes('--public')
+const origin = process.env.TEVUMI_BASE_URL || (process.argv.includes('--public')
   ? 'https://bridge.tevumi.com/'
-  : 'http://127.0.0.1:5190/preview/web/preview/';
+  : 'http://127.0.0.1:5190/preview/web/preview/');
 const account = '0x489594537CB76aC256079D710B6E18498E1a5402';
 const browser = await chromium.launch({ headless: true });
 try {
@@ -13,7 +13,7 @@ try {
   await firstPaint.close();
   const newVisitor = await browser.newPage();
   await newVisitor.goto(origin, { waitUntil: 'domcontentloaded' });
-  await newVisitor.getByRole('heading', { name: 'Your assets go beyond one chain' }).waitFor();
+  await newVisitor.locator('#nav-buy').getByText('Buy').waitFor();
   if (await newVisitor.locator('html').getAttribute('lang') !== 'en') throw Error('NEW_VISITOR_LANGUAGE');
   if (await newVisitor.locator('.language-switch').isVisible()) throw Error('GUEST_SWITCH_VISIBLE');
   await newVisitor.close();
@@ -31,20 +31,20 @@ try {
       } };
     }, account);
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('heading', { name: 'Your assets go beyond one chain' }).waitFor();
+    await page.locator('#nav-buy').getByText('Buy').waitFor();
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('SAVED_GUEST_LANGUAGE_NOT_IGNORED');
     if (await page.locator('.language-switch').isVisible()) throw Error('GUEST_SWITCH_VISIBLE');
     await page.locator('#journey-connect').click();
     await page.locator('.language-switch').waitFor({ state: 'visible', timeout: 30000 });
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('CONNECTED_LANGUAGE_JUMP');
-    await page.getByRole('heading', { name: 'Your assets go beyond one chain' }).waitFor();
+    await page.locator('#nav-buy').getByText('Buy').waitFor();
     const connectedText = (await page.locator('body').innerText()).replaceAll('币安人生', '').replaceAll('简体中文', '');
     if (/[\u3400-\u9fff]/u.test(connectedText)) throw Error(`UNTRANSLATED_CONNECTED_TEXT: ${connectedText.match(/[^\n]*[\u3400-\u9fff][^\n]*/gu)?.join(' | ')}`);
     await page.locator('[data-language="zh-CN"]').click();
     if (await page.locator('#selected-name').textContent() !== 'WOTR') throw Error('TOKEN_NAME_CHANGED');
     let historyRequests = 0;
     await page.route('**/api/transfers?*', route => { historyRequests += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [{ chain: 56, target_chain: 5042, asset: 'binancelife', source_hash: `0x${'a'.repeat(64)}`, target_hash: `0x${'b'.repeat(64)}`, status: 'arrived', amount_ld: '1000000000000', created_at: 1790493000 }], more: false }) }); });
-    await page.locator('#tab-bridge').click();
+    await page.locator('#nav-bridge').click();
     await page.locator('#history-panel > summary').click();
     await page.locator('.history-card').getByText('已到账').waitFor();
     if (!(await page.locator('.history-card').innerText()).includes('0.000001 枚')) throw Error('CHINESE_HISTORY_AMOUNT');
@@ -58,7 +58,7 @@ try {
     await page.locator('[data-language="en"]').click();
     if (historyRequests !== 1) throw Error(`LANGUAGE_SWITCH_REQUERIED_HISTORY: ${historyRequests}`);
     await page.locator('[data-language="zh-CN"]').click();
-    await page.getByRole('heading', { name: '你的资产不止一条链' }).waitFor();
+    await page.locator('#operation-title').getByText('跨链').waitFor();
     await page.evaluate(() => window.ethereum.__emit('accountsChanged', []));
     await page.locator('#wallet-state').getByText('Wallet not connected').waitFor();
     if (await page.locator('.language-switch').isVisible()) throw Error('DISCONNECTED_SWITCH_VISIBLE');

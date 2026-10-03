@@ -37,7 +37,7 @@ let buyQuote = null;
 let swapQuote = null;
 let balanceData = null;
 let busy = false;
-let activeTab = 'journey';
+let activeTab = 'buy';
 let activeStep = 'buy';
 
 function key(kind) { return `tevumi-journey-v1:${account?.toLowerCase()}:${kind}`; }
@@ -52,8 +52,18 @@ function amount(value) {
 function setTab(tab) {
   activeTab = tab;
   $('asset-picker').hidden = tab !== 'bridge';
-  $('wotr-journey').hidden = tab !== 'journey';
-  for (const item of ['bridge','journey']) $('tab-' + item).setAttribute('aria-pressed', String(item === tab));
+  $('wotr-journey').hidden = tab === 'bridge';
+  for (const item of ['buy','bridge','swap']) {
+    const button = $(`nav-${item}`);
+    if (item === tab) button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  }
+  if (tab !== 'bridge') {
+    setStep(tab);
+    $('journey-title').textContent = tab === 'buy' ? 'Buy' : 'Swap';
+    $(`journey-${tab}-card`).querySelector('.journey-actions').prepend($('journey-connect'));
+    $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
+  }
 }
 function setStep(step) {
   activeStep = step;
@@ -298,12 +308,17 @@ function draw() {
   const view = bridgeView();
   account = view.account || null;
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
+  $('journey-wallet').hidden = !account;
   $('journey-connect').hidden = Boolean(account);
   $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapQuote?.stage === 'token' ? local('Approve WOTR','授权 WOTR') : swapQuote?.stage === 'permit' ? local('Approve swap access','授权兑换权限') : swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Review approval','检查授权');
   $('journey-buy-refresh').disabled = busy || !account;
   $('journey-swap-refresh').disabled = busy || !account;
+  $('journey-buy-refresh').hidden = !account;
+  $('journey-buy-action').hidden = !account;
+  $('journey-swap-refresh').hidden = !account;
+  $('journey-swap-action').hidden = !account;
   $('journey-open-bridge').disabled = busy;
   $('journey-route-buy').classList.toggle('done',record('buy')?.state==='verified');
   const bridgeDone = Boolean(view.assetId==='wotr' && view.records['send-bsc']?.deliveredHash);
@@ -327,8 +342,9 @@ async function run(action, kind) {
   catch (error) { status(kind,cleanError(error)); }
   finally { busy = false; draw(); }
 }
-$('tab-bridge').addEventListener('click',()=>setTab('bridge'));
-$('tab-journey').addEventListener('click',()=>setTab('journey'));
+$('nav-buy').addEventListener('click',()=>setTab('buy'));
+$('nav-bridge').addEventListener('click',()=>setTab('bridge'));
+$('nav-swap').addEventListener('click',()=>setTab('swap'));
 for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventListener('click',()=>setStep(step));
 $('journey-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));

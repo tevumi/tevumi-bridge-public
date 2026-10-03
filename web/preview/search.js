@@ -94,6 +94,7 @@ async function chooseDirection(next) {
 export { chooseDirection };
 document.querySelector('#direction-bsc').addEventListener('click', () => { void chooseDirection('bsc'); });
 document.querySelector('#direction-arc').addEventListener('click', () => { void chooseDirection('arc'); });
+document.querySelector('#reverse-direction').addEventListener('click', () => { void chooseDirection(side === 'bsc' ? 'arc' : 'bsc'); });
 function updateView() {
   const { account, records, busy, amount, limitLD, routeReady, routePaused } = bridgeView();
   if (amountInput.value !== amount) amountInput.value = amount;
@@ -109,6 +110,8 @@ function updateView() {
     button.classList.toggle('active', item === side);
     button.setAttribute('aria-pressed', String(item === side));
   }
+  document.querySelector('#route-from').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
+  document.querySelector('#route-to').textContent = side === 'bsc' ? 'Arc' : 'BNB Chain';
   const buttons = ['connect', 'send-bsc', 'send-arc', 'check-arc', 'check-bsc'];
   for (const id of buttons) document.querySelector(`#${id}`).hidden = true;
   let action = !account ? 'connect' : side === 'bsc' ? 'send-bsc' : 'send-arc';
@@ -121,7 +124,7 @@ function updateView() {
   }
   document.querySelector('#send-bsc').textContent = source?.deliveredHash ? '再次跨链' : '授权并跨链';
   document.querySelector('#send-arc').textContent = source?.deliveredHash ? '再次跨链' : '开始跨链';
-  document.querySelector('#approval-note').hidden = side !== 'bsc';
+  document.querySelector('#approval-note').hidden = side !== 'bsc' || !account;
   const summary = document.querySelector('#status-summary');
   if (unknownKind) summary.textContent = '正在核对上一笔交易，请勿重复发起。核对完成后页面会自动更新。';
   else if (source?.deliveredHash) summary.textContent = `已到账目标链。可以在交易记录中查看哈希，或发起下一笔。`;
@@ -129,6 +132,7 @@ function updateView() {
   else if (searching) summary.textContent = '请选择搜索结果后继续。';
   else if (routePaused) summary.textContent = '当前方向的桥仍暂停，暂不能发送。桥管理钱包开放后请刷新页面。';
   else summary.textContent = account ? '已连接钱包。核对资产和数量后开始跨链。' : '选择资产和方向，连接钱包后即可开始。';
+  summary.hidden = !(unknownKind || source?.hash || routePaused);
   document.querySelector('#step-prepare').classList.toggle('active', !source?.hash);
   document.querySelector('#step-source').classList.toggle('active', Boolean(source?.hash && !source.deliveredHash));
   document.querySelector('#step-destination').classList.toggle('active', Boolean(source?.deliveredHash));

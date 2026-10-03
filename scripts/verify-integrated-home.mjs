@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 
-const origin = process.argv.includes('--public') ? 'https://bridge.tevumi.com/' : 'http://127.0.0.1:5190/preview/web/preview/';
+const origin = process.env.TEVUMI_BASE_URL || (process.argv.includes('--public') ? 'https://bridge.tevumi.com/' : 'http://127.0.0.1:5190/preview/web/preview/');
 const browser = await chromium.launch({ headless: true });
 try {
   for (const [label, viewport] of [['desktop', { width: 1440, height: 1024 }], ['mobile', { width: 390, height: 844 }]]) {
@@ -9,16 +9,16 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     await page.locator('#chain-state').getByText(/BSC：发送/).waitFor({ state: 'attached', timeout: 30000 });
-    if (await page.locator('#tab-journey').getAttribute('aria-pressed') !== 'true' || !(await page.locator('#wotr-journey').isVisible())) throw Error(`WOTR_JOURNEY_DEFAULT_${label}`);
+    if (await page.locator('#nav-buy').getAttribute('aria-current') !== 'page' || !(await page.locator('#wotr-journey').isVisible())) throw Error(`BUY_DEFAULT_${label}`);
     if (await page.locator('#asset-picker').isVisible()) throw Error(`BRIDGE_DEFAULT_VISIBLE_${label}`);
-    await page.locator('#tab-bridge').click();
+    await page.locator('#nav-bridge').click();
     if (await page.locator('#asset-search').isVisible() || await page.locator('#selected-name').textContent() !== 'WOTR') throw Error(`LEGACY_ASSET_VISIBLE_${label}`);
     if (await page.locator('#send-amount').inputValue() !== '500') throw Error(`WOTR_DEFAULT_AMOUNT_${label}`);
     if (await page.locator('#send-bsc').isVisible()) throw Error(`SIGNING_WITHOUT_WALLET_${label}`);
-    await page.locator('#direction-arc').click();
+    await page.locator('#reverse-direction').click();
     if (await page.locator('#direction-arc').getAttribute('aria-pressed') !== 'true') throw Error(`ARC_DIRECTION_${label}`);
     if (await page.locator('#approval-note').isVisible()) throw Error(`ARC_APPROVAL_NOTE_${label}`);
-    await page.locator('#direction-bsc').click();
+    await page.locator('#reverse-direction').click();
     const amount = page.locator('#send-amount');
     await amount.fill('9'.repeat(100));
     if (await amount.getAttribute('aria-invalid') !== 'true') throw Error(`AMOUNT_OVERFLOW_${label}`);
@@ -44,7 +44,7 @@ try {
   await walletPage.goto(origin, { waitUntil: 'domcontentloaded' });
   await walletPage.locator('#journey-connect').click();
   await walletPage.locator('[data-language="zh-CN"]').click();
-  await walletPage.locator('#tab-bridge').click();
+  await walletPage.locator('#nav-bridge').click();
   await walletPage.locator('#fee-state').getByText(/钱包余额：.*WOTR/).waitFor({ timeout: 30000 });
   if (await walletPage.locator('#history-panel').getAttribute('open') !== null) throw Error('HISTORY_DEFAULT_OPEN');
   await walletPage.locator('#history-panel > summary').click();
