@@ -15,9 +15,9 @@ Tevumi Bridge 已提交 **Arc Microgrants** 申请，提交成功页当时显示
 | 币安人生与 CAT 跨链 | 两种资产的双向主网发送和目标链到账回执均已独立核验。 | 仍为小额主网开发路线；页面在签名前读取当前链上限额与费用。 |
 | WOTR 跨链 | 独立 BNB Chain ↔ Arc 通道及 500、700 WOTR 的真实主网往返均已独立核验。 | WOTR 与流动性由社区钱包控制，桥由另一管理钱包控制；发送前应重新核对实时暂停状态。 |
 | WOTR 两侧池子 | BNB Chain 的 WOTR/BNB PancakeSwap V2 池与 Arc 的 WOTR/原生 USDC Uniswap V4 池均已建立并核验。 | 报价随实时池状态变化，建池和报价不保证交易收益。 |
-| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。 | 每个操作需单独在钱包确认，必要时还有代币授权。Arc 兑换调用通过隔离主网分叉测试；新版页面的真实钱包完整三步尚未验收。 |
+| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。测试钱包在 Arc 主网真实将 500 WOTR 兑换为 `0.026254461000066494` 原生 USDC，已独立核验。 | 每个操作需单独在钱包确认，必要时还有代币授权；各步独立交易证据不足以证明新版页面在同一次钱包会话中连续完成全部三步。 |
 
-10 月 3 日已独立核验测试钱包在 Arc 的 **500 WOTR → Permit2 授权**成功。这只是授权，**不是兑换成 USDC**。最后一次核对时，后续的 Router 授权与实际 Arc 兑换尚未完成。
+10 月 3 日已独立核验测试钱包在 Arc 的 **500 WOTR→Permit2 授权**、后续 Permit2→Router 授权及真实兑换。[兑换交易](https://explorer.arc.io/tx/0x821ee152a638fd695e793daaccea79dde4b176d56c8900fa9b1edb3f2480a691)从钱包转出 500 WOTR，同一钱包收到 `0.026254461000066494` 原生 USDC，另支付 `0.003656648866910364 USDC` Gas。
 
 WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5) `0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5`；[Arc](https://explorer.arc.io/address/0x70Cedd901366ad932203BBB08B22DcD4d4510028) `0x70Cedd901366ad932203BBB08B22DcD4d4510028`。
 
