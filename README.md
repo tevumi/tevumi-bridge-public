@@ -6,6 +6,8 @@ Tevumi Bridge moves **币安人生**, **CAT**, and the community demonstration t
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 3, 2026
 
+Tevumi Bridge has been submitted to **Arc Microgrants**. The submission confirmation showed it under review; no award is claimed. This public repository is a reviewed source snapshot for Arc reviewers, developers and test users. The full working repository is private and contains internal operations and research; it is not mirrored here. This submission does not imply endorsement by Arc or Circle.
+
 ## What is live
 
 | Route | Verified result | Current product boundary |
