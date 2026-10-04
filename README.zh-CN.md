@@ -4,7 +4,7 @@
 
 Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入、跨链到 Arc，并可选择兑换为原生 USDC；WOTR 双向独立跨链仍保留。币安人生和 CAT 是早期小额主网实验，已从公开页面资产列表下架，历史交易回执仍可查看。
 
-**线上入口：**https://bridge.tevumi.com/ · **状态核对日期：**2026-10-04
+**线上入口：**https://bridge.tevumi.com/ · **状态核对日期：**2026-10-05
 
 Tevumi Bridge 已提交 **Arc Microgrants** 申请，提交成功页当时显示审核中；不宣称获批、资助到账或 Arc/Circle 官方背书。本公开仓库是供 Arc 评审人员、开发者和参与测试用户阅读的筛查后源码快照。完整工作仓库为私有，包含内部运维与调研资料，不会直接镜像到这里。
 
@@ -28,6 +28,8 @@ WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB8951
 当前首页使用顶部 Buy / Bridge / Swap 三入口、独立交易表单及随操作变化的路线说明或真实跨链进度；窄屏下内容改为单列。
 
 连接钱包后，各操作只显示相关余额：Buy 显示 BNB Chain 的 BNB 与 WOTR；Bridge 显示来源链 WOTR 和用于 Gas 的资产，在到账核验后补充目标链 WOTR；Swap 显示 Arc WOTR 与原生 USDC。这些是只读快照，会在切换钱包或路线、交易确认后刷新；读取失败会显示暂不可用，不会误写为零。
+
+Swap 新兑换金额默认留空。以前完成且已核验的 USDC 到账会标明为历史兑换，显示原交易数量与 Arc 区块；它与新兑换报价及当前钱包余额分开。
 
 首页现有 **Buy / Bridge / Swap** 三个操作入口，互相独立，不强制按顺序完成。目前 Buy 是在 BNB Chain 用 BNB 购买 WOTR；Bridge 支持 WOTR 在 BNB Chain 与 Arc 间双向跨链；Swap 是在 Arc 把 WOTR 兑换为原生 USDC。通用入口名称不代表已支持其他资产或交易路线。这些都是真实主网交易，必要的授权也需单独确认。每次签名前核对钱包里的网络、合约、数量、最低到账、消息费和 Gas。Arc 使用原生 USDC 支付 Gas，钱包需保留少量 USDC。交易结果仍在核验时，先用原交易哈希确认链上结果，不要重复发送。
 

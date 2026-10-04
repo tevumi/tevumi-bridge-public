@@ -229,6 +229,9 @@ function renderLiveText() {
   }
   if (buyQuote) $('journey-buy-quote').textContent = local(`Estimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nEstimated pool impact: ${(buyQuote.impactBps/100).toFixed(2)}% · BNB block ${buyQuote.block}\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n预计池子价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`);
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} native USDC\nMinimum receive: ${formatEther(swapQuote.minOut)} USDC (1% slippage)\nApproval and gas are separate. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} 原生 USDC\n最低收到：${formatEther(swapQuote.minOut)} USDC（1% 滑点）\n授权与 Gas 另计，报价 60 秒后失效。`);
+  else $('journey-swap-quote').textContent = account
+    ? local('Enter a WOTR amount, then refresh the Arc pool quote before signing a new swap.','输入 WOTR 数量并刷新 Arc 池报价，再签署新的兑换。')
+    : local('Connect your wallet, then refresh the Arc pool quote. Arc native USDC is needed for gas.','连接钱包后刷新 Arc 池报价。Arc 原生 USDC 用于支付 Gas。');
   $('journey-buy-out').textContent = buyQuote ? Number(formatEther(buyQuote.out)).toLocaleString(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{maximumFractionDigits:6}) : '—';
   $('journey-swap-out').textContent = swapQuote ? Number(formatEther(swapQuote.out)).toLocaleString(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{maximumFractionDigits:6}) : '—';
 }
@@ -331,7 +334,7 @@ async function refreshAll() {
   else if (buyRecord) status('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
   if (swapRecord?.state === 'verified') status('swap',swapRecord.usdcArrivalVerified === true
-    ? local(`Arc swap and USDC arrival verified in block ${swapRecord.block} · ${swapRecord.hash}`,`Arc 兑换与 USDC 到账已在区块 ${swapRecord.block} 核验 · ${swapRecord.hash}`)
+    ? local(`Saved swap: Arc USDC arrival verified in block ${swapRecord.block} · ${swapRecord.hash}`,`已保存的兑换记录：Arc USDC 到账已在区块 ${swapRecord.block} 核验 · ${swapRecord.hash}`)
     : local(`Arc swap confirmed in block ${swapRecord.block}; checking USDC arrival · ${swapRecord.hash}`,`Arc 兑换已在区块 ${swapRecord.block} 确认，正在核验 USDC 到账 · ${swapRecord.hash}`));
   else if (swapRecord?.state === 'failed') status('swap',local('Arc swap failed on-chain. Refresh the quote before retrying.','Arc 兑换链上失败。刷新报价后再试。'));
   else if (swapRecord) status('swap',local(`Arc swap is being checked${swapRecord.hash ? ': '+swapRecord.hash : ''}. Do not submit again.`,`正在核对 Arc 兑换${swapRecord.hash ? '：'+swapRecord.hash : ''}。请勿重复提交。`));
@@ -354,6 +357,7 @@ function draw() {
   $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapQuote?.stage === 'token' ? local('Approve WOTR','授权 WOTR') : swapQuote?.stage === 'permit' ? local('Approve swap access','授权兑换权限') : swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Review approval','检查授权');
+  $('journey-wotr').placeholder = local('Enter amount','输入数量');
   $('journey-buy-refresh').disabled = busy || !account;
   $('journey-swap-refresh').disabled = busy || !account;
   $('journey-buy-refresh').hidden = !account;
@@ -367,8 +371,12 @@ function draw() {
   $('journey-route-swap').classList.toggle('done',record('swap')?.state==='verified');
   const portalReady = Boolean(account && record('swap')?.state === 'verified' && record('swap')?.usdcArrivalVerified === true);
   $('journey-portal').hidden = !portalReady;
-  $('journey-portal-title').textContent = local('USDC arrived on Arc','USDC 已到达 Arc');
-  $('journey-portal-copy').textContent = local('Your swap is confirmed. Explore what you can do with USDC in Arc Portal. This opens a separate site; nothing is transferred automatically.','兑换已确认。前往 Arc Portal 探索 USDC 的用途。将打开独立网站，不会自动转移资产。');
+  const savedSwap = portalReady ? record('swap') : null;
+  const savedIn = /^\d+$/.test(savedSwap?.amountIn || '') ? `${displayBalance(BigInt(savedSwap.amountIn))} WOTR` : local('WOTR','WOTR');
+  const savedOut = /^\d+$/.test(savedSwap?.nativeUsdcReceived || '') ? `${displayBalance(BigInt(savedSwap.nativeUsdcReceived))} USDC` : local('USDC','USDC');
+  $('journey-portal-title').textContent = local('Saved swap: USDC arrived on Arc','历史兑换：USDC 已到达 Arc');
+  $('journey-portal-details').textContent = portalReady ? local(`${savedIn} → ${savedOut} · Arc block ${savedSwap.block}`,`${savedIn} → ${savedOut} · Arc 区块 ${savedSwap.block}`) : '';
+  $('journey-portal-copy').textContent = local('This verified result belongs to a completed swap. The form above starts a new swap; check your current wallet balance before continuing. Arc Portal opens separately and transfers nothing automatically.','这是已完成兑换的核验结果。上方表单用于发起新兑换；继续操作前请查看当前钱包余额。Arc Portal 将在独立页面打开，不会自动转移资产。');
   $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
   for (const [step,done] of [['buy',record('buy')?.state==='verified'],['bridge',bridgeDone],['swap',record('swap')?.state==='verified']]) {
     $('journey-progress-'+step)?.classList.toggle('done',Boolean(done));
