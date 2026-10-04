@@ -25,6 +25,8 @@ WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB8951
 
 ## 使用页面
 
+当前首页使用深绿操作侧栏、独立交易表单和随操作变化的路线说明；窄屏下三个入口移至顶部。
+
 首页现有 **Buy / Bridge / Swap** 三个操作入口，互相独立，不强制按顺序完成。目前 Buy 是在 BNB Chain 用 BNB 购买 WOTR；Bridge 支持 WOTR 在 BNB Chain 与 Arc 间双向跨链；Swap 是在 Arc 把 WOTR 兑换为原生 USDC。通用入口名称不代表已支持其他资产或交易路线。这些都是真实主网交易，必要的授权也需单独确认。每次签名前核对钱包里的网络、合约、数量、最低到账、消息费和 Gas。Arc 使用原生 USDC 支付 Gas，钱包需保留少量 USDC。交易结果仍在核验时，先用原交易哈希确认链上结果，不要重复发送。
 
 Arc 兑换交易与原生 USDC 到账均核验后，Swap 页面才会显示前往官方 [Arc Portal](https://portal.arc.io/) 的可选入口。它会打开独立网站，不会自动授权钱包、存入 USDC 或发起新交易；核验未完成时入口保持隐藏。

@@ -51,8 +51,10 @@ function amount(value) {
 }
 function setTab(tab) {
   activeTab = tab;
+  document.body.dataset.view = tab;
   $('asset-picker').hidden = tab !== 'bridge';
   $('wotr-journey').hidden = tab === 'bridge';
+  for (const item of ['buy','bridge','swap']) $(`context-${item}`).hidden = item !== tab;
   for (const item of ['buy','bridge','swap']) {
     const button = $(`nav-${item}`);
     if (item === tab) button.setAttribute('aria-current','page');
@@ -61,6 +63,9 @@ function setTab(tab) {
   if (tab !== 'bridge') {
     setStep(tab);
     $('journey-title').textContent = tab === 'buy' ? 'Buy' : 'Swap';
+    $('journey-intro').textContent = tab === 'buy'
+      ? local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。')
+      : local('Swap WOTR for native USDC on Arc. Review the live quote before confirming.','在 Arc 将 WOTR 兑换为原生 USDC。确认前请核对实时报价。');
     $(`journey-${tab}-card`).querySelector('.journey-actions').prepend($('journey-connect'));
     $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
   }
