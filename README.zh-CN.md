@@ -15,7 +15,7 @@ Tevumi Bridge 已提交 **Arc Microgrants** 申请，提交成功页当时显示
 | 币安人生与 CAT 跨链 | 两种资产此前的双向主网发送和目标链到账回执均已独立核验。 | 10 月 4 日从公开资产列表下架；页面改动不删除合约或历史回执。 |
 | WOTR 跨链 | 独立 BNB Chain ↔ Arc 通道及 500、700 WOTR 的真实主网往返均已独立核验。 | WOTR 与流动性由社区钱包控制，桥由另一管理钱包控制；发送前应重新核对实时暂停状态。 |
 | WOTR 两侧池子 | BNB Chain 的 WOTR/BNB PancakeSwap V2 池与 Arc 的 WOTR/原生 USDC Uniswap V4 池均已建立并核验。 | 报价随实时池状态变化，建池和报价不保证交易收益。 |
-| WOTR 三步体验 | 公网页面已加入“BNB 买入 WOTR → 跨至 Arc → 兑换原生 USDC”的引导，同时保留独立跨链。同一测试钱包依次完成买入、GUID 匹配的跨链到账及 Arc 兑换，主网链上已独立核验。 | 用户报告通过三步页面操作；链上不能证明具体网页会话。桥接与兑换数量包括钱包原有 WOTR。 |
+| Buy / Bridge / Swap | 公网页面提供三个独立操作：BNB 买 WOTR、WOTR 双向跨链、Arc WOTR 兑换原生 USDC。改版前，同一测试钱包依次完成买入、GUID 匹配的跨链到账及 Arc 兑换，主网链上已独立核验。 | 用户报告使用当时的三步页面；链上不能证明具体网页会话。桥接与兑换数量包括钱包原有 WOTR。 |
 
 10 月 3 日，同一测试钱包依次在主网[买入](https://bscscan.com/tx/0xa11949a9398a5bf245005c794c4a80d2ef1a86b385316f0b10e4762332bf0b92) `1024.763647745767238747 WOTR`、[跨链](https://bscscan.com/tx/0xef1a5b41c2aa0b55e21dc27d1ac372dd13c7c9c5e7eb195936cd06c2e3d1d737) `1049 WOTR`，在 Arc [到账](https://explorer.arc.io/tx/0xa385f2381f9abf5fe904c35d29b910a7ac4ef1988ebf0be525641decc7054a35)的 GUID 一致，随后[兑换](https://explorer.arc.io/tx/0x7118a0ef9fae75e8627d94ea28de929e918bffbd1e4920e0c312e7b6dd029418) `2549 WOTR` 得 `0.133832577596989233` 原生 USDC。BNB 买入前已有 `24.390009870517457009 WOTR`，Arc 到账前已有 `1500 WOTR`，不能把全部 USDC 归因于本次 BNB 买入。用户报告通过三步页面操作；链上可核对地址与顺序，不能核对具体浏览器会话。
 
@@ -37,7 +37,7 @@ Arc 兑换交易与原生 USDC 到账均核验后，Swap 页面才会显示前�
 
 ## 开发与文档
 
-本仓库是经过筛查的公开源码快照，与私有工作仓库分开。包含桥合约、公开页面及三步体验、本地测试和跨链记录索引；不包含内部运维文档、部署计划、服务器配置、凭据或私有 Git 历史。公开的合约地址与交易哈希属于链上数据，并非钱包凭据。
+本仓库是经过筛查的公开源码快照，与私有工作仓库分开。包含桥合约、公开 Buy / Bridge / Swap 页面、本地测试和跨链记录索引；不包含内部运维文档、部署计划、服务器配置、凭据或私有 Git 历史。公开的合约地址与交易哈希属于链上数据，并非钱包凭据。
 
 使用 Node.js 24 或更高版本，通过 `npm ci` 安装依赖。先运行 `npm run app:prepare` 生成本地产物，再运行 `npm test`；线上首页用 `npx vite build --config vite.home.config.js` 构建，`npm run build` 准备并构建另一套应用产物。跨链基于 LayerZero V2，为每种接入资产分别使用 BNB Chain OFTAdapter 和 Arc OFT。
 
