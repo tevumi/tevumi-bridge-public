@@ -1,0 +1,55 @@
+/* Route Desk presentation. Existing transaction controllers and state nodes remain intact. */
+body{background:#faf9f5}
+.page-shell{display:block;min-height:100vh}
+.site-sidebar{position:relative;top:auto;align-self:auto;width:100%;height:102px;padding:0 clamp(28px,4vw,72px);display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:32px;background:#fff;color:#103229;border-bottom:1px solid #dde5dd}
+.site-sidebar .brand{margin:0;color:#103229;font-size:28px;gap:12px}
+.site-sidebar .brand img{display:block;border-radius:11px}
+.product-nav{display:flex;flex-direction:row;align-items:center;gap:0;width:min(540px,44vw);margin:auto;min-height:58px;border:1px solid #d5e0d7;border-radius:12px;padding:4px}
+.product-nav button{justify-content:center;gap:10px;flex:1;width:auto;min-height:50px;padding:0 14px;border-radius:9px;color:#173f32;background:transparent;font-family:Inter,"Noto Sans SC",system-ui,sans-serif;font-size:16px;font-weight:730;white-space:nowrap}
+.product-nav button[aria-current="page"]{background:#103f2f;color:#fff}
+.product-nav button:hover{background:#eaf2eb;color:#103f2f}
+.product-nav button[aria-current="page"]:hover{background:#1a5b43;color:#fff}
+.nav-icon{font-size:23px;width:23px}
+.header-tools{display:flex;align-items:center;gap:12px;justify-content:flex-end;min-width:185px}
+#header-connect{min-height:52px;border:0;border-radius:10px;padding:0 22px;background:#103f2f;color:#fff;font-size:14px;font-weight:750;cursor:pointer;white-space:nowrap}
+#header-connect:hover{background:#1a5b43}
+.app-body{display:flex;flex-direction:column;min-height:calc(100vh - 102px);padding:0 clamp(28px,4vw,72px);background:#faf9f5}
+.app-body main{display:flex;flex:1 0 auto}
+.redesign-stage{width:100%;max-width:1500px;margin:auto;display:grid;grid-template-columns:minmax(0,1.85fr) minmax(315px,1fr);grid-auto-rows:max-content;align-content:center;gap:0;min-height:100%;padding:32px 0 24px}
+.redesign-work{padding-right:34px}
+.workspace-heading,.journey-workspace>.workspace-heading{margin:0 0 24px}
+.workspace-heading .eyebrow{margin-bottom:12px}
+.workspace-heading h2{font-size:clamp(54px,5.5vw,82px);line-height:1.04}
+.workspace-intro{margin-top:10px;font-size:19px}
+.bridge-form,.journey-card{padding:28px;border:1px solid #d8e3dc;border-radius:12px;background:#fff;box-shadow:none}
+.bridge-form .field-heading{margin-bottom:8px;font-size:16px}
+.bridge-form .route-selector{margin-bottom:22px}
+.bridge-form .route-chain>strong{min-height:72px}
+.bridge-form .route-chain>strong{font-size:18px}
+.bridge-form .amount-box{min-height:76px;margin-top:0}
+.bridge-form .amount-box input{font-size:30px}
+.fee-heading{margin:24px 0 8px;font-size:15px;font-weight:750;color:#173f32}
+.fee-note{margin:-10px 0 18px;color:#718477;font-size:11px;line-height:1.5}
+.bridge-form .fee-state{min-height:64px;margin:0 0 18px;border-color:#e0e7df;background:#f3f6f2}
+.bridge-form .fee-state{font-size:13px}
+.bridge-form .primary-action button{min-height:58px}
+.advanced{margin-top:14px;background:#fff;border:1px solid #d8e3dc;border-radius:11px}
+.context-panel{position:static;margin:0;padding:11px 0 0 42px;border-left:1px solid #dce4dd}
+.context-view{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+#context-bridge>.eyebrow,#context-bridge>h3,#context-bridge>p:not(.eyebrow),#context-bridge>.context-route{display:none}
+.flow-aside{margin:0;padding:0;border:0;background:transparent}
+.flow-aside>.eyebrow{margin:0 0 18px}
+.flow-aside h4{font-size:clamp(30px,2.7vw,42px);margin:0 0 12px}
+.flow-aside #flow-intro{margin:0;color:#6b8075;font-size:15px;line-height:1.55}
+.flow-steps{margin:26px 0 0}
+.flow-steps li{padding-bottom:38px;gap:19px}
+.flow-steps li>span{width:40px;height:40px;flex:0 0 40px;font-size:16px}
+.flow-steps strong{font-size:15px}
+.flow-steps small{font-size:14px;line-height:1.55}
+.route-caution{margin-top:12px;padding-top:22px;border-top:1px solid #dce4dd;color:#61776c;font-size:12px;line-height:1.7}
+.context-view#context-buy,.context-view#context-swap{padding-top:5px}
+.context-view#context-buy .context-art,.context-view#context-swap .context-art{display:none}
+.app-body footer{display:flex;flex:0 0 72px;width:100%;max-width:1500px;margin:0 auto;border-top:1px solid #dce4dd}
+@media(max-width:1000px){.site-sidebar{padding:0 24px;gap:15px}.site-sidebar .brand{font-size:23px}.product-nav{width:min(470px,48vw)}.product-nav button{font-size:14px;padding:0 8px}.header-tools{min-width:150px}#header-connect{padding:0 15px}.app-body{padding:0 24px}.redesign-stage{grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr)}.redesign-work{padding-right:22px}.context-panel{padding-left:22px}}
+@media(max-width:760px){.site-sidebar{height:auto;min-height:78px;flex-wrap:wrap;padding:14px 18px;gap:14px}.site-sidebar .brand{font-size:21px}.site-sidebar .brand img{width:36px;height:36px}.header-tools{order:2;margin-left:auto;min-width:0}#header-connect{min-height:42px;font-size:12px}.product-nav{order:3;width:100%;margin:0;min-height:49px}.product-nav button{min-height:41px;font-size:14px}.nav-icon{font-size:19px;width:18px}.app-body{display:block;min-height:0;padding:0 18px}.app-body main{display:block}.redesign-stage{display:block;min-height:0;padding:26px 0 36px}.redesign-work{padding:0}.workspace-heading,.journey-workspace>.workspace-heading{margin-bottom:18px}.workspace-heading h2{font-size:58px}.workspace-intro{font-size:15px}.bridge-form,.journey-card{padding:20px}.context-panel{margin-top:25px;padding:26px 0 0;border-left:0;border-top:1px solid #dce4dd}.flow-steps li{padding-bottom:22px}.app-body footer{min-height:72px;padding:20px 0}}
+@media(max-width:440px){.site-sidebar{padding:13px 15px}.site-sidebar .brand{font-size:20px}.header-tools{gap:6px}.language-switch{padding:2px}.language-switch button{padding:5px;font-size:10px}#header-connect{padding:0 10px}.app-body{padding:0 15px}.workspace-heading h2{font-size:52px}.bridge-form,.journey-card{padding:17px}.route-selector{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:6px}.route-chain>strong{padding:8px;font-size:12px}#reverse-direction{width:36px;height:36px;font-size:21px}}

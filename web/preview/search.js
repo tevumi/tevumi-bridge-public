@@ -134,6 +134,7 @@ function updateView() {
   else summary.textContent = account ? '已连接钱包。核对资产和数量后开始跨链。' : '选择资产和方向，连接钱包后即可开始。';
   summary.hidden = !(unknownKind || source?.hash || routePaused);
   document.querySelector('#step-prepare').classList.toggle('active', !source?.hash);
+  document.querySelector('#flow-intro').hidden = Boolean(source?.hash);
   document.querySelector('#step-source').classList.toggle('active', Boolean(source?.hash && !source.deliveredHash));
   document.querySelector('#step-destination').classList.toggle('active', Boolean(source?.deliveredHash));
 }

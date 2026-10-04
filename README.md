@@ -25,7 +25,7 @@ WOTR contract addresses: [BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdB
 
 ## Using the app
 
-The current homepage uses a dark-green action sidebar, a dedicated transaction form and route-specific guidance. On narrow screens, the same three actions move to the top.
+The current homepage uses a top Buy / Bridge / Swap navigation, a dedicated transaction form and route-specific guidance or transfer progress. On narrow screens, the actions remain at the top and the content becomes a single column.
 
 The homepage has three action choices: **Buy**, **Bridge**, and **Swap**. They are independent operations, not mandatory steps. Buy currently exchanges BNB for WOTR on BNB Chain; Bridge transfers WOTR in either direction between BNB Chain and Arc; Swap currently exchanges WOTR for native USDC on Arc. The generic action labels do not imply that other assets or routes are available. Each operation is a separate mainnet transaction, including token approvals where needed. Review the network, contract, amount, minimum received, message fee, and gas in your wallet before each confirmation. Arc uses native USDC for gas, so keep some in the destination wallet. If a result is still being checked, use the original transaction hash and wait for chain verification before trying again.
 

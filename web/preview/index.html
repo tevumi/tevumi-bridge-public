@@ -8,23 +8,19 @@
   <title>Tevumi Bridge · BNB Chain ↔ Arc</title>
   <link rel="icon" type="image/svg+xml" href="/brand/tevumi.svg">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./route-desk.css">
   <script type="module" src="./locale.js"></script>
   <script type="module" src="./search.js"></script>
   <script type="module" src="./journey.js"></script>
 </head>
 <body data-asset="wotr" data-balance-only="true" data-history-api="true">
-  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute"><symbol id="tevumi-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="19" fill="#122b3b"/><path d="M15 19h34v9H36v20h-9V28H15z" fill="#fff"/><path d="M36 28h13v9H36z" fill="#51d5b1"/></symbol></svg>
   <div class="page-shell">
-    <aside class="site-sidebar" aria-label="Main navigation">
-      <a class="brand" href="/" aria-label="Tevumi Bridge home"><svg viewBox="0 0 64 64" width="42" height="42" aria-hidden="true"><use href="#tevumi-mark"/></svg><span>tevumi</span></a>
+    <header class="site-sidebar" aria-label="Main navigation">
+      <a class="brand" href="/" aria-label="Tevumi Bridge home"><img src="../public/brand/tevumi.svg" width="42" height="42" alt=""><span>tevumi</span></a>
       <nav class="product-nav" aria-label="Choose an action"><button id="nav-buy" type="button" aria-current="page"><span class="nav-icon" aria-hidden="true">＋</span><span>Buy</span></button><button id="nav-bridge" type="button"><span class="nav-icon" aria-hidden="true">⇄</span><span>Bridge</span></button><button id="nav-swap" type="button"><span class="nav-icon" aria-hidden="true">↻</span><span>Swap</span></button></nav>
-      <p class="sidebar-foot">BNB Chain ↔ Arc<br>© 2026 Tevumi</p>
-    </aside>
-    <div class="app-body">
-    <header class="site-header">
-      <span class="header-kicker">MOVE VALUE FREELY</span>
-      <div class="language-switch" role="group" aria-label="Language" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><button type="button" data-language="en" aria-pressed="true">EN</button><button type="button" data-language="zh-CN" aria-pressed="false">简体中文</button></div>
+      <div class="header-tools"><div class="language-switch" role="group" aria-label="Language" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><button type="button" data-language="en" aria-pressed="true">EN</button><button type="button" data-language="zh-CN" aria-pressed="false">简体中文</button></div><button id="header-connect" type="button">Connect wallet</button></div>
     </header>
+    <div class="app-body">
     <main>
       <div class="redesign-stage"><div class="redesign-work">
       <section class="bridge-workspace" id="asset-picker" aria-labelledby="operation-title">
@@ -41,7 +37,7 @@
             </div>
             <div class="amount-box"><div><label class="field-label" for="send-amount">Amount</label><input id="send-amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="500" aria-describedby="amount-note" aria-invalid="false"></div><span id="selected-name">WOTR</span></div>
             <p id="amount-note" class="amount-note" aria-live="polite">Loading the current per-transfer limit…</p>
-            <div id="fee-state" class="fee-state" aria-live="polite">Connect your wallet to see the selected asset balance.</div>
+            <div class="fee-heading">Wallet balance</div><div id="fee-state" class="fee-state" aria-live="polite">Connect your wallet to see the selected asset balance.</div><p class="fee-note">Message fee is recalculated before sending.</p>
             <div class="primary-action"><button id="connect">Connect wallet</button><button id="send-bsc" hidden>Approve and bridge</button><button id="send-arc" hidden>Bridge now</button><button id="check-arc" hidden>Check arrival on Arc</button><button id="check-bsc" hidden>Check arrival on BNB Chain</button></div>
             <p id="approval-note" class="approval-note">The first BNB Chain transfer needs approval. One click starts approval and transfer in sequence; confirm each transaction in your wallet.</p>
             <p id="message" role="status" aria-live="polite"></p>
@@ -66,7 +62,7 @@
       </section>
       </div><aside class="context-panel" aria-label="Action details">
         <div class="context-view" id="context-buy"><p class="eyebrow">BUY ON BNB CHAIN</p><h3>Start with WOTR.</h3><p>Exchange BNB for WOTR in the BNB Chain pool. Your quote appears after wallet connection.</p><div class="context-route"><span>BNB Chain</span><strong>BNB → WOTR</strong></div><p class="context-note">Check the live quote, minimum received and network fees before confirming in your wallet.</p><div class="context-art" aria-hidden="true"><img src="./orbits.png" alt=""></div></div>
-        <div class="context-view" id="context-bridge" hidden><p class="eyebrow">BRIDGE BETWEEN ECOSYSTEMS</p><h3>One asset.<br>Two chains.</h3><p>Move WOTR between BNB Chain and Arc in either direction.</p><div class="context-route context-route-bidirectional"><span>BNB Chain</span><strong>↔</strong><span>Arc</span></div><div class="flow-aside" aria-labelledby="flow-heading"><p class="eyebrow">TRANSFER STATUS</p><h4 id="flow-heading">Transfer progress</h4><ol class="flow-steps"><li id="step-prepare" class="active"><span>1</span><div><strong>Prepare transfer</strong><small>Choose a direction, then connect your wallet</small></div></li><li id="step-source"><span>2</span><div><strong>Source-chain confirmation</strong><small>Confirm in your wallet and wait for the mainnet receipt</small></div></li><li id="step-destination"><span>3</span><div><strong>Destination-chain arrival</strong><small>Arrival is checked automatically after sending</small></div></li></ol><p class="route-caution">This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. Do not send again while a transaction is being checked.</p></div></div>
+        <div class="context-view" id="context-bridge" hidden><p class="eyebrow">BRIDGE BETWEEN ECOSYSTEMS</p><h3>One asset.<br>Two chains.</h3><p>Move WOTR between BNB Chain and Arc in either direction.</p><div class="context-route context-route-bidirectional"><span>BNB Chain</span><strong>↔</strong><span>Arc</span></div><div class="flow-aside" aria-labelledby="flow-heading"><p class="eyebrow">TRANSFER STATUS</p><h4 id="flow-heading">Transfer progress</h4><p id="flow-intro">Your transfer will appear here once you start.</p><ol class="flow-steps"><li id="step-prepare" class="active"><span>1</span><div><strong>Prepare transfer</strong><small>Choose a direction, then connect your wallet</small></div></li><li id="step-source"><span>2</span><div><strong>Source-chain confirmation</strong><small>Confirm in your wallet and wait for the mainnet receipt</small></div></li><li id="step-destination"><span>3</span><div><strong>Destination-chain arrival</strong><small>Arrival is checked automatically after sending</small></div></li></ol><p class="route-caution">This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. Do not send again while a transaction is being checked.</p></div></div>
         <div class="context-view" id="context-swap" hidden><p class="eyebrow">SWAP ON ARC</p><h3>From WOTR<br>to USDC.</h3><p>Exchange WOTR for native USDC in the Arc pool. The output depends on the live quote.</p><div class="context-route"><span>Arc</span><strong>WOTR → USDC</strong></div><p class="context-note">Keep some native USDC in your Arc wallet to pay gas. The optional Arc Portal link appears only after the swap and arrival are verified.</p><div class="context-art" aria-hidden="true"><img src="./orbits.png" alt=""></div></div>
       </aside></div>
     </main>

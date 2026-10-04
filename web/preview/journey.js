@@ -312,6 +312,7 @@ async function refreshAll() {
 function draw() {
   const view = bridgeView();
   account = view.account || null;
+  $('header-connect').hidden = Boolean(account);
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
   $('journey-connect').hidden = Boolean(account);
@@ -352,6 +353,7 @@ $('nav-bridge').addEventListener('click',()=>setTab('bridge'));
 $('nav-swap').addEventListener('click',()=>setTab('swap'));
 for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventListener('click',()=>setStep(step));
 $('journey-connect').addEventListener('click',()=>{$('connect').click();});
+$('header-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));
 $('journey-bnb').addEventListener('input',()=>{buyQuote=null;renderLiveText();draw();});
 $('journey-wotr').addEventListener('input',()=>{swapQuote=null;renderLiveText();draw();});
