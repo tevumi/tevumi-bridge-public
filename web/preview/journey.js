@@ -36,6 +36,8 @@ let account = null;
 let buyQuote = null;
 let swapQuote = null;
 let balanceData = null;
+let balanceError = false;
+let balanceRequest = 0;
 let busy = false;
 let activeTab = 'buy';
 let activeStep = 'buy';
@@ -50,6 +52,7 @@ function amount(value) {
   return parseEther(value);
 }
 function setTab(tab) {
+  const previousTab = activeTab;
   activeTab = tab;
   document.body.dataset.view = tab;
   $('asset-picker').hidden = tab !== 'bridge';
@@ -69,6 +72,7 @@ function setTab(tab) {
     $(`journey-${tab}-card`).querySelector('.journey-actions').prepend($('journey-connect'));
     $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
   }
+  if (account && previousTab !== tab) void loadBalances();
 }
 function setStep(step) {
   activeStep = step;
@@ -177,23 +181,54 @@ async function verify(kind) {
   save(kind,verified);
   return verified;
 }
-async function balances() {
+async function balances(requestId) {
   if (!account) return;
+  const requestedAccount = account;
   const [bnbWotr,arcWotr,bnb,arcUsdc] = await Promise.all([
-    new Contract(A.bnbWotr,tokenAbi,readers[56]).balanceOf(account),
-    new Contract(A.arcWotr,tokenAbi,readers[5042]).balanceOf(account),
-    readers[56].getBalance(account),readers[5042].getBalance(account),
+    new Contract(A.bnbWotr,tokenAbi,readers[56]).balanceOf(requestedAccount),
+    new Contract(A.arcWotr,tokenAbi,readers[5042]).balanceOf(requestedAccount),
+    readers[56].getBalance(requestedAccount),readers[5042].getBalance(requestedAccount),
   ]);
+  if (!same(account,requestedAccount) || requestId !== balanceRequest) return;
   balanceData = {bnb,bnbWotr,arcWotr,arcUsdc};
+  balanceError = false;
   renderLiveText();
 }
+async function loadBalances() {
+  const requestedAccount = account;
+  if (!requestedAccount) return;
+  const requestId = ++balanceRequest;
+  try { await balances(requestId); } catch {
+    if (!same(account,requestedAccount) || requestId !== balanceRequest) return;
+    balanceData = null; balanceError = true; renderLiveText();
+    $('journey-balances').textContent = local('Balances are temporarily unavailable. Refresh later.','余额暂不可用，请稍后刷新。');
+  }
+}
+function displayBalance(value) {
+  const exact = formatEther(value);
+  const [whole,fraction=''] = exact.split('.');
+  const shown = fraction.slice(0,8).replace(/0+$/,'');
+  if (value > 0n && whole === '0' && !shown) return '<0.00000001';
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}${shown ? '.'+shown : ''}`;
+}
+function renderBalances() {
+  const ready = Boolean(account && balanceData);
+  const unavailable = local('Balance temporarily unavailable','余额暂不可用');
+  const pending = account ? local('Loading balance…','正在读取余额…') : '';
+  const fallback = balanceError ? unavailable : pending;
+  $('journey-buy-balance').textContent = ready ? local(`BNB Chain balance: ${displayBalance(balanceData.bnb)} BNB`,`BNB Chain 余额：${displayBalance(balanceData.bnb)} BNB`) : fallback;
+  $('journey-buy-held').textContent = ready ? local(`BNB Chain WOTR: ${displayBalance(balanceData.bnbWotr)} · Keep BNB for gas.`,`BNB Chain WOTR：${displayBalance(balanceData.bnbWotr)} · 请预留 BNB 支付 Gas。`) : '';
+  $('journey-swap-balance').textContent = ready ? local(`Arc balance: ${displayBalance(balanceData.arcWotr)} WOTR`,`Arc 余额：${displayBalance(balanceData.arcWotr)} WOTR`) : fallback;
+  $('journey-swap-gas').textContent = ready ? local(`Arc native USDC balance: ${displayBalance(balanceData.arcUsdc)} · Keep some for gas.`,`Arc 原生 USDC 余额：${displayBalance(balanceData.arcUsdc)} · 请预留部分支付 Gas。`) : '';
+}
 function renderLiveText() {
+  renderBalances();
   if (balanceData) {
     const {bnb,bnbWotr,arcWotr,arcUsdc} = balanceData;
     $('journey-balances').textContent = local(`BNB Chain: ${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc: ${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC for gas`,`BNB Chain：${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc：${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC 可支付 Gas`);
   }
   if (buyQuote) $('journey-buy-quote').textContent = local(`Estimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nEstimated pool impact: ${(buyQuote.impactBps/100).toFixed(2)}% · BNB block ${buyQuote.block}\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n预计池子价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`);
-  if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} native USDC\nMinimum receive: ${formatEther(swapQuote.minOut)} USDC (1% slippage)\nArc wallet: ${formatEther(swapQuote.tokenBalance)} WOTR · ${formatEther(swapQuote.usdcBalance)} USDC for gas\nApproval and gas are separate. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} 原生 USDC\n最低收到：${formatEther(swapQuote.minOut)} USDC（1% 滑点）\nArc 钱包：${formatEther(swapQuote.tokenBalance)} WOTR · ${formatEther(swapQuote.usdcBalance)} USDC 可支付 Gas\n授权与 Gas 另计，报价 60 秒后失效。`);
+  if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} native USDC\nMinimum receive: ${formatEther(swapQuote.minOut)} USDC (1% slippage)\nApproval and gas are separate. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} 原生 USDC\n最低收到：${formatEther(swapQuote.minOut)} USDC（1% 滑点）\n授权与 Gas 另计，报价 60 秒后失效。`);
   $('journey-buy-out').textContent = buyQuote ? Number(formatEther(buyQuote.out)).toLocaleString(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{maximumFractionDigits:6}) : '—';
   $('journey-swap-out').textContent = swapQuote ? Number(formatEther(swapQuote.out)).toLocaleString(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{maximumFractionDigits:6}) : '—';
 }
@@ -306,7 +341,7 @@ async function refreshAll() {
   else if (tokenRecord?.state === 'failed') status('swap',local('WOTR approval failed on-chain. Refresh the quote before retrying.','WOTR 授权链上失败。刷新报价后再试。'));
   else if (tokenRecord && tokenRecord.state !== 'verified') status('swap',local(`Checking WOTR approval${tokenRecord.hash ? ': '+tokenRecord.hash : ''}. Do not submit again.`,`正在核对 WOTR 授权${tokenRecord.hash ? '：'+tokenRecord.hash : ''}。请勿重复提交。`));
   else if (tokenRecord?.state === 'verified') status('swap',local('WOTR approval confirmed. Refresh the quote, then approve swap access.','WOTR 授权已确认。刷新报价后，再授权兑换权限。'));
-  try { await balances(); } catch { $('journey-balances').textContent = 'Balances are temporarily unavailable. Refresh later.'; }
+  await loadBalances();
   draw();
 }
 function draw() {
@@ -361,7 +396,7 @@ $('journey-buy-refresh').addEventListener('click',()=>run(quoteBuy,'buy'));
 $('journey-buy-action').addEventListener('click',()=>run(buy,'buy'));
 $('journey-swap-refresh').addEventListener('click',()=>run(quoteSwap,'swap'));
 $('journey-swap-action').addEventListener('click',()=>run(swap,'swap'));
-window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){buyQuote=null;swapQuote=null;balanceData=null;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
+window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){buyQuote=null;swapQuote=null;balanceData=null;balanceError=false;balanceRequest++;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
 window.addEventListener('tevumi:locale-change',()=>{renderLiveText();draw();});
 setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30000);
 draw();

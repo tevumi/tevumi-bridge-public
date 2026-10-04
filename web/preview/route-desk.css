@@ -32,6 +32,11 @@ body{background:#faf9f5}
 .fee-note{margin:-10px 0 18px;color:#718477;font-size:11px;line-height:1.5}
 .bridge-form .fee-state{min-height:64px;margin:0 0 18px;border-color:#e0e7df;background:#f3f6f2}
 .bridge-form .fee-state{font-size:13px}
+.balance-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 14px;margin-bottom:9px}
+.journey-card .balance-heading label{margin:0}
+.wallet-balance{color:#496c58;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.balance-detail{min-height:17px;margin:7px 0 0;color:#708477;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.balance-detail:empty{display:none}
 .bridge-form .primary-action button{min-height:58px}
 .advanced{margin-top:14px;background:#fff;border:1px solid #d8e3dc;border-radius:11px}
 .context-panel{position:static;margin:0;padding:11px 0 0 42px;border-left:1px solid #dce4dd}

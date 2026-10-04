@@ -121,15 +121,26 @@ async function quoteStatus(){
  const quotedAsset=assetId;
  const quoteSide=selectedSide;
  if(document.body.dataset.balanceOnly==='true'){
-  target.textContent='正在读取所选资产余额…';
+  const local=(en,zh)=>document.documentElement.lang==='zh-CN'?zh:en;
+  const source=quoteSide==='bsc'?'BNB Chain':'Arc';
+  const destination=quoteSide==='bsc'?'Arc':'BNB Chain';
+  const gasToken=quoteSide==='bsc'?'BNB':'USDC';
+  target.textContent=local('Loading source wallet balances…','正在读取来源链钱包余额…');
   const provider=providers[quoteSide];
   const token=quoteSide==='bsc'?new Contract(pair.sourceToken,candidateTokenAbi,provider):new Contract(pair.arc,appAbi,provider);
-  try{
-   const balance=await token.balanceOf(quotedAccount);
-   if(same(account,quotedAccount)&&selectedSide===quoteSide&&assetId===quotedAsset)target.textContent=`钱包余额：${formatEther(balance)} ${assetName}`;
-  }catch{
-   if(same(account,quotedAccount)&&selectedSide===quoteSide&&assetId===quotedAsset)target.textContent='所选资产余额暂不可用，请稍后刷新。';
-  }
+  const showDestination=Boolean(records[`send-${quoteSide}`]?.deliveredHash);
+  const destinationToken=showDestination?(quoteSide==='bsc'?new Contract(pair.arc,appAbi,providers.arc):new Contract(pair.sourceToken,candidateTokenAbi,providers.bsc)):null;
+  const [balance,native,arrival]=await Promise.allSettled([
+   token.balanceOf(quotedAccount),provider.getBalance(quotedAccount),
+   destinationToken?destinationToken.balanceOf(quotedAccount):Promise.resolve(null),
+  ]);
+  if(!same(account,quotedAccount)||selectedSide!==quoteSide||assetId!==quotedAsset)return;
+  const lines=[
+   balance.status==='fulfilled'?local(`${source} available: ${formatEther(balance.value)} ${assetName}`,`${source} 可用余额：${formatEther(balance.value)} ${assetName}`):local(`${source} ${assetName} balance temporarily unavailable.`,`${source} ${assetName} 余额暂不可用。`),
+   native.status==='fulfilled'?local(`${source} gas balance: ${formatEther(native.value)} ${gasToken} · also pays the message fee`,`${source} Gas 余额：${formatEther(native.value)} ${gasToken} · 也支付消息费`):local(`${source} gas balance temporarily unavailable.`,`${source} Gas 余额暂不可用。`),
+  ];
+  if(showDestination)lines.push(arrival.status==='fulfilled'?local(`${destination} current balance: ${formatEther(arrival.value)} ${assetName}`,`${destination} 当前余额：${formatEther(arrival.value)} ${assetName}`):local(`${destination} ${assetName} balance temporarily unavailable.`,`${destination} ${assetName} 余额暂不可用。`));
+  target.textContent=lines.join('\n');
   return;
  }
  target.textContent='正在读取双向余额和消息费报价…';
@@ -210,7 +221,7 @@ async function submit(kind,side,to,data,value=0n,amountLD){
  try{
   const receipt=await providers[side].waitForTransaction(hash,1,120000);
   ensure(receipt,'回执等待超时。原哈希已保存，请刷新或按哈希恢复。');
-  await verifyRecord(kind,hash);await refresh();note(`${kind} 回执已核验：${hash}`);
+  await verifyRecord(kind,hash);await refresh(true);note(`${kind} 回执已核验：${hash}`);
  }finally{
   if(kind.startsWith('send-'))void publishTransfer(side,hash);
  }
@@ -386,6 +397,7 @@ async function delivered(side){
  ensure(found,'目标链回执未找到与原 GUID、账户和数量匹配的到账事件。');
  record.deliveredHash=destinationHash;record.deliveredBlock=receipt.blockNumber;save();
  note(`${side} 到账已核验：${destinationHash}`);
+ if(account)void quoteStatus().catch(()=>{});
 }
 async function recover(){
  const kind=$('recover-kind').value,hash=$('recover-hash').value.trim();ensure(/^0x[0-9a-f]{64}$/i.test(hash),'请输入完整交易哈希。');
@@ -435,4 +447,5 @@ for(const side of ['bsc','arc']){
  $ (`check-${side}`).onclick=()=>run(()=>delivered(side));
 }
 $('connect').onclick=()=>run(connect);$('refresh').onclick=()=>run(()=>refresh(true));if($('recover'))$('recover').onclick=()=>run(recover);if($('export'))$('export').onclick=exportRecords;$('next-round').onclick=()=>run(nextRound);
+window.addEventListener('tevumi:locale-change',()=>{if(account)void quoteStatus().catch(()=>{});});
 renderRecords();refresh().catch(error=>note(errorText(error)));

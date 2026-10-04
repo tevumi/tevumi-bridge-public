@@ -87,6 +87,7 @@ const exact = new Map(Object.entries({
   '正在读取当前单笔限额…': 'Loading the current per-transfer limit…',
   '连接钱包后显示所选资产的余额。': 'Connect your wallet to see the selected asset balance.',
   '钱包余额': 'Wallet balance',
+  '来源链钱包 ·': 'Source wallet ·',
   '发送前将重新计算消息费。': 'Message fee is recalculated before sending.',
   '开始后，你的跨链进度会显示在这里。': 'Your transfer will appear here once you start.',
   '连接钱包后显示余额和双向消息费报价。': 'Connect your wallet to see balances and fee quotes.',

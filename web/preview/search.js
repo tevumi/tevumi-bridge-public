@@ -112,6 +112,7 @@ function updateView() {
   }
   document.querySelector('#route-from').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
   document.querySelector('#route-to').textContent = side === 'bsc' ? 'Arc' : 'BNB Chain';
+  document.querySelector('#bridge-balance-chain').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
   const buttons = ['connect', 'send-bsc', 'send-arc', 'check-arc', 'check-bsc'];
   for (const id of buttons) document.querySelector(`#${id}`).hidden = true;
   let action = !account ? 'connect' : side === 'bsc' ? 'send-bsc' : 'send-arc';
