@@ -12,6 +12,8 @@ USDC 选链列表现显示图标与链名，并可搜索；没有对应图标的
 
 首页 Bridge 的 BNB Chain 与 Arc 方向卡片也显示图标和链名；切换方向时图标与名称一起交换。该视觉更新不改变 WOTR 跨链规则或钱包交易流程。
 
+已核验的历史 Arc 兑换结果下方，Portal 与 USDC 跨链两张卡片的按钮统一宽高并底部对齐。历史结果与上方新兑换表单分开；点击卡片本身不会自动转移资产。
+
 Tevumi Bridge 正在参与 **Arc Microgrants**：用户已于 9 月 28 日提交申请，提交成功页当时显示审核中；未记录获批或资助到账，不代表 Arc 或 Circle 官方背书。[`tevumi-bridge`](https://github.com/tevumi/tevumi-bridge) 是包含完整工作内容的**私有仓库**；独立的 [`tevumi-bridge-public`](https://github.com/tevumi/tevumi-bridge-public) 是供评审、开发者和测试用户阅读的筛查后**公开快照**，不包含内部运维、管理计划、凭据或私有 Git 历史。
 
 ## 已上线与已验证范围

@@ -376,7 +376,7 @@ function draw() {
   const savedOut = /^\d+$/.test(savedSwap?.nativeUsdcReceived || '') ? `${displayBalance(BigInt(savedSwap.nativeUsdcReceived))} USDC` : local('USDC','USDC');
   $('journey-portal-title').textContent = local('Saved swap: USDC arrived on Arc','历史兑换：USDC 已到达 Arc');
   $('journey-portal-details').textContent = portalReady ? local(`${savedIn} → ${savedOut} · Arc block ${savedSwap.block}`,`${savedIn} → ${savedOut} · Arc 区块 ${savedSwap.block}`) : '';
-  $('journey-portal-copy').textContent = local('This verified result belongs to a completed swap. The form above starts a new swap; check your current wallet balance before continuing. Arc Portal opens separately and transfers nothing automatically.','这是已完成兑换的核验结果。上方表单用于发起新兑换；继续操作前请查看当前钱包余额。Arc Portal 将在独立页面打开，不会自动转移资产。');
+  $('journey-portal-copy').textContent = local('This saved result is separate from a new swap. Arc Portal opens separately and transfers nothing automatically.','这条历史结果与新兑换相互独立。Arc Portal 会在新页面打开，不会自动转移资产。');
   $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
   $('journey-usdc-title').textContent = local('Bridge USDC to another chain','将 USDC 跨往其他链');
   $('journey-usdc-copy').textContent = local('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');

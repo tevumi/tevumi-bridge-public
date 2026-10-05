@@ -31,6 +31,11 @@ try {
     }, address);
     await page.locator('#journey-portal').waitFor({ state: 'visible' });
     if (!(await page.locator('#journey-usdc-link').isVisible())) throw Error(`USDC_EXIT_HIDDEN_${label}`);
+    const portalButton = await page.locator('#journey-portal-link').boundingBox();
+    const bridgeButton = await page.locator('#journey-usdc-link').boundingBox();
+    if (!portalButton || !bridgeButton || Math.abs(portalButton.height - bridgeButton.height) > 1 || Math.abs(portalButton.width - bridgeButton.width) > 1) throw Error(`NEXT_ACTION_SIZE_${label}`);
+    if (label === 'desktop' && Math.abs(portalButton.y + portalButton.height - bridgeButton.y - bridgeButton.height) > 1) throw Error(`NEXT_ACTION_ALIGNMENT_${label}`);
+    await page.screenshot({ path: `.local/swap-next-actions-${label}.png`, fullPage: true });
     if (!(await page.locator('#journey-usdc-link').getAttribute('href')).endsWith('/preview/usdc/index.html')) throw Error(`USDC_EXIT_ROUTE_${label}`);
     if (!(await page.locator('#journey-portal-title').textContent()).includes('Saved swap')) throw Error(`HISTORY_LABEL_${label}`);
     if (!(await page.locator('#journey-portal-details').textContent()).includes('500 WOTR → 0.02625446 USDC')) throw Error(`HISTORY_AMOUNT_${label}`);
