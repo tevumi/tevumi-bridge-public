@@ -9,6 +9,8 @@ const kit = new BridgeKit();
 const ARC_ID = 5042;
 const ARC_USDC = '0x3600000000000000000000000000000000000000';
 const RECORD_PREFIX = 'tevumi:circle-usdc:mainnet:v1:';
+const HISTORY_PREFIX = 'tevumi:circle-usdc:history:v1:';
+const validHash = value => /^0x[0-9a-f]{64}$/i.test(value || '');
 const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
 const short = address => address ? `${address.slice(0,6)}…${address.slice(-4)}` : '';
 const cleanError = error => String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,250);
@@ -28,6 +30,7 @@ let quoteTimer = null;
 let quoteSequence = 0;
 let working = false;
 let currentRecord = null;
+let historyRecords = [];
 let walletChoices = [];
 let language = 'en';
 const t = (en,zh) => language === 'zh-CN' ? zh : en;
@@ -54,6 +57,8 @@ const labels = {
   'aside-note':['Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.','本操作使用真实 USDC 并产生网络费。签名前会再次检查报价，仍需在钱包确认。'],
   'activity-title':['Current transfer','当前跨链记录'],
   'retry-button':['Resume transfer','继续原跨链'],
+  'history-title':['Transfer history','跨链记录'],
+  'history-note':['Saved in this browser. SDK status is not independent proof of destination arrival.','记录保存在当前浏览器；SDK 状态不能单独证明目标链到账。'],
   'footer-note':['Arc USDC → Circle-supported chains','Arc USDC → Circle 支持的链'],
 };
 function renderLanguage() {
@@ -68,20 +73,52 @@ function renderLanguage() {
   $('destination-search').setAttribute('aria-label',t('Search chains','搜索链名称'));
   renderChainTrigger();
   if (!$('destination-panel').hidden) renderChainOptions();
+  renderRecord();
+  renderHistory();
   updateButton();
 }
 
 function setStatus(message) { $('status').textContent = message || ''; }
 function setQuote(message, error=false) { $('quote').textContent = message; $('quote').classList.toggle('error',error); }
 function key() { return account ? RECORD_PREFIX + account.toLowerCase() : null; }
+function historyKey() { return account ? HISTORY_PREFIX + account.toLowerCase() : null; }
+function hasRecordedHash(record) {
+  return [...(record?.events || []),...(record?.result?.steps || [])].some(item => validHash(item?.txHash));
+}
+function approvalDeclined(record) {
+  if (record?.state !== 'error' || hasRecordedHash(record)) return false;
+  const approve = (record.result?.steps || []).find(step => step.name === 'approve');
+  const message = `${record.errorMessage || ''} ${approve?.errorMessage || ''} ${approve?.error || ''}`;
+  return /user (?:rejected|denied)|rejected the request/i.test(message);
+}
+function normalizeRecord(record) {
+  return approvalDeclined(record) ? {...record,state:'cancelled',approvalRejected:true} : record;
+}
+function historyEntry(record) {
+  const steps=(record.result?.steps || []).filter(step => validHash(step.txHash)).map(step => ({name:step.name,txHash:step.txHash,explorerUrl:step.explorerUrl}));
+  const events=(record.events || []).filter(event => validHash(event.txHash)).map(event => ({name:event.name,txHash:event.txHash}));
+  return {id:record.id || `legacy:${record.createdAt || 0}:${record.destination || ''}:${record.amount || ''}`,state:record.state,approvalRejected:Boolean(record.approvalRejected),amount:record.amount,destination:record.destination,createdAt:record.createdAt || 0,steps,events};
+}
+function saveHistory(record) {
+  const entry=historyEntry(record);
+  historyRecords=[entry,...historyRecords.filter(item=>item.id!==entry.id)].slice(0,100);
+  if (historyKey()) localStorage.setItem(historyKey(),safeJson(historyRecords));
+  renderHistory();
+}
 function saveRecord(record) {
-  currentRecord = record;
-  if (key()) localStorage.setItem(key(),safeJson(record));
+  currentRecord = normalizeRecord(record);
+  if (key()) localStorage.setItem(key(),safeJson(currentRecord));
+  if (historyKey()) saveHistory(currentRecord);
   renderRecord();
   updateButton();
 }
 function loadRecord() {
-  try { currentRecord = readJson(localStorage.getItem(key()) || 'null'); } catch { currentRecord = {state:'unknown',amount:'?',destination:'?',events:[]}; }
+  try { const saved=readJson(localStorage.getItem(historyKey()) || '[]'); historyRecords=Array.isArray(saved) ? saved.filter(item=>item && typeof item==='object' && typeof item.id==='string').slice(0,100) : []; } catch { historyRecords=[]; }
+  try { currentRecord = normalizeRecord(readJson(localStorage.getItem(key()) || 'null')); } catch { currentRecord = {state:'unknown',amount:'?',destination:'?',events:[]}; }
+  if (currentRecord) {
+    localStorage.setItem(key(),safeJson(currentRecord));
+    saveHistory(currentRecord);
+  } else renderHistory();
   renderRecord();
 }
 function pendingRecord() { return currentRecord && !['success','cancelled'].includes(currentRecord.state); }
@@ -154,24 +191,54 @@ function updateButton() {
   $('retry-button').hidden = !(account && currentRecord?.state === 'error' && currentRecord.result);
   $('wallet-button').textContent = account ? short(account) : t('Connect wallet','连接钱包');
 }
+function recordLabel(record) {
+  if (record.approvalRejected) return t('Approval declined','授权已拒绝');
+  return ({success:t('SDK completed','SDK 已完成'),pending:t('Processing','处理中'),error:t('Action needed','需要处理'),cancelled:t('Cancelled','已取消'),unknown:t('Check status','待核查')})[record.state] || t('Check status','待核查');
+}
+function transactionLinks(container,record) {
+  const seen=new Set();
+  for (const step of [...(record.steps || []),...(record.events || [])]) {
+    if (!validHash(step.txHash) || seen.has(step.txHash.toLowerCase())) continue;
+    seen.add(step.txHash.toLowerCase());
+    const link=typeof step.explorerUrl==='string' && step.explorerUrl.startsWith('https://') ? step.explorerUrl : ['approve','burn'].includes(step.name) ? `https://explorer.arc.io/tx/${step.txHash}` : null;
+    const node=document.createElement(link ? 'a' : 'span');
+    if (link) { node.href=link; node.target='_blank'; node.rel='noopener noreferrer'; }
+    node.textContent=`${step.name || 'Transaction'} ${short(step.txHash)}${link ? ' ↗' : ''}`;
+    container.append(node);
+  }
+}
+function renderHistory() {
+  const list=$('history-list');
+  list.replaceChildren();
+  if (!account) { list.textContent=t('Connect your wallet to view saved attempts.','连接钱包后查看已保存的尝试记录。'); return; }
+  if (!historyRecords.length) { list.textContent=t('No USDC bridge attempts saved in this browser.','这个浏览器暂无 USDC 跨链尝试记录。'); return; }
+  for (const item of historyRecords) {
+    const card=document.createElement('article'); card.className='history-card';
+    const top=document.createElement('div'); top.className='history-card-top';
+    const route=document.createElement('strong'); route.textContent=`${item.amount || '?'} USDC · Arc → ${item.destination || '?'}`;
+    const status=document.createElement('span'); status.className=`history-status history-${['success','pending','error','cancelled','unknown'].includes(item.state) ? item.state : 'unknown'}`; status.textContent=recordLabel(item);
+    top.append(route,status);
+    const meta=document.createElement('p');
+    const date=Number(item.createdAt) ? new Date(Number(item.createdAt)).toLocaleString(language,{hour12:false}) : t('Date unavailable','日期不可用');
+    meta.textContent=`${date} · ${item.state==='success' ? t('SDK result; verify destination independently','SDK 结果；目标链仍需独立核验') : item.approvalRejected ? t('No transaction hash saved; check wallet activity','未保存交易哈希；请核对钱包记录') : t('Saved browser status','浏览器保存的状态')}`;
+    const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,item);
+    card.append(top,meta,links); list.append(card);
+  }
+}
 function renderRecord() {
   $('activity').hidden = !currentRecord;
   if (!currentRecord) return;
   const body = $('activity-body');
   body.replaceChildren();
   const append = message => { const p=document.createElement('p'); p.textContent=message; body.append(p); };
-  append(`${currentRecord.amount} USDC · Arc → ${currentRecord.destination} · ${currentRecord.state}`);
-  if (currentRecord.state === 'pending') append('A transfer is in progress. Do not start another transfer. Keep this page open while the SDK follows its steps.');
-  if (currentRecord.state === 'unknown') append('The wallet or network result is unclear. Check the saved transaction below before any further transfer; this page will not send again automatically.');
-  if (currentRecord.state === 'error') append('The SDK returned an incomplete transfer. Resume the saved transfer; this does not start a new source burn.');
-  if (currentRecord.errorMessage) append(currentRecord.errorMessage);
-  for (const step of currentRecord.result?.steps || []) {
-    append(`${step.name}: ${step.state}${step.errorMessage ? ` · ${step.errorMessage}` : ''}`);
-    if (step.explorerUrl?.startsWith('https://')) {
-      const a=document.createElement('a'); a.href=step.explorerUrl; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=`${step.name} transaction ↗`; body.append(a);
-    } else if (step.txHash) append(`${step.name}: ${step.txHash}`);
-  }
-  for (const event of currentRecord.events || []) if (event.txHash && !currentRecord.result?.steps?.some(step => same(step.txHash,event.txHash))) append(`${event.name}: ${event.txHash}`);
+  append(`${currentRecord.amount || '?'} USDC · Arc → ${currentRecord.destination || '?'} · ${recordLabel(currentRecord)}`);
+  if (currentRecord.approvalRejected) append(t('Wallet approval was declined. No transaction hash was saved here; check wallet activity before trying again.','钱包授权已拒绝。这里未保存交易哈希；再次尝试前请核对钱包记录。'));
+  else if (currentRecord.state === 'pending') append(t('The SDK is processing this transfer. Do not send again.','SDK 正在处理这笔跨链，请勿重复发送。'));
+  else if (currentRecord.state === 'unknown') append(t('The result is unclear. Check the saved transaction before another attempt.','结果暂不明确，再次尝试前请核对已保存的交易。'));
+  else if (currentRecord.state === 'error') append(t('The SDK stopped before completion. Review any source transaction before resuming; your wallet may request another signature.','SDK 未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
+  else if (currentRecord.state === 'success') append(t('The SDK reported completion. Verify the destination transaction independently.','SDK 已报告完成；请独立核验目标链交易。'));
+  if (!currentRecord.approvalRejected && currentRecord.errorMessage) append(cleanError(currentRecord.errorMessage));
+  const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,historyEntry(currentRecord)); body.append(links);
   updateButton();
 }
 function renderChains() {
@@ -271,10 +338,11 @@ async function useWallet(selectedProvider,address) {
   scheduleQuote();
   provider.on?.('accountsChanged', async accounts => {
     resetQuote(); account=accounts?.[0] ? getAddress(accounts[0]) : null;
-    balance=null; tokenBalance=null; currentRecord=null;
+    balance=null; tokenBalance=null; currentRecord=null; historyRecords=[];
     $('balance').textContent=account ? 'Loading Arc balance…' : 'Connect to see Arc USDC balance';
     if (account) { loadRecord(); await readBalance(); }
     if (!account) language='en';
+    if (!account) { renderRecord(); renderHistory(); }
     renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
   });
 }
@@ -329,21 +397,21 @@ async function startBridge() {
       scheduleQuote();
       return;
     }
-    saveRecord({state:'pending',account,amount:chosen.amount,destination:chain.name,recipient:destinationAddress(chain),forwarded:destinationIsForwarded(chain),createdAt:Date.now(),events:[]});
+    saveRecord({id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,state:'pending',account,amount:chosen.amount,destination:chain.name,recipient:destinationAddress(chain),forwarded:destinationIsForwarded(chain),createdAt:Date.now(),events:[]});
     setStatus('Follow the wallet prompts. The SDK continues through approval, source transfer, attestation, and mint.');
     const result=await kit.bridge({...chosen,quote:estimate.quote});
     saveRecord({...currentRecord,state:result.state,result});
-    setStatus(result.state==='success' ? 'Circle Bridge Kit reports destination mint complete.' : 'The transfer needs recovery. Do not start another source transfer.');
+    setStatus(currentRecord.approvalRejected ? t('Approval declined. No transaction hash was saved here; check wallet activity before retrying.','授权已拒绝。这里未保存交易哈希，再次尝试前请核对钱包记录。') : result.state==='success' ? t('Circle Bridge Kit reports completion. Verify destination arrival independently.','Circle Bridge Kit 报告完成；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
     await readBalance();
   } catch (error) {
     // Once the SDK has been called, an ambiguous wallet/network failure must not
     // silently reopen the send button. A stored result can be retried instead.
     if (currentRecord?.state==='pending') {
-      const rejected=Number(error?.code)===4001 && !(currentRecord.events || []).length;
+      const rejected=Number(error?.code)===4001 && !hasRecordedHash(currentRecord);
       saveRecord({...currentRecord,state:rejected ? 'cancelled' : 'unknown',errorMessage:cleanError(error)});
     }
     setStatus(`${cleanError(error)} Check the saved transfer before sending again.`);
-  } finally { working=false; resetQuote(); renderRecord(); }
+  } finally { working=false; if (currentRecord?.state==='cancelled') scheduleQuote(); else resetQuote(); renderRecord(); }
 }
 async function retryBridge() {
   if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
