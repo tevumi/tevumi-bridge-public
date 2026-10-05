@@ -87,7 +87,11 @@ function renderLanguage() {
 }
 
 function setStatus(message) { $('status').textContent = message || ''; }
-function setQuote(message, error=false) { $('quote').textContent = message; $('quote').classList.toggle('error',error); }
+function setQuote(message, error=false, warning=false) {
+  $('quote').textContent = message;
+  $('quote').classList.toggle('error',error);
+  $('quote').classList.toggle('warning',warning && !error);
+}
 function key() { return account ? RECORD_PREFIX + account.toLowerCase() : null; }
 function historyKey() { return account ? HISTORY_PREFIX + account.toLowerCase() : null; }
 function burnHash(record) {
@@ -356,14 +360,28 @@ async function fetchQuote(sequence) {
     if (result.fees.some(item => item.error || item.amount === null) || result.gasFees.some(item => item.error || !item.fees)) throw Error('One or more fees could not be estimated.');
     if (destinationIsForwarded(selectedChain()) && !result.fees.some(item=>item.type==='forwarder' && item.amount!==null)) throw Error('Forwarder fee was not reported. This route cannot be submitted safely.');
     const usdcFees=result.fees.filter(item=>item.token==='USDC').reduce((sum,item)=>sum+parseUnits(item.amount,6),0n);
-    const received=parseUnits(amountValue(),6)-usdcFees;
+    const sendAmount=parseUnits(amountValue(),6);
+    const received=sendAmount-usdcFees;
     if (received <= 0n) throw Error('Fees would consume the transfer amount. Choose a larger amount or another route.');
     const arcGas=result.gasFees.filter(item=>item.blockchain==='Arc').reduce((sum,item)=>sum+parseEther(item.fees.fee),0n);
     if (balance < parseEther(amountValue())+arcGas) throw Error('Arc USDC balance does not cover the amount and estimated network gas.');
     const feeLines=result.fees.map(item=>`${item.type}: ${item.amount} ${item.token}`);
     const gasLines=result.gasFees.map(item=>`${item.blockchain} ${item.name}: ${item.fees.fee} ${item.token}`);
     estimate=result; estimatedAt=Date.now();
-    setQuote([t(`Send ${result.amount} USDC from Arc to ${result.destination.chain}.`,`从 Arc 向 ${result.destination.chain} 跨链 ${result.amount} USDC。`),t(`Estimated destination amount based on reported fees: ${formatUnits(received,6)} USDC`,`按已报告费用估算目标链到账：${formatUnits(received,6)} USDC`),t(`Reported fees: ${feeLines.length ? feeLines.join(' · ') : 'none reported'}`,`已报告费用：${feeLines.length ? feeLines.join(' · ') : '未报告'}`),t(`Network gas estimates: ${gasLines.length ? gasLines.join(' · ') : 'none reported'}`,`网络 Gas 估算：${gasLines.length ? gasLines.join(' · ') : '未报告'}`),destinationIsForwarded(selectedChain()) ? t('Circle Forwarder handles destination mint; its quoted fee is included above.','Circle 转发服务负责目标链铸造；其报价费用已计入上方数据。') : t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。'),...(result.warnings || []).map(item=>item.message || item.code),t('Final fees may change before signing.','签名前最终费用可能变化。')].join('\n'));
+    const highFee=usdcFees*5n>=sendAmount;
+    const feePercent=(Number(usdcFees*10000n/sendAmount)/100).toFixed(2);
+    const bridgeSpender=kit.getSupportedChains({isTestnet:false}).find(item=>item.name==='Arc')?.kitContracts?.bridge;
+    setQuote([
+      ...(highFee ? [t(`High cost: quoted fees are ${feePercent}% of the amount. Consider another destination or a larger transfer.`,`费用较高：报价费用占转出数量的 ${feePercent}%。可比较其他目标链或增大金额。`)] : []),
+      t(`Send ${result.amount} USDC from Arc to ${result.destination.chain}.`,`从 Arc 向 ${result.destination.chain} 跨链 ${result.amount} USDC。`),
+      t(`Estimated destination amount based on reported fees: ${formatUnits(received,6)} USDC`,`按已报告费用估算目标链到账：${formatUnits(received,6)} USDC`),
+      t(`Reported fees: ${feeLines.length ? feeLines.join(' · ') : 'none reported'}`,`已报告费用：${feeLines.length ? feeLines.join(' · ') : '未报告'}`),
+      t(`Network gas estimates: ${gasLines.length ? gasLines.join(' · ') : 'none reported'}`,`网络 Gas 估算：${gasLines.length ? gasLines.join(' · ') : '未报告'}`),
+      ...(bridgeSpender ? [t(`First wallet request: increase Arc USDC allowance by ${result.amount} USDC for Circle Bridge contract ${bridgeSpender}.`,`钱包首笔请求：向 Circle Bridge 合约 ${bridgeSpender} 增加 ${result.amount} USDC 的 Arc USDC 授权额度。`)] : []),
+      destinationIsForwarded(selectedChain()) ? t('Circle Forwarder handles destination mint; its quoted fee is included above.','Circle 转发服务负责目标链铸造；其报价费用已计入上方数据。') : t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。'),
+      ...(result.warnings || []).map(item=>item.message || item.code),
+      t('Final fees may change before signing.','签名前最终费用可能变化。'),
+    ].join('\n'),false,highFee);
     updateButton();
   } catch (error) {
     if (sequence !== quoteSequence) return;
