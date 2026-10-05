@@ -1,6 +1,13 @@
 import { amountValidation, bridgeView, selectAmount, selectAsset, selectDirection } from '../immediate-deploy/live.js';
 import { formatEther } from 'ethers';
+import bnbIcon from '@web3icons/core/svgs/networks/branded/binance-smart-chain.svg.js';
+import arcIcon from '@web3icons/core/svgs/networks/branded/arc.svg.js';
 import './history.js';
+
+const chainIcon = {
+  bsc: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(bnbIcon)}`,
+  arc: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(arcIcon)}`,
+};
 
 // Public asset catalog. Historical routes remain in the controller for receipt recovery.
 const assets = [
@@ -110,8 +117,10 @@ function updateView() {
     button.classList.toggle('active', item === side);
     button.setAttribute('aria-pressed', String(item === side));
   }
-  document.querySelector('#route-from').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
-  document.querySelector('#route-to').textContent = side === 'bsc' ? 'Arc' : 'BNB Chain';
+  document.querySelector('#route-from-name').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
+  document.querySelector('#route-to-name').textContent = side === 'bsc' ? 'Arc' : 'BNB Chain';
+  document.querySelector('#route-from-icon').src = chainIcon[side];
+  document.querySelector('#route-to-icon').src = chainIcon[side === 'bsc' ? 'arc' : 'bsc'];
   document.querySelector('#bridge-balance-chain').textContent = side === 'bsc' ? 'BNB Chain' : 'Arc';
   const buttons = ['connect', 'send-bsc', 'send-arc', 'check-arc', 'check-bsc'];
   for (const id of buttons) document.querySelector(`#${id}`).hidden = true;

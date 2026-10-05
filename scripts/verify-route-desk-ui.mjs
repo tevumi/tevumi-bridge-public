@@ -16,10 +16,15 @@ try {
     if (await page.locator('.language-switch').isVisible()) throw Error(`DISCONNECTED_LANGUAGE_${name}`);
     if (!(await page.locator('#header-connect').isVisible())) throw Error(`HEADER_CONNECT_${name}`);
     if (await page.locator('.brand img').evaluate(image => !image.complete || image.naturalWidth === 0)) throw Error(`BRAND_IMAGE_${name}`);
+    if (await page.locator('#route-from-icon').evaluate(image => !image.complete || image.naturalWidth === 0)) throw Error(`BNB_ICON_${name}`);
+    if (await page.locator('#route-to-icon').evaluate(image => !image.complete || image.naturalWidth === 0)) throw Error(`ARC_ICON_${name}`);
+    const originalFromIcon = await page.locator('#route-from-icon').getAttribute('src');
+    const originalToIcon = await page.locator('#route-to-icon').getAttribute('src');
     if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw Error(`HORIZONTAL_OVERFLOW_${name}`);
     await page.screenshot({ path: `.local/route-desk-${name}-bridge.png`, fullPage: true });
     await page.locator('#reverse-direction').click();
     if (await page.locator('#route-from').textContent() !== 'Arc') throw Error(`REVERSE_DIRECTION_${name}`);
+    if (await page.locator('#route-from-icon').getAttribute('src') !== originalToIcon || await page.locator('#route-to-icon').getAttribute('src') !== originalFromIcon) throw Error(`REVERSE_ICON_${name}`);
     await page.locator('#nav-swap').click();
     if (!(await page.locator('#journey-swap-card').isVisible())) throw Error(`SWAP_NAV_${name}`);
     await page.locator('#nav-buy').click();
