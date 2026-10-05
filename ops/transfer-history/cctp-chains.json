@@ -1,0 +1,239 @@
+{
+  "sdk": "@circle-fin/bridge-kit@1.15.2",
+  "chains": [
+    {
+      "name": "Arbitrum",
+      "type": "evm",
+      "domain": 3,
+      "chainId": 42161,
+      "rpc": "https://arb1.arbitrum.io/rpc",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Arc",
+      "type": "evm",
+      "domain": 26,
+      "chainId": 5042,
+      "rpc": "https://rpc.mainnet.arc.io/",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Avalanche",
+      "type": "evm",
+      "domain": 1,
+      "chainId": 43114,
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Base",
+      "type": "evm",
+      "domain": 6,
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Codex Mainnet",
+      "type": "evm",
+      "domain": 12,
+      "chainId": 81224,
+      "rpc": "https://rpc.codex.xyz",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Cronos",
+      "type": "evm",
+      "domain": 32,
+      "chainId": 25,
+      "rpc": "https://evm.cronos.org",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Edge",
+      "type": "evm",
+      "domain": 28,
+      "chainId": 3343,
+      "rpc": "https://edge-mainnet.g.alchemy.com/public",
+      "tokenMessenger": "0x98706A006bc632Df31CAdFCBD43F38887ce2ca5c",
+      "messageTransmitter": "0x5b61381Fc9e58E70EfC13a4A97516997019198ee"
+    },
+    {
+      "name": "Ethereum",
+      "type": "evm",
+      "domain": 0,
+      "chainId": 1,
+      "rpc": "https://ethereum-rpc.publicnode.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "HyperEVM",
+      "type": "evm",
+      "domain": 19,
+      "chainId": 999,
+      "rpc": "https://rpc.hyperliquid.xyz/evm",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Injective",
+      "type": "evm",
+      "domain": 29,
+      "chainId": 1776,
+      "rpc": "https://sentry.evm-rpc.injective.network",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Ink",
+      "type": "evm",
+      "domain": 21,
+      "chainId": 57073,
+      "rpc": "https://rpc-gel.inkonchain.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Linea",
+      "type": "evm",
+      "domain": 11,
+      "chainId": 59144,
+      "rpc": "https://rpc.linea.build",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Monad",
+      "type": "evm",
+      "domain": 15,
+      "chainId": 143,
+      "rpc": "https://rpc.monad.xyz",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Morph",
+      "type": "evm",
+      "domain": 30,
+      "chainId": 2818,
+      "rpc": "https://rpc.morphl2.io",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Optimism",
+      "type": "evm",
+      "domain": 2,
+      "chainId": 10,
+      "rpc": "https://mainnet.optimism.io",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Pharos",
+      "type": "evm",
+      "domain": 31,
+      "chainId": 1672,
+      "rpc": "https://rpc.pharos.xyz",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Plasma",
+      "type": "evm",
+      "domain": 33,
+      "chainId": 9745,
+      "rpc": "https://rpc.plasma.to",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Plume",
+      "type": "evm",
+      "domain": 22,
+      "chainId": 98866,
+      "rpc": "https://rpc.plume.org",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Polygon",
+      "type": "evm",
+      "domain": 7,
+      "chainId": 137,
+      "rpc": "https://polygon.publicnode.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Sei",
+      "type": "evm",
+      "domain": 16,
+      "chainId": 1329,
+      "rpc": "https://evm-rpc.sei-apis.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Solana",
+      "type": "solana",
+      "domain": 5,
+      "chainId": null,
+      "rpc": null,
+      "tokenMessenger": "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+      "messageTransmitter": "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC"
+    },
+    {
+      "name": "Sonic",
+      "type": "evm",
+      "domain": 13,
+      "chainId": 146,
+      "rpc": "https://rpc.soniclabs.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "Unichain",
+      "type": "evm",
+      "domain": 10,
+      "chainId": 130,
+      "rpc": "https://mainnet.unichain.org",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "World Chain",
+      "type": "evm",
+      "domain": 14,
+      "chainId": 480,
+      "rpc": "https://worldchain-mainnet.g.alchemy.com/public",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cF5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "XDC",
+      "type": "evm",
+      "domain": 18,
+      "chainId": 50,
+      "rpc": "https://erpc.xdcrpc.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    },
+    {
+      "name": "X Layer",
+      "type": "evm",
+      "domain": 37,
+      "chainId": 196,
+      "rpc": "https://xlayerrpc.okx.com",
+      "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+    }
+  ]
+}

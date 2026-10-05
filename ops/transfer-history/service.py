@@ -3,12 +3,15 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 import urllib.error
 import urllib.request
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+sys.path.insert(0, os.path.dirname(__file__))
+import cctp_history
 
 DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', '/var/lib/tevumi/transfer-history.sqlite3')
 HOST = os.environ.get('TEVUMI_HISTORY_HOST', '127.0.0.1')
@@ -57,6 +60,11 @@ def database():
         connection.execute("UPDATE transfers SET amount_ld=? WHERE status IN ('in_transit','arrived')", (str(10**12),))
         connection.commit()
     connection.execute('CREATE INDEX IF NOT EXISTS transfers_account_time ON transfers(account, created_at DESC)')
+    connection.execute('''CREATE TABLE IF NOT EXISTS usdc_transfers (
+      source_hash TEXT PRIMARY KEY, account TEXT NOT NULL, amount TEXT NOT NULL,
+      target_chain TEXT NOT NULL, target_domain INTEGER NOT NULL, mint_recipient TEXT NOT NULL,
+      nonce TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL, checked_at INTEGER NOT NULL)''')
+    connection.execute('CREATE INDEX IF NOT EXISTS usdc_account_time ON usdc_transfers(account, created_at DESC)')
     return connection
 
 
@@ -154,6 +162,31 @@ def update_pending(connection):
             continue
 
 
+def upsert_usdc_source(connection, tx_hash):
+    item = cctp_history.inspect_source(tx_hash)
+    now = int(time.time())
+    connection.execute('''INSERT INTO usdc_transfers
+      (source_hash,account,amount,target_chain,target_domain,mint_recipient,status,created_at,checked_at)
+      VALUES(:source_hash,:account,:amount,:target_chain,:target_domain,:mint_recipient,'source_confirmed',:created_at,:checked_at)
+      ON CONFLICT(source_hash) DO UPDATE SET checked_at=excluded.checked_at''',
+      {**item, 'created_at': now, 'checked_at': now})
+    connection.commit()
+    return connection.execute('SELECT * FROM usdc_transfers WHERE source_hash=?', (item['source_hash'],)).fetchone()
+
+
+def update_usdc_pending(connection):
+    rows = connection.execute("SELECT * FROM usdc_transfers WHERE status='source_confirmed' ORDER BY checked_at LIMIT 20").fetchall()
+    for row in rows:
+        try:
+            nonce = row['nonce'] or cctp_history.matching_nonce(row, cctp_history.iris_messages(row['source_hash']))
+            arrived = nonce is not None and cctp_history.destination_used(row, nonce)
+            connection.execute('''UPDATE usdc_transfers SET nonce=?, status=?, checked_at=? WHERE source_hash=?''',
+                               (nonce, 'arrived' if arrived else 'source_confirmed', int(time.time()), row['source_hash']))
+            connection.commit()
+        except (ValueError, TimeoutError, urllib.error.URLError, OSError, KeyError):
+            continue
+
+
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, code, data):
         body = json.dumps(data, separators=(',', ':')).encode()
@@ -170,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == '/healthz':
             return self.send_json(200, {'ok': True})
-        if url.path != '/transfers':
+        if url.path not in ('/transfers', '/usdc-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         query = parse_qs(url.query)
         account = query.get('account', [''])[0].lower()
@@ -181,24 +214,33 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.send_json(400, {'error': 'Invalid page'})
         with closing(database()) as connection:
-            rows = connection.execute('''SELECT chain,source_hash,asset,target_chain,target_hash,status,amount_ld,created_at
-              FROM transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
-              (account, page * 10)).fetchall()
+            if url.path == '/usdc-transfers':
+                rows = connection.execute('''SELECT source_hash,amount,target_chain,mint_recipient,nonce,status,created_at
+                  FROM usdc_transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
+                  (account, page * 10)).fetchall()
+            else:
+                rows = connection.execute('''SELECT chain,source_hash,asset,target_chain,target_hash,status,amount_ld,created_at
+                  FROM transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
+                  (account, page * 10)).fetchall()
         return self.send_json(200, {'items': [dict(row) for row in rows[:10]], 'more': len(rows) > 10})
 
     def do_POST(self):
-        if self.path != '/transfers':
+        if self.path not in ('/transfers', '/usdc-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if size < 1 or size > 256:
                 raise ValueError('Invalid body')
             item = json.loads(self.rfile.read(size))
-            chain, tx_hash = item.get('chain'), item.get('hash', '')
-            if chain not in RPC or not HASH.fullmatch(tx_hash):
-                raise ValueError('Invalid transaction')
             with closing(database()) as connection:
-                result = upsert_source(connection, chain, tx_hash)
+                if self.path == '/usdc-transfers':
+                    tx_hash = item.get('hash', '')
+                    result = upsert_usdc_source(connection, tx_hash)
+                else:
+                    chain, tx_hash = item.get('chain'), item.get('hash', '')
+                    if chain not in RPC or not HASH.fullmatch(tx_hash):
+                        raise ValueError('Invalid transaction')
+                    result = upsert_source(connection, chain, tx_hash)
             return self.send_json(200, {'status': result['status']})
         except (ValueError, TypeError, KeyError, TimeoutError, urllib.error.URLError, OSError) as error:
             return self.send_json(400, {'error': str(error)[:120]})
@@ -209,6 +251,7 @@ def worker():
         try:
             with closing(database()) as connection:
                 update_pending(connection)
+                update_usdc_pending(connection)
         except (sqlite3.Error, OSError):
             pass
         time.sleep(20)

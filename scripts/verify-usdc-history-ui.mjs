@@ -64,5 +64,38 @@ try {
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#activity-body').innerText()).includes('The SDK stopped before completion')) throw Error('SOURCE_HASH_MISCLASSIFIED');
   await recovery.close();
+  const indexed = await browser.newPage();
+  const hash = `0x${'c'.repeat(64)}`;
+  await indexed.route('**/api/usdc-transfers**', async route => {
+    if (route.request().method() === 'POST') return route.fulfill({ json: { status: 'arrived' } });
+    const page = Number(new URL(route.request().url()).searchParams.get('page') || 0);
+    const items = page ? [{ source_hash: `0x${'d'.repeat(64)}`, amount: '3000000', target_chain: 'Ethereum', status: 'source_confirmed', created_at: 1791190001 }] : [
+      { source_hash: hash, amount: '2000000', target_chain: 'Base', status: 'arrived', created_at: 1791190000 },
+      { source_hash: `0x${'e'.repeat(64)}`, amount: '1000000', target_chain: 'Arbitrum', status: 'source_confirmed', created_at: 1791190000 },
+    ];
+    await route.fulfill({ json: { items, more: page === 0 } });
+  });
+  await indexed.addInitScript(({ address, source }) => {
+    window.ethereum = { request: async ({ method }) => {
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
+      if (method === 'eth_chainId') return '0x13b2';
+      throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
+    } };
+    localStorage.setItem(`tevumi:circle-usdc:history:v1:${address.toLowerCase()}`, JSON.stringify([{
+      id: 'same-burn', state: 'success', amount: '2', destination: 'Base', createdAt: 1791190000000,
+      steps: [{ name: 'burn', txHash: source }], events: [],
+    }]));
+  }, { address: wallet, source: hash });
+  await indexed.goto(origin, { waitUntil: 'domcontentloaded' });
+  await indexed.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+  await indexed.locator('#transfer-history summary').click();
+  await indexed.locator('.history-card').first().getByText('Destination verified').waitFor();
+  if (await indexed.locator('.history-card').count() !== 2) throw Error(`SERVER_DEDUPLICATION_${await indexed.locator('.history-card').count()}_${await indexed.locator('#history-list').innerText()}`);
+  await indexed.locator('#history-more').click();
+  await indexed.locator('.history-card').nth(2).getByText('Arc burn verified').waitFor();
+  await indexed.locator('#lang-zh').click();
+  if (!(await indexed.locator('.history-card').first().innerText()).includes('目标链已核验')) throw Error('VERIFIED_CHINESE_STATUS');
+  await indexed.screenshot({ path: '.local/usdc-server-history-desktop.png', fullPage: true });
+  await indexed.close();
   console.log(JSON.stringify({ status: 'USDC_HISTORY_UI_OK', origin }));
 } finally { await browser.close(); }
