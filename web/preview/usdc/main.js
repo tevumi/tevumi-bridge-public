@@ -8,6 +8,7 @@ const $ = id => document.getElementById(id);
 const kit = new BridgeKit();
 const ARC_ID = 5042;
 const ARC_USDC = '0x3600000000000000000000000000000000000000';
+const ARC_CCTP_MESSENGER = '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d';
 const RECORD_PREFIX = 'tevumi:circle-usdc:mainnet:v1:';
 const HISTORY_PREFIX = 'tevumi:circle-usdc:history:v1:';
 const validHash = value => /^0x[0-9a-f]{64}$/i.test(value || '');
@@ -18,6 +19,10 @@ const safeJson = value => JSON.stringify(value, (key,item) => key === 'error' ? 
 const readJson = value => JSON.parse(value, (key,item) => item && typeof item === 'object' && Object.keys(item).length === 1 && /^\d+$/.test(item.__tevumi_bigint || '') ? BigInt(item.__tevumi_bigint) : item);
 const amountValue = () => $('amount').value.trim();
 const validAmount = value => /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) && parseUnits(value,6) > 0n;
+const sdkArc = kit.getSupportedChains({isTestnet:false}).find(chain => chain.name === 'Arc');
+const directArc = same(sdkArc?.cctp?.contracts?.v2?.tokenMessenger,ARC_CCTP_MESSENGER)
+  ? {...sdkArc,kitContracts:{...sdkArc.kitContracts,bridge:undefined}}
+  : null;
 const supported = kit.getSupportedChains({isTestnet:false}).filter(chain => chain.name !== 'Arc');
 let provider = null;
 let account = null;
@@ -225,11 +230,12 @@ function validRecipient(chain) {
   return false;
 }
 function params(chain) {
+  if (!directArc) throw Error('Circle Arc TokenMessenger configuration does not match the verified mainnet contract.');
   const forwarded = destinationIsForwarded(chain);
   const to = forwarded
     ? {chain:chain.name,recipientAddress:destinationAddress(chain),useForwarder:true}
     : {adapter,chain:chain.name,recipientAddress:destinationAddress(chain)};
-  return {from:{adapter,chain:'Arc'},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW',batchTransactions:false}};
+  return {from:{adapter,chain:directArc},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW',batchTransactions:false}};
 }
 function updateButton() {
   const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord());
@@ -357,6 +363,13 @@ async function fetchQuote(sequence) {
   try {
     const result=await kit.estimate(params(selectedChain()));
     if (sequence !== quoteSequence) return;
+    acceptQuote(result);
+  } catch (error) {
+    if (sequence !== quoteSequence) return;
+    resetQuote(); setQuote(t(`No usable quote for these inputs: ${cleanError(error)}`,`当前条件无可用报价：${cleanError(error)}`),true);
+  }
+}
+function acceptQuote(result) {
     if (result.fees.some(item => item.error || item.amount === null) || result.gasFees.some(item => item.error || !item.fees)) throw Error('One or more fees could not be estimated.');
     if (destinationIsForwarded(selectedChain()) && !result.fees.some(item=>item.type==='forwarder' && item.amount!==null)) throw Error('Forwarder fee was not reported. This route cannot be submitted safely.');
     const usdcFees=result.fees.filter(item=>item.token==='USDC').reduce((sum,item)=>sum+parseUnits(item.amount,6),0n);
@@ -370,23 +383,19 @@ async function fetchQuote(sequence) {
     estimate=result; estimatedAt=Date.now();
     const highFee=usdcFees*5n>=sendAmount;
     const feePercent=(Number(usdcFees*10000n/sendAmount)/100).toFixed(2);
-    const bridgeSpender=kit.getSupportedChains({isTestnet:false}).find(item=>item.name==='Arc')?.kitContracts?.bridge;
+    const bridgeSpender=directArc?.cctp?.contracts?.v2?.tokenMessenger;
     setQuote([
       ...(highFee ? [t(`High cost: quoted fees are ${feePercent}% of the amount. Consider another destination or a larger transfer.`,`费用较高：报价费用占转出数量的 ${feePercent}%。可比较其他目标链或增大金额。`)] : []),
       t(`Send ${result.amount} USDC from Arc to ${result.destination.chain}.`,`从 Arc 向 ${result.destination.chain} 跨链 ${result.amount} USDC。`),
       t(`Estimated destination amount based on reported fees: ${formatUnits(received,6)} USDC`,`按已报告费用估算目标链到账：${formatUnits(received,6)} USDC`),
       t(`Reported fees: ${feeLines.length ? feeLines.join(' · ') : 'none reported'}`,`已报告费用：${feeLines.length ? feeLines.join(' · ') : '未报告'}`),
       t(`Network gas estimates: ${gasLines.length ? gasLines.join(' · ') : 'none reported'}`,`网络 Gas 估算：${gasLines.length ? gasLines.join(' · ') : '未报告'}`),
-      ...(bridgeSpender ? [t(`First wallet request: increase Arc USDC allowance by ${result.amount} USDC for Circle Bridge contract ${bridgeSpender}.`,`钱包首笔请求：向 Circle Bridge 合约 ${bridgeSpender} 增加 ${result.amount} USDC 的 Arc USDC 授权额度。`)] : []),
+      ...(bridgeSpender ? [t(`First wallet request: increase Arc USDC allowance by ${result.amount} USDC for Circle CCTP TokenMessenger ${bridgeSpender}.`,`钱包首笔请求：向 Circle CCTP TokenMessenger ${bridgeSpender} 增加 ${result.amount} USDC 的 Arc USDC 授权额度。`)] : []),
       destinationIsForwarded(selectedChain()) ? t('Circle Forwarder handles destination mint; its quoted fee is included above.','Circle 转发服务负责目标链铸造；其报价费用已计入上方数据。') : t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。'),
       ...(result.warnings || []).map(item=>item.message || item.code),
       t('Final fees may change before signing.','签名前最终费用可能变化。'),
     ].join('\n'),false,highFee);
     updateButton();
-  } catch (error) {
-    if (sequence !== quoteSequence) return;
-    resetQuote(); setQuote(t(`No usable quote for these inputs: ${cleanError(error)}`,`当前条件无可用报价：${cleanError(error)}`),true);
-  }
 }
 async function chooseWallet() {
   if (provider && account) return;
@@ -458,6 +467,7 @@ async function startBridge() {
   if (working || pendingRecord() || !estimate || Date.now()-estimatedAt>=60000) { scheduleQuote(); return; }
   const chain=selectedChain();
   if (!chain || !validRecipient(chain) || !validAmount(amountValue()) || !account) return;
+  let needsFeeReview=false;
   working=true; updateButton(); setStatus('Checking Arc network and wallet before requesting a signature…');
   try {
     const accounts=await provider.request({method:'eth_accounts'});
@@ -472,11 +482,23 @@ async function startBridge() {
     if (refreshed.fees.some(item=>item.error || item.amount===null) || (destinationIsForwarded(chain) && !refreshed.fees.some(item=>item.type==='forwarder' && item.amount!==null))) throw Error('Current fee quote is incomplete. No wallet signature requested.');
     const freshArcGas=refreshed.gasFees.filter(item=>item.blockchain==='Arc').reduce((sum,item)=>sum+parseEther(item.fees?.fee || '0'),0n);
     if (refreshed.gasFees.some(item=>item.error || !item.fees) || balance < parseEther(chosen.amount)+freshArcGas) throw Error('Arc USDC balance no longer covers the transfer and estimated network gas.');
-    if (JSON.stringify(refreshed.fees.map(item=>[item.type,item.token,item.amount]))!==JSON.stringify(estimate.fees.map(item=>[item.type,item.token,item.amount]))) {
-      setStatus(t('Fees changed. Review the refreshed quote, then click once more.','费用发生变化。请核对刷新后的报价，再点击一次。'));
-      scheduleQuote();
+    const priorFees=new Map(estimate.fees.map(item=>[`${item.type}:${item.token}`,item]));
+    const feesNotWorse=refreshed.fees.length===estimate.fees.length && refreshed.fees.every(item=>{
+      const previous=priorFees.get(`${item.type}:${item.token}`);
+      return previous && item.token==='USDC' && parseUnits(item.amount,6)<=parseUnits(previous.amount,6);
+    });
+    const priorGas=new Map(estimate.gasFees.map(item=>[`${item.blockchain}:${item.name}:${item.token}`,item]));
+    const gasNotWorse=refreshed.gasFees.length===estimate.gasFees.length && refreshed.gasFees.every(item=>{
+      const previous=priorGas.get(`${item.blockchain}:${item.name}:${item.token}`);
+      return previous && item.token==='USDC' && parseEther(item.fees.fee)<=parseEther(previous.fees.fee);
+    });
+    if (!feesNotWorse || !gasNotWorse) {
+      setStatus(t('Fees increased. Review the refreshed quote, then click once more.','费用上涨。请核对刷新后的报价，再点击一次。'));
+      acceptQuote(refreshed);
+      needsFeeReview=true;
       return;
     }
+    estimate=refreshed;
     saveRecord({id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,state:'pending',account,amount:chosen.amount,destination:chain.name,recipient:destinationAddress(chain),forwarded:destinationIsForwarded(chain),createdAt:Date.now(),events:[]});
     setStatus('Follow the wallet prompts. The SDK continues through approval, source transfer, attestation, and mint.');
     const result=await kit.bridge({...chosen,quote:estimate.quote});
@@ -491,7 +513,7 @@ async function startBridge() {
       saveRecord({...currentRecord,state:rejected ? 'cancelled' : 'unknown',errorMessage:cleanError(error)});
     }
     setStatus(`${cleanError(error)} Check the saved transfer before sending again.`);
-  } finally { working=false; if (currentRecord?.state==='cancelled') scheduleQuote(); else resetQuote(); renderRecord(); }
+  } finally { working=false; if (needsFeeReview) updateButton(); else if (currentRecord?.state==='cancelled') scheduleQuote(); else resetQuote(); renderRecord(); }
 }
 async function retryBridge() {
   if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
