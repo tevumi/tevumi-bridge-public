@@ -44,6 +44,7 @@
     "@openzeppelin/contracts": "5.4.0",
     "@openzeppelin/contracts-upgradeable": "5.4.0",
     "@safe-global/safe-deployments": "1.37.63",
+    "@web3icons/core": "4.0.57",
     "ethers": "6.17.0",
     "viem": "2.57.2"
   }

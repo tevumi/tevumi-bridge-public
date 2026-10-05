@@ -2,6 +2,7 @@ import {BridgeKit} from '@circle-fin/bridge-kit';
 import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
 import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
 import {rpc} from '../../immediate-deploy/rpc.js';
+import {chainBadge, iconFor} from './chain-icons.js';
 
 const $ = id => document.getElementById(id);
 const kit = new BridgeKit();
@@ -63,6 +64,10 @@ function renderLanguage() {
   for (const [id,copy] of Object.entries(labels)) $(id).textContent=language==='zh-CN'?copy[1]:copy[0];
   $('aside-title').innerHTML=language==='zh-CN'?'一次转账。<br>进度清晰。':'One transfer.<br>Clear progress.';
   $('destination').options[0].textContent=t('Select destination','选择目标链');
+  $('destination-search').placeholder=t('Search chains','搜索链名称');
+  $('destination-search').setAttribute('aria-label',t('Search chains','搜索链名称'));
+  renderChainTrigger();
+  if (!$('destination-panel').hidden) renderChainOptions();
   updateButton();
 }
 
@@ -81,6 +86,50 @@ function loadRecord() {
 }
 function pendingRecord() { return currentRecord && !['success','cancelled'].includes(currentRecord.state); }
 function selectedChain() { return supported.find(chain => chain.name === $('destination').value); }
+function renderChainTrigger() {
+  const current=$('destination-current');
+  current.replaceChildren();
+  const chain=selectedChain();
+  if (!chain) { current.textContent=t('Select chain','选择链'); return; }
+  current.append(chainBadge(chain.name),document.createTextNode(chain.name));
+}
+function renderChainOptions() {
+  const list=$('destination-options');
+  const term=$('destination-search').value.trim().toLowerCase();
+  list.replaceChildren();
+  for (const chain of supported.filter(item=>item.name.toLowerCase().includes(term))) {
+    const option=document.createElement('button');
+    option.type='button';
+    option.className='destination-option';
+    option.setAttribute('role','option');
+    option.setAttribute('aria-selected',String($('destination').value===chain.name));
+    option.append(chainBadge(chain.name),document.createTextNode(chain.name));
+    option.addEventListener('click',()=>{
+      $('destination').value=chain.name;
+      $('destination').dispatchEvent(new Event('change',{bubbles:true}));
+      closeChainPicker();
+      $('destination-trigger').focus();
+    });
+    list.append(option);
+  }
+  if (!list.children.length) {
+    const empty=document.createElement('p');
+    empty.className='destination-empty';
+    empty.textContent=t('No matching chain','没有匹配的链');
+    list.append(empty);
+  }
+}
+function closeChainPicker() {
+  $('destination-panel').hidden=true;
+  $('destination-trigger').setAttribute('aria-expanded','false');
+}
+function openChainPicker() {
+  $('destination-panel').hidden=false;
+  $('destination-trigger').setAttribute('aria-expanded','true');
+  $('destination-search').value='';
+  renderChainOptions();
+  $('destination-search').focus();
+}
 function destinationIsForwarded(chain) { return chain?.cctp?.forwarderSupported?.destination === true; }
 function destinationAddress(chain) {
   if (chain?.type === 'evm') return account;
@@ -129,6 +178,8 @@ function renderChains() {
   const select=$('destination');
   select.replaceChildren(new Option('Select destination',''));
   for (const chain of supported) select.add(new Option(chain.name,chain.name));
+  $('arc-icon').src=iconFor('Arc');
+  renderChainTrigger();
 }
 async function readBalance() {
   if (!account) return;
@@ -308,7 +359,27 @@ async function retryBridge() {
 
 renderChains();
 $('wallet-button').addEventListener('click',()=>void chooseWallet());
-$('destination').addEventListener('change',()=>{renderRecipient();scheduleQuote();});
+$('destination').addEventListener('change',()=>{renderChainTrigger();renderRecipient();scheduleQuote();});
+$('destination-trigger').addEventListener('click',()=>{
+  if ($('destination-panel').hidden) openChainPicker(); else closeChainPicker();
+});
+$('destination-search').addEventListener('input',renderChainOptions);
+$('destination-panel').addEventListener('keydown',event=>{
+  if (event.key==='Escape') { closeChainPicker(); $('destination-trigger').focus(); return; }
+  const options=[...$('destination-options').querySelectorAll('button')];
+  if (!options.length) return;
+  if (event.key==='ArrowDown' || event.key==='ArrowUp') {
+    event.preventDefault();
+    const index=options.indexOf(document.activeElement);
+    const next=index<0 ? (event.key==='ArrowDown'?0:options.length-1) : (index+(event.key==='ArrowDown'?1:options.length-1))%options.length;
+    options[next].focus();
+  } else if (event.key==='Enter' && document.activeElement===$('destination-search')) {
+    event.preventDefault(); options[0].click();
+  }
+});
+document.addEventListener('pointerdown',event=>{
+  if (!$('destination-panel').hidden && !event.target.closest('.chain-picker')) closeChainPicker();
+});
 $('amount').addEventListener('input',scheduleQuote);
 $('recipient').addEventListener('input',scheduleQuote);
 $('bridge-button').addEventListener('click',()=>void startBridge());
