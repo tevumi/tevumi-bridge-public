@@ -64,6 +64,26 @@ try {
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#activity-body').innerText()).includes('The SDK stopped before completion')) throw Error('SOURCE_HASH_MISCLASSIFIED');
   await recovery.close();
+  const walletWait = await browser.newPage();
+  await walletWait.addInitScript(address => {
+    window.ethereum = { request: async ({ method }) => {
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
+      if (method === 'eth_chainId') return '0x13b2';
+      throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
+    } };
+    localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`, JSON.stringify({
+      state: 'pending', account: address, amount: '2', destination: 'Ethereum', createdAt: Date.now(), events: [],
+    }));
+  }, wallet);
+  await walletWait.goto(origin, { waitUntil: 'domcontentloaded' });
+  await walletWait.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+  await walletWait.locator('#transfer-history summary').click();
+  if (!(await walletWait.locator('#activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
+  if (!(await walletWait.locator('.history-card').first().innerText()).includes('Awaiting wallet')) throw Error('WALLET_WAIT_LABEL');
+  if (!(await walletWait.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_DURING_WALLET_WAIT');
+  await walletWait.locator('#lang-zh').click();
+  if (!(await walletWait.locator('#activity-body').innerText()).includes('正在等待钱包确认')) throw Error('WALLET_WAIT_CHINESE');
+  await walletWait.close();
   const indexed = await browser.newPage();
   const hash = `0x${'c'.repeat(64)}`;
   await indexed.route('**/api/usdc-transfers**', async route => {

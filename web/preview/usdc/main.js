@@ -122,7 +122,7 @@ async function syncBurn(record) {
   finally { syncingBurns.delete(hash); }
 }
 function hasRecordedHash(record) {
-  return [...(record?.events || []),...(record?.result?.steps || [])].some(item => validHash(item?.txHash));
+  return [...(record?.events || []),...(record?.steps || []),...(record?.result?.steps || [])].some(item => validHash(item?.txHash));
 }
 function approvalDeclined(record) {
   if (record?.state !== 'error' || hasRecordedHash(record)) return false;
@@ -225,7 +225,7 @@ function params(chain) {
   const to = forwarded
     ? {chain:chain.name,recipientAddress:destinationAddress(chain),useForwarder:true}
     : {adapter,chain:chain.name,recipientAddress:destinationAddress(chain)};
-  return {from:{adapter,chain:'Arc'},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW'}};
+  return {from:{adapter,chain:'Arc'},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW',batchTransactions:false}};
 }
 function updateButton() {
   const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord());
@@ -235,6 +235,7 @@ function updateButton() {
 }
 function recordLabel(record) {
   if (record.approvalRejected) return t('Approval declined','授权已拒绝');
+  if (record.state==='pending' && !hasRecordedHash(record)) return t('Awaiting wallet','等待钱包');
   return ({success:t('SDK completed','SDK 已完成'),pending:t('Processing','处理中'),error:t('Action needed','需要处理'),cancelled:t('Cancelled','已取消'),unknown:t('Check status','待核查')})[record.state] || t('Check status','待核查');
 }
 function transactionLinks(container,record) {
@@ -292,6 +293,7 @@ function renderRecord() {
   const append = message => { const p=document.createElement('p'); p.textContent=message; body.append(p); };
   append(`${currentRecord.amount || '?'} USDC · Arc → ${currentRecord.destination || '?'} · ${recordLabel(currentRecord)}`);
   if (currentRecord.approvalRejected) append(t('Wallet approval was declined. No transaction hash was saved here; check wallet activity before trying again.','钱包授权已拒绝。这里未保存交易哈希；再次尝试前请核对钱包记录。'));
+  else if (currentRecord.state === 'pending' && !hasRecordedHash(currentRecord)) append(t('Waiting for the wallet. No source transaction hash is saved. If the wallet blocks this request, check wallet activity before another attempt.','正在等待钱包确认，尚未保存源链交易哈希。如果钱包拦截了请求，再次尝试前请核对钱包活动。'));
   else if (currentRecord.state === 'pending') append(t('The SDK is processing this transfer. Do not send again.','SDK 正在处理这笔跨链，请勿重复发送。'));
   else if (currentRecord.state === 'unknown') append(t('The result is unclear. Check the saved transaction before another attempt.','结果暂不明确，再次尝试前请核对已保存的交易。'));
   else if (currentRecord.state === 'error') append(t('The SDK stopped before completion. Review any source transaction before resuming; your wallet may request another signature.','SDK 未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
