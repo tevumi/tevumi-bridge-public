@@ -1,0 +1,318 @@
+import {BridgeKit} from '@circle-fin/bridge-kit';
+import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
+import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
+import {rpc} from '../../immediate-deploy/rpc.js';
+
+const $ = id => document.getElementById(id);
+const kit = new BridgeKit();
+const ARC_ID = 5042;
+const ARC_USDC = '0x3600000000000000000000000000000000000000';
+const RECORD_PREFIX = 'tevumi:circle-usdc:mainnet:v1:';
+const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
+const short = address => address ? `${address.slice(0,6)}…${address.slice(-4)}` : '';
+const cleanError = error => String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,250);
+const safeJson = value => JSON.stringify(value, (key,item) => key === 'error' ? undefined : typeof item === 'bigint' ? {__tevumi_bigint:item.toString()} : item);
+const readJson = value => JSON.parse(value, (key,item) => item && typeof item === 'object' && Object.keys(item).length === 1 && /^\d+$/.test(item.__tevumi_bigint || '') ? BigInt(item.__tevumi_bigint) : item);
+const amountValue = () => $('amount').value.trim();
+const validAmount = value => /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value) && parseUnits(value,6) > 0n;
+const supported = kit.getSupportedChains({isTestnet:false}).filter(chain => chain.name !== 'Arc');
+let provider = null;
+let account = null;
+let adapter = null;
+let balance = null;
+let tokenBalance = null;
+let estimate = null;
+let estimatedAt = 0;
+let quoteTimer = null;
+let quoteSequence = 0;
+let working = false;
+let currentRecord = null;
+let walletChoices = [];
+let language = 'en';
+const t = (en,zh) => language === 'zh-CN' ? zh : en;
+const labels = {
+  'back-link':['← Back to Swap','← 返回兑换'],
+  eyebrow:['USDC · CIRCLE APP KIT','USDC · CIRCLE APP KIT'],
+  title:['Bridge USDC.','跨链 USDC。'],
+  lead:['Move Arc USDC to a destination supported by Circle Bridge Kit. Choose a chain and amount; the live quote appears automatically.','将 Arc 上的 USDC 转到 Circle Bridge Kit 支持的目标链。选择链和金额后会自动显示实时报价。'],
+  'source-label':['From','来源'],
+  'destination-label':['To','目标链'],
+  'amount-label':['Amount to send','跨链数量'],
+  'amount-help':['Leave enough Arc USDC to pay network gas.','请在 Arc 钱包中留足 USDC 支付网络 Gas。'],
+  'recipient-label':['Destination recipient address','目标链收款地址'],
+  'recipient-help':['Check this address carefully. It may differ from your Arc wallet address.','请仔细核对目标链地址，它可能与 Arc 钱包地址不同。'],
+  'speed-note':['Standard transfer · no CCTP Fast Transfer fee. Completion time varies by route.','标准速度 · 无 CCTP 快速转账费。完成时间因路线而异。'],
+  'bridge-button':['Review and bridge USDC','确认报价并跨链 USDC'],
+  'aside-label':['WHAT HAPPENS NEXT','后续流程'],
+  'stage-one':['Approve and send','授权并发送'],
+  'stage-one-help':["Circle's SDK requests any needed approval and starts the Arc transfer.",'Circle SDK 会请求必要的授权并在 Arc 发起转账。'],
+  'stage-two':['Bridge confirmation','跨链确认'],
+  'stage-two-help':['The SDK follows the burn, attestation, and destination mint.','SDK 跟踪销毁、证明和目标链铸造。'],
+  'stage-three':['USDC arrives','USDC 到账'],
+  'stage-three-help':['Destination confirmation is shown only after the SDK reports success.','只有 SDK 报告成功后才显示目标链到账。'],
+  'aside-note':['Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.','本操作使用真实 USDC 并产生网络费。签名前会再次检查报价，仍需在钱包确认。'],
+  'activity-title':['Current transfer','当前跨链记录'],
+  'retry-button':['Resume transfer','继续原跨链'],
+  'footer-note':['Arc USDC → Circle-supported chains','Arc USDC → Circle 支持的链'],
+};
+function renderLanguage() {
+  document.documentElement.lang=language;
+  $('language').hidden=!account;
+  $('lang-en').setAttribute('aria-pressed',String(language==='en'));
+  $('lang-zh').setAttribute('aria-pressed',String(language==='zh-CN'));
+  for (const [id,copy] of Object.entries(labels)) $(id).textContent=language==='zh-CN'?copy[1]:copy[0];
+  $('aside-title').innerHTML=language==='zh-CN'?'一次转账。<br>进度清晰。':'One transfer.<br>Clear progress.';
+  $('destination').options[0].textContent=t('Select destination','选择目标链');
+  updateButton();
+}
+
+function setStatus(message) { $('status').textContent = message || ''; }
+function setQuote(message, error=false) { $('quote').textContent = message; $('quote').classList.toggle('error',error); }
+function key() { return account ? RECORD_PREFIX + account.toLowerCase() : null; }
+function saveRecord(record) {
+  currentRecord = record;
+  if (key()) localStorage.setItem(key(),safeJson(record));
+  renderRecord();
+  updateButton();
+}
+function loadRecord() {
+  try { currentRecord = readJson(localStorage.getItem(key()) || 'null'); } catch { currentRecord = {state:'unknown',amount:'?',destination:'?',events:[]}; }
+  renderRecord();
+}
+function pendingRecord() { return currentRecord && !['success','cancelled'].includes(currentRecord.state); }
+function selectedChain() { return supported.find(chain => chain.name === $('destination').value); }
+function destinationIsForwarded(chain) { return chain?.cctp?.forwarderSupported?.destination === true; }
+function destinationAddress(chain) {
+  if (chain?.type === 'evm') return account;
+  return $('recipient').value.trim();
+}
+function validRecipient(chain) {
+  if (!chain) return false;
+  if (chain.type === 'evm') return Boolean(account);
+  if (chain.type === 'solana') return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test($('recipient').value.trim());
+  return false;
+}
+function params(chain) {
+  const forwarded = destinationIsForwarded(chain);
+  const to = forwarded
+    ? {chain:chain.name,recipientAddress:destinationAddress(chain),useForwarder:true}
+    : {adapter,chain:chain.name,recipientAddress:destinationAddress(chain)};
+  return {from:{adapter,chain:'Arc'},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW'}};
+}
+function updateButton() {
+  const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord());
+  $('bridge-button').disabled = !ready;
+  $('retry-button').hidden = !(account && currentRecord?.state === 'error' && currentRecord.result);
+  $('wallet-button').textContent = account ? short(account) : t('Connect wallet','连接钱包');
+}
+function renderRecord() {
+  $('activity').hidden = !currentRecord;
+  if (!currentRecord) return;
+  const body = $('activity-body');
+  body.replaceChildren();
+  const append = message => { const p=document.createElement('p'); p.textContent=message; body.append(p); };
+  append(`${currentRecord.amount} USDC · Arc → ${currentRecord.destination} · ${currentRecord.state}`);
+  if (currentRecord.state === 'pending') append('A transfer is in progress. Do not start another transfer. Keep this page open while the SDK follows its steps.');
+  if (currentRecord.state === 'unknown') append('The wallet or network result is unclear. Check the saved transaction below before any further transfer; this page will not send again automatically.');
+  if (currentRecord.state === 'error') append('The SDK returned an incomplete transfer. Resume the saved transfer; this does not start a new source burn.');
+  if (currentRecord.errorMessage) append(currentRecord.errorMessage);
+  for (const step of currentRecord.result?.steps || []) {
+    append(`${step.name}: ${step.state}${step.errorMessage ? ` · ${step.errorMessage}` : ''}`);
+    if (step.explorerUrl?.startsWith('https://')) {
+      const a=document.createElement('a'); a.href=step.explorerUrl; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=`${step.name} transaction ↗`; body.append(a);
+    } else if (step.txHash) append(`${step.name}: ${step.txHash}`);
+  }
+  for (const event of currentRecord.events || []) if (event.txHash && !currentRecord.result?.steps?.some(step => same(step.txHash,event.txHash))) append(`${event.name}: ${event.txHash}`);
+  updateButton();
+}
+function renderChains() {
+  const select=$('destination');
+  select.replaceChildren(new Option('Select destination',''));
+  for (const chain of supported) select.add(new Option(chain.name,chain.name));
+}
+async function readBalance() {
+  if (!account) return;
+  try {
+    const [raw,tokenRaw]=await Promise.all([
+      rpc(ARC_ID,'eth_getBalance',[account,'latest']),
+      rpc(ARC_ID,'eth_call',[{to:ARC_USDC,data:'0x70a08231'+account.slice(2).toLowerCase().padStart(64,'0')},'latest']),
+    ]);
+    balance=BigInt(raw);
+    tokenBalance=BigInt(tokenRaw);
+    $('balance').textContent=`Arc USDC: ${formatUnits(tokenBalance,6)}`;
+  } catch {
+    balance=null; tokenBalance=null;
+    $('balance').textContent='Arc balance unavailable';
+  }
+}
+function renderRecipient() {
+  const chain=selectedChain();
+  $('recipient-row').hidden = !chain || chain.type === 'evm';
+  if (chain?.type === 'evm' && account) $('recipient-help').textContent=`Recipient: your wallet ${short(account)}`;
+}
+function resetQuote() {
+  estimate=null; estimatedAt=0; quoteSequence++;
+  updateButton();
+}
+function scheduleQuote() {
+  clearTimeout(quoteTimer);
+  resetQuote();
+  if (!account) { setQuote(t('Connect your wallet to see a live quote.','连接钱包后即可查看实时报价。')); return; }
+  const chain=selectedChain();
+  if (!chain) { setQuote(t('Choose a destination chain.','请选择目标链。')); return; }
+  if (!validRecipient(chain)) { setQuote(t('Enter a valid destination recipient address.','请输入有效的目标链收款地址。')); return; }
+  if (!validAmount(amountValue())) { setQuote(t('Enter an amount greater than zero with at most six decimal places.','请输入大于零且最多 6 位小数的数量。')); return; }
+  if (balance === null || tokenBalance === null) { setQuote(t('Arc balance is unavailable. Try again after it loads.','Arc 余额暂不可用，请稍后重试。'),true); return; }
+  if (parseUnits(amountValue(),6)>tokenBalance) { setQuote(t('The Arc wallet does not hold this much transferable USDC.','Arc 钱包没有足够的可转 USDC。'),true); return; }
+  if (parseEther(amountValue()) >= balance) { setQuote(t('Leave some Arc USDC in your wallet for network gas.','请在 Arc 钱包中留一些 USDC 支付网络 Gas。'),true); return; }
+  if (pendingRecord()) { setQuote(t('A previous transfer still needs checking. Do not send again.','上一笔跨链仍需核查，请勿重复发送。'),true); return; }
+  const sequence=quoteSequence;
+  setQuote(t('Checking the live route and fees…','正在查询实时报价与费用…'));
+  quoteTimer=setTimeout(()=>void fetchQuote(sequence),450);
+}
+async function fetchQuote(sequence) {
+  try {
+    const result=await kit.estimate(params(selectedChain()));
+    if (sequence !== quoteSequence) return;
+    if (result.fees.some(item => item.error || item.amount === null) || result.gasFees.some(item => item.error || !item.fees)) throw Error('One or more fees could not be estimated.');
+    if (destinationIsForwarded(selectedChain()) && !result.fees.some(item=>item.type==='forwarder' && item.amount!==null)) throw Error('Forwarder fee was not reported. This route cannot be submitted safely.');
+    const usdcFees=result.fees.filter(item=>item.token==='USDC').reduce((sum,item)=>sum+parseUnits(item.amount,6),0n);
+    const received=parseUnits(amountValue(),6)-usdcFees;
+    if (received <= 0n) throw Error('Fees would consume the transfer amount. Choose a larger amount or another route.');
+    const arcGas=result.gasFees.filter(item=>item.blockchain==='Arc').reduce((sum,item)=>sum+parseEther(item.fees.fee),0n);
+    if (balance < parseEther(amountValue())+arcGas) throw Error('Arc USDC balance does not cover the amount and estimated network gas.');
+    const feeLines=result.fees.map(item=>`${item.type}: ${item.amount} ${item.token}`);
+    const gasLines=result.gasFees.map(item=>`${item.blockchain} ${item.name}: ${item.fees.fee} ${item.token}`);
+    estimate=result; estimatedAt=Date.now();
+    setQuote([t(`Send ${result.amount} USDC from Arc to ${result.destination.chain}.`,`从 Arc 向 ${result.destination.chain} 跨链 ${result.amount} USDC。`),t(`Estimated destination amount based on reported fees: ${formatUnits(received,6)} USDC`,`按已报告费用估算目标链到账：${formatUnits(received,6)} USDC`),t(`Reported fees: ${feeLines.length ? feeLines.join(' · ') : 'none reported'}`,`已报告费用：${feeLines.length ? feeLines.join(' · ') : '未报告'}`),t(`Network gas estimates: ${gasLines.length ? gasLines.join(' · ') : 'none reported'}`,`网络 Gas 估算：${gasLines.length ? gasLines.join(' · ') : '未报告'}`),destinationIsForwarded(selectedChain()) ? t('Circle Forwarder handles destination mint; its quoted fee is included above.','Circle 转发服务负责目标链铸造；其报价费用已计入上方数据。') : t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。'),...(result.warnings || []).map(item=>item.message || item.code),t('Final fees may change before signing.','签名前最终费用可能变化。')].join('\n'));
+    updateButton();
+  } catch (error) {
+    if (sequence !== quoteSequence) return;
+    resetQuote(); setQuote(t(`No usable quote for these inputs: ${cleanError(error)}`,`当前条件无可用报价：${cleanError(error)}`),true);
+  }
+}
+async function chooseWallet() {
+  if (provider && account) return;
+  if (!provider && walletChoices.length === 1) provider=walletChoices[0].provider;
+  if (!provider && walletChoices.length > 1) {
+    const selection=window.prompt(`Choose wallet:\n${walletChoices.map((item,index)=>`${index+1}. ${item.name}`).join('\n')}`,'1');
+    const index=Number(selection)-1;
+    if (!Number.isInteger(index) || index < 0 || index >= walletChoices.length) return;
+    provider=walletChoices[index].provider;
+  }
+  provider ||= window.ethereum;
+  if (!provider) { setStatus('No browser wallet was detected.'); return; }
+  try {
+    const accounts=await provider.request({method:'eth_requestAccounts'});
+    if (!accounts?.length) throw Error('Wallet returned no account.');
+    await useWallet(provider,accounts[0]);
+  } catch (error) { setStatus(cleanError(error)); }
+}
+async function useWallet(selectedProvider,address) {
+  provider=selectedProvider;
+  account=getAddress(address);
+  adapter=await createViemAdapterFromProvider({provider});
+  renderLanguage();
+  loadRecord();
+  updateButton();
+  await readBalance();
+  renderRecipient();
+  scheduleQuote();
+  provider.on?.('accountsChanged', async accounts => {
+    resetQuote(); account=accounts?.[0] ? getAddress(accounts[0]) : null;
+    balance=null; tokenBalance=null; currentRecord=null;
+    $('balance').textContent=account ? 'Loading Arc balance…' : 'Connect to see Arc USDC balance';
+    if (account) { loadRecord(); await readBalance(); }
+    if (!account) language='en';
+    renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
+  });
+}
+async function discoverWallets() {
+  const announced=[];
+  window.addEventListener('eip6963:announceProvider', event => {
+    if (!announced.some(item=>item.provider===event.detail.provider)) announced.push({provider:event.detail.provider,name:event.detail.info?.name || 'Browser wallet'});
+  });
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  await new Promise(resolve=>setTimeout(resolve,250));
+  walletChoices=announced;
+  const candidates=walletChoices.length ? walletChoices : window.ethereum ? [{provider:window.ethereum,name:'Browser wallet'}] : [];
+  const connected=[];
+  for (const candidate of candidates) {
+    try {
+      const accounts=await candidate.provider.request({method:'eth_accounts'});
+      if (accounts?.length) connected.push({provider:candidate.provider,address:accounts[0]});
+    } catch { /* wallet may require an explicit connection */ }
+  }
+  if (connected.length===1) await useWallet(connected[0].provider,connected[0].address);
+  updateButton();
+}
+function recordEvent(payload) {
+  if (!currentRecord || !['pending','unknown'].includes(currentRecord.state)) return;
+  const name=String(payload?.method || payload?.name || 'bridge');
+  const hash=payload?.values?.txHash || payload?.txHash;
+  if (!/^0x[0-9a-f]{64}$/i.test(hash || '')) return;
+  const events=[...(currentRecord.events || []),{name,txHash:hash}];
+  saveRecord({...currentRecord,events:events.slice(-12)});
+}
+kit.on('*',recordEvent);
+async function startBridge() {
+  if (working || pendingRecord() || !estimate || Date.now()-estimatedAt>=60000) { scheduleQuote(); return; }
+  const chain=selectedChain();
+  if (!chain || !validRecipient(chain) || !validAmount(amountValue()) || !account) return;
+  working=true; updateButton(); setStatus('Checking Arc network and wallet before requesting a signature…');
+  try {
+    const accounts=await provider.request({method:'eth_accounts'});
+    if (!accounts?.some(item=>same(item,account))) throw Error('Wallet account changed. Reconnect first.');
+    const currentChain=await provider.request({method:'eth_chainId'});
+    if (Number.parseInt(currentChain,16)!==ARC_ID) await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x13b2'}]});
+    if (Number.parseInt(await provider.request({method:'eth_chainId'}),16)!==ARC_ID) throw Error('Switch the wallet to Arc before continuing.');
+    await readBalance();
+    if (balance===null || tokenBalance===null || parseUnits(amountValue(),6)>tokenBalance || parseEther(amountValue())>=balance) throw Error('Arc USDC balance is insufficient after reserving gas.');
+    const chosen=params(chain);
+    const refreshed=await kit.estimate(chosen);
+    if (refreshed.fees.some(item=>item.error || item.amount===null) || (destinationIsForwarded(chain) && !refreshed.fees.some(item=>item.type==='forwarder' && item.amount!==null))) throw Error('Current fee quote is incomplete. No wallet signature requested.');
+    const freshArcGas=refreshed.gasFees.filter(item=>item.blockchain==='Arc').reduce((sum,item)=>sum+parseEther(item.fees?.fee || '0'),0n);
+    if (refreshed.gasFees.some(item=>item.error || !item.fees) || balance < parseEther(chosen.amount)+freshArcGas) throw Error('Arc USDC balance no longer covers the transfer and estimated network gas.');
+    if (JSON.stringify(refreshed.fees.map(item=>[item.type,item.token,item.amount]))!==JSON.stringify(estimate.fees.map(item=>[item.type,item.token,item.amount]))) {
+      setStatus(t('Fees changed. Review the refreshed quote, then click once more.','费用发生变化。请核对刷新后的报价，再点击一次。'));
+      scheduleQuote();
+      return;
+    }
+    saveRecord({state:'pending',account,amount:chosen.amount,destination:chain.name,recipient:destinationAddress(chain),forwarded:destinationIsForwarded(chain),createdAt:Date.now(),events:[]});
+    setStatus('Follow the wallet prompts. The SDK continues through approval, source transfer, attestation, and mint.');
+    const result=await kit.bridge({...chosen,quote:estimate.quote});
+    saveRecord({...currentRecord,state:result.state,result});
+    setStatus(result.state==='success' ? 'Circle Bridge Kit reports destination mint complete.' : 'The transfer needs recovery. Do not start another source transfer.');
+    await readBalance();
+  } catch (error) {
+    // Once the SDK has been called, an ambiguous wallet/network failure must not
+    // silently reopen the send button. A stored result can be retried instead.
+    if (currentRecord?.state==='pending') {
+      const rejected=Number(error?.code)===4001 && !(currentRecord.events || []).length;
+      saveRecord({...currentRecord,state:rejected ? 'cancelled' : 'unknown',errorMessage:cleanError(error)});
+    }
+    setStatus(`${cleanError(error)} Check the saved transfer before sending again.`);
+  } finally { working=false; resetQuote(); renderRecord(); }
+}
+async function retryBridge() {
+  if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
+  working=true; updateButton(); setStatus('Resuming the saved Circle transfer. No new bridge is being created.');
+  try {
+    const result=await kit.retry(currentRecord.result,{from:adapter,...(!currentRecord.forwarded ? {to:adapter} : {})});
+    saveRecord({...currentRecord,state:result.state,result});
+    setStatus(result.state==='success' ? 'Destination mint completed.' : 'The saved transfer is still incomplete.');
+    await readBalance();
+  } catch (error) { setStatus(cleanError(error)); }
+  finally { working=false; updateButton(); }
+}
+
+renderChains();
+$('wallet-button').addEventListener('click',()=>void chooseWallet());
+$('destination').addEventListener('change',()=>{renderRecipient();scheduleQuote();});
+$('amount').addEventListener('input',scheduleQuote);
+$('recipient').addEventListener('input',scheduleQuote);
+$('bridge-button').addEventListener('click',()=>void startBridge());
+$('retry-button').addEventListener('click',()=>void retryBridge());
+for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;renderLanguage();scheduleQuote();renderRecord();});
+renderLanguage();
+void discoverWallets();

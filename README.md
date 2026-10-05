@@ -6,6 +6,8 @@ Tevumi Bridge now centers on the community demonstration token **Wobble Otter (W
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 5, 2026
 
+**Optional USDC exit:** After a verified Arc swap and native-USDC arrival, the Swap result offers an independent [Bridge USDC page](https://bridge.tevumi.com/preview/usdc/index.html), powered by Circle Bridge Kit. It discovers supported mainnet destinations, checks the connected wallet's Arc USDC balance and shows a live fee estimate. The public interface and read-only Arc-to-Base quote have been checked; **no real-wallet USDC bridge transaction or destination arrival has yet been verified**. It is separate from the LayerZero WOTR bridge. Transfers use real USDC and fees; review the current quote and wallet prompts.
+
 Tevumi Bridge has been submitted to **Arc Microgrants**. The submission confirmation showed it under review; no award is claimed. This public repository is a reviewed source snapshot for Arc reviewers, developers and test users. The full working repository is private and contains internal operations and research; it is not mirrored here. This submission does not imply endorsement by Arc or Circle.
 
 ## What is live

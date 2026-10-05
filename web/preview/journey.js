@@ -370,7 +370,7 @@ function draw() {
   $('journey-route-bridge').classList.toggle('done',bridgeDone);
   $('journey-route-swap').classList.toggle('done',record('swap')?.state==='verified');
   const portalReady = Boolean(account && record('swap')?.state === 'verified' && record('swap')?.usdcArrivalVerified === true);
-  $('journey-portal').hidden = !portalReady;
+  $('journey-next').hidden = !portalReady;
   const savedSwap = portalReady ? record('swap') : null;
   const savedIn = /^\d+$/.test(savedSwap?.amountIn || '') ? `${displayBalance(BigInt(savedSwap.amountIn))} WOTR` : local('WOTR','WOTR');
   const savedOut = /^\d+$/.test(savedSwap?.nativeUsdcReceived || '') ? `${displayBalance(BigInt(savedSwap.nativeUsdcReceived))} USDC` : local('USDC','USDC');
@@ -378,6 +378,9 @@ function draw() {
   $('journey-portal-details').textContent = portalReady ? local(`${savedIn} → ${savedOut} · Arc block ${savedSwap.block}`,`${savedIn} → ${savedOut} · Arc 区块 ${savedSwap.block}`) : '';
   $('journey-portal-copy').textContent = local('This verified result belongs to a completed swap. The form above starts a new swap; check your current wallet balance before continuing. Arc Portal opens separately and transfers nothing automatically.','这是已完成兑换的核验结果。上方表单用于发起新兑换；继续操作前请查看当前钱包余额。Arc Portal 将在独立页面打开，不会自动转移资产。');
   $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
+  $('journey-usdc-title').textContent = local('Bridge USDC to another chain','将 USDC 跨往其他链');
+  $('journey-usdc-copy').textContent = local('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');
+  $('journey-usdc-link').textContent = local('Bridge USDC ↗','跨链 USDC ↗');
   for (const [step,done] of [['buy',record('buy')?.state==='verified'],['bridge',bridgeDone],['swap',record('swap')?.state==='verified']]) {
     $('journey-progress-'+step)?.classList.toggle('done',Boolean(done));
   }
@@ -407,6 +410,7 @@ $('journey-swap-action').addEventListener('click',()=>run(swap,'swap'));
 window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){buyQuote=null;swapQuote=null;balanceData=null;balanceError=false;balanceRequest++;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
 window.addEventListener('tevumi:locale-change',()=>{renderLiveText();draw();});
 setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30000);
+if (new URLSearchParams(window.location.search).get('action') === 'swap') setTab('swap');
 draw();
 setTab(activeTab);
 setStep(activeStep);

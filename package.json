@@ -35,6 +35,8 @@
     "vite": "8.3.0"
   },
   "dependencies": {
+    "@circle-fin/adapter-viem-v2": "1.19.0",
+    "@circle-fin/bridge-kit": "1.15.2",
     "@layerzerolabs/lz-evm-messagelib-v2": "3.0.168",
     "@layerzerolabs/lz-evm-protocol-v2": "3.0.168",
     "@layerzerolabs/oapp-evm": "0.4.1",
@@ -42,6 +44,7 @@
     "@openzeppelin/contracts": "5.4.0",
     "@openzeppelin/contracts-upgradeable": "5.4.0",
     "@safe-global/safe-deployments": "1.37.63",
-    "ethers": "6.17.0"
+    "ethers": "6.17.0",
+    "viem": "2.57.2"
   }
 }

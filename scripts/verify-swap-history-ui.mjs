@@ -30,6 +30,8 @@ try {
       window.dispatchEvent(new Event('tevumi:bridge-view'));
     }, address);
     await page.locator('#journey-portal').waitFor({ state: 'visible' });
+    if (!(await page.locator('#journey-usdc-link').isVisible())) throw Error(`USDC_EXIT_HIDDEN_${label}`);
+    if (!(await page.locator('#journey-usdc-link').getAttribute('href')).endsWith('/preview/usdc/index.html')) throw Error(`USDC_EXIT_ROUTE_${label}`);
     if (!(await page.locator('#journey-portal-title').textContent()).includes('Saved swap')) throw Error(`HISTORY_LABEL_${label}`);
     if (!(await page.locator('#journey-portal-details').textContent()).includes('500 WOTR → 0.02625446 USDC')) throw Error(`HISTORY_AMOUNT_${label}`);
     if (await page.locator('#journey-wotr').inputValue() !== '') throw Error(`HISTORY_PREFILLED_NEW_SWAP_${label}`);

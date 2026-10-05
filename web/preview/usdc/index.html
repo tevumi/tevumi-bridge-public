@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#faf9f5">
+  <meta name="description" content="Bridge Arc USDC to another Circle-supported chain with Tevumi.">
+  <title>Bridge USDC · Tevumi</title>
+  <link rel="icon" type="image/svg+xml" href="/brand/tevumi.svg">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Tevumi home"><img src="../../public/brand/tevumi.svg" width="40" height="40" alt=""><span>tevumi</span></a>
+    <div class="top-actions"><a class="back" href="/?action=swap" id="back-link">← Back to Swap</a><div class="language" id="language" hidden><button id="lang-en" type="button" aria-pressed="true">EN</button><button id="lang-zh" type="button" aria-pressed="false">简体中文</button></div><button id="wallet-button" type="button">Connect wallet</button></div>
+  </header>
+  <main class="layout">
+    <section class="workspace" aria-labelledby="title">
+      <p class="eyebrow" id="eyebrow">USDC · CIRCLE APP KIT</p>
+      <h1 id="title">Bridge USDC.</h1>
+      <p class="lead" id="lead">Move Arc USDC to a destination supported by Circle Bridge Kit. Choose a chain and amount; the live quote appears automatically.</p>
+      <div class="form-card">
+        <div class="route"><div><small id="source-label">From</small><strong>Arc</strong></div><span aria-hidden="true">→</span><div><label for="destination" id="destination-label">To</label><select id="destination"><option value="">Loading supported chains…</option></select></div></div>
+        <div class="field-heading"><label for="amount" id="amount-label">Amount to send</label><span id="balance" aria-live="polite">Connect to see Arc USDC balance</span></div>
+        <div class="amount-field"><input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="amount-help"><strong>USDC</strong></div>
+        <p class="hint" id="amount-help">Leave enough Arc USDC to pay network gas.</p>
+        <div id="recipient-row" class="recipient-row" hidden><label for="recipient" id="recipient-label">Destination recipient address</label><input id="recipient" type="text" autocomplete="off" spellcheck="false" placeholder="Destination wallet address"><p id="recipient-help">Check this address carefully. It may differ from your Arc wallet address.</p></div>
+        <p class="hint" id="speed-note">Standard transfer · no CCTP Fast Transfer fee. Completion time varies by route.</p>
+        <div class="quote" id="quote" aria-live="polite">Connect your wallet and enter an amount to see a live quote.</div>
+        <button type="button" id="bridge-button" disabled>Review and bridge USDC</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <aside class="aside"><p class="eyebrow" id="aside-label">WHAT HAPPENS NEXT</p><h2 id="aside-title">One transfer.<br>Clear progress.</h2><ol><li><span>01</span><div><strong id="stage-one">Approve and send</strong><p id="stage-one-help">Circle's SDK requests any needed approval and starts the Arc transfer.</p></div></li><li><span>02</span><div><strong id="stage-two">Bridge confirmation</strong><p id="stage-two-help">The SDK follows the burn, attestation, and destination mint.</p></div></li><li><span>03</span><div><strong id="stage-three">USDC arrives</strong><p id="stage-three-help">Destination confirmation is shown only after the SDK reports success.</p></div></li></ol><p class="aside-note" id="aside-note">Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.</p></aside>
+  </main>
+  <section class="activity" id="activity" hidden><h2 id="activity-title">Current transfer</h2><div id="activity-body" aria-live="polite"></div><button id="retry-button" type="button" hidden>Resume transfer</button></section>
+  <footer><span>© 2026 Tevumi</span><span id="footer-note">Arc USDC → Circle-supported chains</span></footer>
+</body>
+</html>
