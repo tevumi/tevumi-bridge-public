@@ -12,6 +12,8 @@ Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** �
 
 Buy 与 Swap 现有与 Bridge 风格统一、可折叠分页的交易记录。服务器按提交的交易哈希核对链上回执后保存已确认结果，包括链上失败。历史卡片按公开钱包地址从服务器读取，不在浏览器逐笔重查旧交易；已确认记录的时间采用区块时间。三笔此前已核验的测试钱包交易已补录。没有交易哈希的钱包拒绝仍只留在浏览器；当前余额和报价继续实时读取。
 
+Swap 及原生 USDC 到账核验后，旧交易在“交易记录”中查看，不再重复显示于报价按钮下方。Portal 和 USDC 跨链后续卡片仍可使用；尚在核验的交易继续显示进度。
+
 连接后，右上角按钮只显示当前页面正在使用的钱包的一枚图标；悬停或辅助阅读可查看钱包名称和完整地址，点击仍可重新选择。另一个钱包插件可能继续保存此前的网站授权，需在那个插件内手动移除。
 
 **可选 USDC 出口：**Arc 兑换及原生 USDC 到账核验后，Swap 结果区会出现独立的 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。10 月 6 日测试钱包两笔各 2 USDC 的 Arc→Ethereum 跨链已在目标链独立核验，分别铸造到账 `0.356427` 和 `0.379543 USDC`。另有一笔 [1 USDC Arc→Base 销毁](https://explorer.arc.io/tx/0x1f0c1c81364a671e1fd43327c8f30b770945ce4ec8edbdfc5d6bf3bad53d3426)及 [Base 实际到账 0.945120 USDC](https://basescan.org/tx/0xad717c16deedc4870b0bbb59d327a849d7801409c8d1ad65263abbf9c3c26ece)已核验。Circle 执行转发费为 `0.054880 USDC`，Arc 授权和销毁另付 `0.003812982 USDC` Gas；这是本笔实际值，不是固定费用。本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。

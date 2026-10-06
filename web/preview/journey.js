@@ -343,7 +343,7 @@ async function refreshAll() {
   else status('buy','');
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
   if (swapRecord?.state === 'verified') status('swap',swapRecord.usdcArrivalVerified === true
-    ? local(`Saved swap: Arc USDC arrival verified in block ${swapRecord.block} · ${swapRecord.hash}`,`已保存的兑换记录：Arc USDC 到账已在区块 ${swapRecord.block} 核验 · ${swapRecord.hash}`)
+    ? ''
     : local(`Arc swap confirmed in block ${swapRecord.block}; checking USDC arrival · ${swapRecord.hash}`,`Arc 兑换已在区块 ${swapRecord.block} 确认，正在核验 USDC 到账 · ${swapRecord.hash}`));
   else if (swapRecord?.state === 'failed') status('swap',local('Arc swap failed on-chain. Refresh the quote before retrying.','Arc 兑换链上失败。刷新报价后再试。'));
   else if (swapRecord) status('swap',local(`Arc swap is being checked${swapRecord.hash ? ': '+swapRecord.hash : ''}. Do not submit again.`,`正在核对 Arc 兑换${swapRecord.hash ? '：'+swapRecord.hash : ''}。请勿重复提交。`));
