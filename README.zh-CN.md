@@ -14,7 +14,9 @@ Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** �
 
 USDC 选链列表现显示图标与链名，并可搜索；没有对应图标的链使用字母标识。图标来自 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons)，只辅助识别；实际可用路线仍以 Circle SDK 与实时报价为准。
 
-USDC 页面现有按连接钱包分页的服务器跨链历史。只有 Arc 的 CCTP 销毁回执经服务器核验才入库；EVM 目标链还须匹配 Circle 消息并核验目标链，才显示已到账。浏览器仍保存未完成交易的 SDK 恢复资料，不能单凭本地状态认定到账。两笔已核验转账分别有独立的 [Arc 源链交易](https://explorer.arc.io/tx/0xe9dd83d6f3c335d08b3f6788764a8b292507c36ea1d5b85a33e85a836c416766)（[第二笔](https://explorer.arc.io/tx/0x0ead19c06fa31b2f861d5f12b4eb0e9f7c1a38f1e928b58d86bdc2de968565aa)）及匹配的 [Ethereum 铸造交易](https://etherscan.io/tx/0x1be1c71e3fa0f638026e4ae29dab661293322b84e5ef28c31c4574a61265df7b)（[第二笔](https://etherscan.io/tx/0xf8e15edfd378e32fbae9536543ddd51e4bd2e8b7678bfc822c3afc76aea2d473)）。已完成后页面区分上一笔结果和“发起新一笔跨链”；点击新操作会清空旧数量、重新报价，历史仍保留。若钱包拒绝授权且页面未保存交易哈希，再次尝试前请先核对钱包活动；若已经记录源链交易，应先核对并恢复原跨链，不要重新发起一笔。
+USDC 页面现有按连接钱包分页的服务器跨链历史。只有 Arc 的 CCTP 销毁回执经服务器核验才入库；EVM 目标链还须匹配 Circle 消息并核验目标链，才显示已到账。浏览器仍保存未完成交易的 SDK 恢复资料，不能单凭本地状态认定到账。两笔已核验转账分别有独立的 [Arc 源链交易](https://explorer.arc.io/tx/0xe9dd83d6f3c335d08b3f6788764a8b292507c36ea1d5b85a33e85a836c416766)（[第二笔](https://explorer.arc.io/tx/0x0ead19c06fa31b2f861d5f12b4eb0e9f7c1a38f1e928b58d86bdc2de968565aa)）及匹配的 [Ethereum 铸造交易](https://etherscan.io/tx/0x1be1c71e3fa0f638026e4ae29dab661293322b84e5ef28c31c4574a61265df7b)（[第二笔](https://etherscan.io/tx/0xf8e15edfd378e32fbae9536543ddd51e4bd2e8b7678bfc822c3afc76aea2d473)）。SDK 报告完成但目标链尚未核验时，页面仍提供独立的新操作入口；使用前应先核对源链交易。若钱包拒绝授权且页面未保存交易哈希，再次尝试前请先核对钱包活动；若已经记录源链交易，应先核对并恢复原跨链，不要重新发起一笔。
+
+服务器核验目标链到账后，页面自动展开“跨链记录”并清空上一笔表单，已完成交易不再重复显示为“当前跨链记录”。尚未完成独立到账核验的交易仍保留当前状态，以便检查或恢复。
 
 针对 10 月 5 日用户报告的 OKX Wallet 风险拦截，单纯关闭 SDK 的合并交易仍未解除警告。当前 USDC 页面改用 Circle SDK 的标准 Arc CCTP TokenMessengerV2 路径，并核对其官方主网地址；页面突出显示高额目标链费用和准确授权增额。本地 Arc 主网分叉已验证授权和源链销毁。10 月 6 日较早一次 OKX 复测仍受拦截，具体规则未知；之后两笔 Arc→Ethereum 真实到账已核验，但不能仅凭截图判定签名插件。新报价费用及 Gas 不高于已展示报价时可一次点击继续；上涨时须再确认。不要绕过钱包警告；无源链哈希的记录仍显示“等待钱包”，不误称链上处理中。
 

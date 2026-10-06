@@ -117,7 +117,21 @@ async function loadServerHistory(reset=false) {
     serverRecords=[...serverRecords,...(body.items || [])];
     serverMore=Boolean(body.more); serverPage++;
   } catch { if (same(account,expected)) serverUnavailable=true; }
-  finally { serverLoading=false; if (same(account,expected)) { renderHistory(); renderRecord(); } }
+  finally { serverLoading=false; if (same(account,expected)) { archiveVerifiedRecord(); renderHistory(); renderRecord(); } }
+}
+function archiveVerifiedRecord() {
+  const hash=burnHash(currentRecord);
+  if (currentRecord?.state !== 'success' || !hash || !serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,hash))) return;
+  if (key()) localStorage.removeItem(key());
+  currentRecord=null;
+  $('destination').value='';
+  $('amount').value='';
+  $('recipient').value='';
+  setStatus('');
+  renderChainTrigger();
+  renderRecipient();
+  $('transfer-history').open=true;
+  scheduleQuote();
 }
 async function syncBurn(record) {
   const hash=burnHash(record);
