@@ -5,6 +5,8 @@ const STORES = {
   metamask: 'https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn',
   okx: 'https://chromewebstore.google.com/detail/okx-wallet/mcohilncbfahbmgdjkbpemcciiolgcge',
 };
+const SESSION_KEY = 'tevumi:wallet-session:v1';
+const addressOk = value => /^0x[0-9a-f]{40}$/i.test(value || '');
 
 const announced = [];
 window.addEventListener('eip6963:announceProvider', event => {
@@ -50,6 +52,32 @@ export function renderWalletButton(button,provider,account,language='en') {
   button.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:kind==='okx'?WalletBrandedOkx.default:genericWalletIcon;
   button.setAttribute('title',label);
   button.setAttribute('aria-label',label);
+}
+
+export function rememberWalletSession(choice, account) {
+  if (!choice?.provider || !addressOk(account)) return;
+  const kind=brand({provider:choice.provider,name:choice.name || '',rdns:choice.rdns || ''});
+  sessionStorage.setItem(SESSION_KEY,JSON.stringify({kind,name:choice.name || '',rdns:choice.rdns || '',account}));
+}
+
+export function clearWalletSession() { sessionStorage.removeItem(SESSION_KEY); }
+
+export async function restoreWalletSession() {
+  let saved;
+  try { saved=JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { clearWalletSession(); return null; }
+  if (!saved || !addressOk(saved.account)) return null;
+  discoveredWallets();
+  await new Promise(resolve=>setTimeout(resolve,200));
+  const choices=discoveredWallets().filter((item,index,list)=>list.findIndex(other=>other.provider===item.provider)===index);
+  const matching=choices.filter(item=>saved.rdns ? item.rdns===saved.rdns : saved.kind ? brand(item)===saved.kind : item.name===saved.name);
+  for (const choice of matching) {
+    try {
+      const accounts=await choice.provider.request({method:'eth_accounts'});
+      if (accounts?.some(value=>value.toLowerCase()===saved.account.toLowerCase())) return {...choice,account:saved.account};
+    } catch { /* Silent reconnect never requests a new wallet permission. */ }
+  }
+  clearWalletSession();
+  return null;
 }
 
 let dialog;
@@ -98,12 +126,12 @@ export async function pickWallet(language='en') {
     const name=document.createElement('strong'); name.textContent=kind==='metamask'?'MetaMask':'OKX Wallet';
     const state=document.createElement('small'); state.textContent=kind==='okx' ? (zh?'暂时不可用':'Temporarily unavailable') : item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
     copy.append(name,state); option.append(emblem,copy);
-    if (item && kind!=='okx') option.onclick=()=>finish({provider:item.provider,name:name.textContent});
+    if (item && kind!=='okx') option.onclick=()=>finish({provider:item.provider,name:name.textContent,rdns:item.rdns});
     const install=document.createElement('a'); install.href=STORES[kind]; install.target='_blank'; install.rel='noopener noreferrer'; install.textContent=zh?'Chrome 商店 ↗':'Chrome Web Store ↗'; install.setAttribute('aria-label',`${name.textContent} · Chrome Web Store`);
     row.append(option,install); rows.append(row);
   }
   for (const item of other) {
-    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-other'; option.textContent=item.name || (zh?'其他浏览器钱包':'Other browser wallet'); option.onclick=()=>finish({provider:item.provider,name:option.textContent}); rows.append(option);
+    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-other'; option.textContent=item.name || (zh?'其他浏览器钱包':'Other browser wallet'); option.onclick=()=>finish({provider:item.provider,name:option.textContent,rdns:item.rdns}); rows.append(option);
   }
   modal.showModal();
   close.focus();

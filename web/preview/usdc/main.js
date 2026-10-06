@@ -3,7 +3,7 @@ import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
 import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
 import {rpc} from '../../immediate-deploy/rpc.js';
 import {chainBadge, iconFor} from './chain-icons.js';
-import {pickWallet,renderWalletButton} from '../wallet-picker.js';
+import {pickWallet,renderWalletButton,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../wallet-picker.js';
 
 const $ = id => document.getElementById(id);
 const kit = new BridgeKit();
@@ -170,18 +170,24 @@ function saveHistory(record) {
 }
 function saveRecord(record) {
   currentRecord = normalizeRecord(record);
-  if (key()) localStorage.setItem(key(),safeJson(currentRecord));
   if (historyKey()) saveHistory(currentRecord);
+  if (currentRecord.approvalRejected && !hasRecordedHash(currentRecord)) {
+    if (key()) localStorage.removeItem(key());
+    currentRecord=null;
+  } else if (key()) localStorage.setItem(key(),safeJson(currentRecord));
   renderRecord();
   updateButton();
-  void syncBurn(currentRecord);
+  if (currentRecord) void syncBurn(currentRecord);
 }
 function loadRecord() {
   try { const saved=readJson(localStorage.getItem(historyKey()) || '[]'); historyRecords=Array.isArray(saved) ? saved.filter(item=>item && typeof item==='object' && typeof item.id==='string').slice(0,100) : []; } catch { historyRecords=[]; }
   try { currentRecord = normalizeRecord(readJson(localStorage.getItem(key()) || 'null')); } catch { currentRecord = {state:'unknown',amount:'?',destination:'?',events:[]}; }
   if (currentRecord) {
-    localStorage.setItem(key(),safeJson(currentRecord));
     saveHistory(currentRecord);
+    if (currentRecord.approvalRejected && !hasRecordedHash(currentRecord)) {
+      localStorage.removeItem(key());
+      currentRecord=null;
+    } else localStorage.setItem(key(),safeJson(currentRecord));
   } else renderHistory();
   renderRecord();
   if (currentRecord) void syncBurn(currentRecord);
@@ -437,14 +443,15 @@ async function chooseWallet() {
   try {
     const accounts=await choice.provider.request({method:'eth_requestAccounts'});
     if (!accounts?.length) throw Error('Wallet returned no account.');
-    await useWallet(choice.provider,accounts[0]);
+    await useWallet(choice.provider,accounts[0],choice);
   } catch (error) { setStatus(cleanError(error)); }
 }
-async function useWallet(selectedProvider,address) {
+async function useWallet(selectedProvider,address,choice) {
   const nextAdapter=await createViemAdapterFromProvider({provider:selectedProvider});
   if (provider && walletAccountsChanged) provider.removeListener?.('accountsChanged',walletAccountsChanged);
   provider=selectedProvider;
   account=getAddress(address);
+  rememberWalletSession(choice,account);
   resetQuote(); currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false; serverUnavailable=false;
   adapter=nextAdapter;
   walletAccountsChanged=async accounts => {
@@ -452,7 +459,8 @@ async function useWallet(selectedProvider,address) {
     balance=null; tokenBalance=null; currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false;
     $('balance').textContent=account ? 'Loading Arc balance…' : 'Connect to see Arc USDC balance';
     if (account) { loadRecord(); void loadServerHistory(true); await readBalance(); }
-    if (!account) language='en';
+    if (!account) { language='en'; clearWalletSession(); }
+    else rememberWalletSession(choice,account);
     if (!account) { renderRecord(); renderHistory(); }
     renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
   };
@@ -514,7 +522,7 @@ async function startBridge() {
     setStatus('Follow the wallet prompts. The SDK continues through approval, source transfer, attestation, and mint.');
     const result=await kit.bridge({...chosen,quote:estimate.quote});
     saveRecord({...currentRecord,state:result.state,result});
-    setStatus(currentRecord.approvalRejected ? t('Approval declined. No transaction hash was saved here; check wallet activity before retrying.','授权已拒绝。这里未保存交易哈希，再次尝试前请核对钱包记录。') : result.state==='success' ? t('Circle Bridge Kit reports completion. Verify destination arrival independently.','Circle Bridge Kit 报告完成；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
+    setStatus(!currentRecord ? t('Approval declined. No transaction hash was saved; review the attempt in transfer history.','授权已拒绝，未保存交易哈希；可在跨链记录中查看本次尝试。') : result.state==='success' ? t('Circle Bridge Kit reports completion. Verify destination arrival independently.','Circle Bridge Kit 报告完成；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
     await readBalance();
   } catch (error) {
     // Once the SDK has been called, an ambiguous wallet/network failure must not
@@ -524,7 +532,7 @@ async function startBridge() {
       saveRecord({...currentRecord,state:rejected ? 'cancelled' : 'unknown',errorMessage:cleanError(error)});
     }
     setStatus(`${cleanError(error)} Check the saved transfer before sending again.`);
-  } finally { working=false; if (needsFeeReview) updateButton(); else if (currentRecord?.state==='cancelled') scheduleQuote(); else { resetQuote(); setQuote(currentRecord?.state==='success' ? t('This transfer is complete. Start a separate transfer below to get a new quote.','本笔跨链已完成。若需再次跨链，请在下方发起新的一笔并重新获取报价。') : t('Review the current transfer before requesting another quote.','重新报价前请先核对当前跨链记录。')); } renderRecord(); }
+  } finally { working=false; if (needsFeeReview) updateButton(); else if (!currentRecord || currentRecord.state==='cancelled') scheduleQuote(); else { resetQuote(); setQuote(currentRecord?.state==='success' ? t('This transfer is complete. Start a separate transfer below to get a new quote.','本笔跨链已完成。若需再次跨链，请在下方发起新的一笔并重新获取报价。') : t('Review the current transfer before requesting another quote.','重新报价前请先核对当前跨链记录。')); } renderRecord(); }
 }
 async function retryBridge() {
   if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
@@ -571,4 +579,5 @@ $('transfer-history').addEventListener('toggle',()=>{if ($('transfer-history').o
 for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;renderLanguage();scheduleQuote();renderRecord();});
 renderLanguage();
 updateButton();
+void restoreWalletSession().then(choice=>{if (choice && !account) void useWallet(choice.provider,choice.account,choice).catch(()=>{});}).catch(()=>{});
 setInterval(()=>{if (account && !document.hidden && currentRecord?.state==='success' && !serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord)))) void loadServerHistory(true);},30000);

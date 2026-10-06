@@ -37,14 +37,15 @@ try {
     await page.locator('.history-card').first().getByText('Approval declined').waitFor();
     if (await page.locator('.history-card').count() !== 2) throw Error(`HISTORY_COUNT_${label}`);
     if (await page.locator('#retry-button').isVisible()) throw Error(`RETRY_REJECTED_APPROVAL_${label}`);
-    if (!(await page.locator('#activity-body').innerText()).includes('No transaction hash was saved')) throw Error(`REJECTION_COPY_${label}`);
+    if (await page.locator('#activity').isVisible()) throw Error(`DECLINED_APPROVAL_DUPLICATES_HISTORY_${label}`);
+    if (!(await page.locator('.history-card').first().innerText()).includes('No transaction hash saved')) throw Error(`REJECTION_COPY_${label}`);
     if (!(await page.locator('.history-card').nth(1).innerText()).includes('SDK completed')) throw Error(`SUCCESS_NOT_VERIFIED_${label}`);
     if (!(await page.locator('.history-card').nth(1).locator('a').getAttribute('href')).endsWith(`/tx/0x${'a'.repeat(64)}`)) throw Error(`SOURCE_LINK_${label}`);
     const saved = await page.evaluate(address => ({
       current: JSON.parse(localStorage.getItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`)),
       history: JSON.parse(localStorage.getItem(`tevumi:circle-usdc:history:v1:${address.toLowerCase()}`)),
     }), wallet);
-    if (saved.current.state !== 'cancelled' || saved.history.length !== 2) throw Error(`LEGACY_MIGRATION_${label}`);
+    if (saved.current !== null || saved.history.length !== 2) throw Error(`LEGACY_MIGRATION_${label}`);
     await page.locator('#lang-zh').click();
     if (!(await page.locator('.history-card').first().innerText()).includes('授权已拒绝')) throw Error(`CHINESE_STATUS_${label}`);
     await page.screenshot({ path: `.local/usdc-history-${label}.png`, fullPage: true });

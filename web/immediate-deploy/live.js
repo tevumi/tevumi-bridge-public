@@ -3,7 +3,7 @@ import {rpc} from './rpc.js';
 import {arcFeeParams} from './arc-fees.js';
 import {classifyWalletSendError} from './wallet-result.js';
 import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/production-transfer.js';
-import {pickWallet} from '../preview/wallet-picker.js';
+import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
 
 const $=id=>document.getElementById(id);
 const owner='0x489594537CB76aC256079D710B6E18498E1a5402';
@@ -85,22 +85,22 @@ function renderRecords(){
  $('transfer-state').textContent=`BSC 发送：${records['send-bsc']?.hash??'未记录'}；Arc 到账：${records['send-bsc']?.deliveredHash??'未核验'}；Arc 返回：${records['send-arc']?.hash??'未记录'}；BSC 到账：${records['send-arc']?.deliveredHash??'未核验'}`;
  emitView();
 }
-async function connect(){
- const choice=await pickWallet(document.documentElement.lang);
+async function connect(savedChoice=null){
+ const choice=savedChoice || await pickWallet(document.documentElement.lang);
  if(!choice)return;
  const nextWallet=choice.provider;
- const list=await nextWallet.request({method:'eth_requestAccounts'});
+ const list=savedChoice ? [savedChoice.account] : await nextWallet.request({method:'eth_requestAccounts'});
  ensure(list?.[0],'钱包未返回账户。');
  if(selectedWallet&&walletEventHandlers){
   selectedWallet.removeListener?.('accountsChanged',walletEventHandlers.accountsChanged);
   selectedWallet.removeListener?.('disconnect',walletEventHandlers.disconnect);
  }
  selectedWallet=nextWallet;
- const disconnected=()=>{account=null;records={};$('wallet-state').textContent='未连接钱包';$('fee-state').textContent='连接钱包后显示所选资产的余额。';note('');renderRecords();};
+ const disconnected=()=>{account=null;records={};clearWalletSession();$('wallet-state').textContent='未连接钱包';$('fee-state').textContent='连接钱包后显示所选资产的余额。';note('');renderRecords();};
  walletEventHandlers={accountsChanged:accounts=>{if(!accounts?.length||!same(accounts[0],account))disconnected();},disconnect:disconnected};
  selectedWallet.on?.('accountsChanged',walletEventHandlers.accountsChanged);
  selectedWallet.on?.('disconnect',walletEventHandlers.disconnect);
- account=getAddress(list[0]);load();await clearVerifiedLegacyArcAttempt();
+ account=getAddress(list[0]);rememberWalletSession(choice,account);load();await clearVerifiedLegacyArcAttempt();
  for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}
  for(const kind of ['approve-bsc','send-bsc','send-arc'])if(records[kind]?.unknown)trackUnknown(kind);
  $('wallet-state').textContent=`已连接 ${account}`;await refresh(true);
@@ -458,3 +458,4 @@ for(const side of ['bsc','arc']){
 $('connect').onclick=()=>run(connect);$('refresh').onclick=()=>run(()=>refresh(true));if($('recover'))$('recover').onclick=()=>run(recover);if($('export'))$('export').onclick=exportRecords;$('next-round').onclick=()=>run(nextRound);
 window.addEventListener('tevumi:locale-change',()=>{if(account)void quoteStatus().catch(()=>{});});
 renderRecords();refresh().catch(error=>note(errorText(error)));
+void restoreWalletSession().then(choice=>{if(choice && !account) void run(()=>connect(choice));}).catch(()=>{});
