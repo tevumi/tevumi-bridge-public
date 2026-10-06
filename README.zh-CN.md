@@ -8,6 +8,8 @@ Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** �
 
 线上 Buy、Bridge、Swap 和独立 USDC 出口已增加显式钱包选择弹窗，分别显示 MetaMask、OKX Wallet 及各自的 Chrome 商店链接。页面通过 EIP-6963 发现多个已安装钱包，把连接和签名请求交给用户选中的钱包；公网模拟钱包浏览器测试已通过。下述两笔真实 Arc→Ethereum USDC 跨链已核验，但截图不能确定实际签名的钱包插件；此前 OKX 风险提示的具体规则仍未知。
 
+钱包选择弹窗现使用 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons) 中的 MetaMask 与 OKX 品牌图标，取代字母占位块；这项视觉调整不改变钱包选择或签名流程。
+
 **可选 USDC 出口：**Arc 兑换及原生 USDC 到账核验后，Swap 结果区会出现独立的 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。10 月 6 日测试钱包两笔各 2 USDC 的 Arc→Ethereum 跨链已在目标链独立核验，分别铸造到账 `0.356427` 和 `0.379543 USDC`；这不代表 Arc→Base 已有真实交易验证。本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。
 
 USDC 选链列表现显示图标与链名，并可搜索；没有对应图标的链使用字母标识。图标来自 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons)，只辅助识别；实际可用路线仍以 Circle SDK 与实时报价为准。

@@ -1,4 +1,5 @@
 import './wallet-picker.css';
+import {WalletBrandedMetamask, WalletBrandedOkx} from '@web3icons/core';
 
 const STORES = {
   metamask: 'https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn',
@@ -71,7 +72,7 @@ export async function pickWallet(language='en') {
     const item=ordered[index];
     const row=document.createElement('div'); row.className='tevumi-wallet-row';
     const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item;
-    const emblem=document.createElement('span'); emblem.className=`tevumi-wallet-emblem ${kind}`; emblem.setAttribute('aria-hidden','true'); emblem.textContent=kind==='metamask'?'M':'OKX';
+    const emblem=document.createElement('span'); emblem.className=`tevumi-wallet-emblem ${kind}`; emblem.setAttribute('aria-hidden','true'); emblem.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:WalletBrandedOkx.default;
     const copy=document.createElement('span'); copy.className='tevumi-wallet-copy';
     const name=document.createElement('strong'); name.textContent=kind==='metamask'?'MetaMask':'OKX Wallet';
     const state=document.createElement('small'); state.textContent=item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
