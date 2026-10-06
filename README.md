@@ -10,7 +10,7 @@ The live app offers an explicit wallet chooser on the Buy, Bridge, Swap and USDC
 
 The wallet chooser shows the MetaMask and OKX brand icons from the MIT-licensed [Web3 Icons](https://github.com/0xa3k5/web3icons) package instead of letter placeholders. These icons do not indicate that a wallet is currently available for connection.
 
-On Buy, a previous verified purchase saved by this browser appears in a separate “Last purchase” card with the recorded start time, WOTR amount and BscScan transaction link. The time comes from the browser record rather than the block timestamp. Current balances and new quotes are read separately; the card follows the connected wallet address.
+Buy and Swap now have collapsible, paginated Transfer history matching Bridge's style. The server verifies submitted transaction hashes against chain receipts before storing confirmed results, including on-chain failures. Historical cards load from the server by public wallet address without rescanning old transactions in the browser; confirmed dates use block time. Three previously verified test-wallet transactions have been indexed. Wallet refusals without a transaction hash remain browser-only. Current balances and quotes are still live.
 
 Once connected, the top-right button shows only one icon for the wallet currently used by that page. Hovering or using assistive technology reveals its name and full address; clicking still opens wallet selection. A different wallet extension may retain an earlier site permission until you remove it in that extension.
 

@@ -28,6 +28,13 @@ ASSETS = {
 EIDS = {56: 30102, 5042: 30417}
 ADDRESS = re.compile(r'^0x[0-9a-f]{40}$', re.I)
 HASH = re.compile(r'^0x[0-9a-f]{64}$', re.I)
+JOURNEY = {'buy': (56, '0x10ed43c718714eb63d5aa57b78b54704e256024e', '0x7ff36ab5'),
+           'swap': (5042, '0x4fca4a51ab4f23a7447b3284fbd7d73289a89fb1', '0x3593564c')}
+WOTR = {56: '0xb97b99cb6dc0edbb89512e14100b2e9c23132ee5', 5042: ASSETS['wotr'][5042]}
+WBNB = '0xbb4cdb9cbd36b01bD1cBaEBF2De08d9173bc095c'.lower()
+BNB_PAIR = '0x36092bcf2b17808469ac92ee0f1a9a2cb71dba87'
+ARC_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951'
+TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 
 # Keccak event selectors are computed from the deployed contract ABI.
 OFT_SENT = '0x85496b760a4b7f8d66384b9df21b381f5d1b1e79f229a47aaf4c232edc2fe59a'
@@ -65,7 +72,110 @@ def database():
       target_chain TEXT NOT NULL, target_domain INTEGER NOT NULL, mint_recipient TEXT NOT NULL,
       nonce TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL, checked_at INTEGER NOT NULL)''')
     connection.execute('CREATE INDEX IF NOT EXISTS usdc_account_time ON usdc_transfers(account, created_at DESC)')
+    connection.execute('''CREATE TABLE IF NOT EXISTS journey_transfers (
+      kind TEXT NOT NULL, tx_hash TEXT NOT NULL, account TEXT NOT NULL,
+      input_amount TEXT, output_amount TEXT, status TEXT NOT NULL,
+      block_number INTEGER, created_at INTEGER NOT NULL, checked_at INTEGER NOT NULL,
+      PRIMARY KEY(kind, tx_hash))''')
+    connection.execute('CREATE INDEX IF NOT EXISTS journey_account_time ON journey_transfers(account,kind,created_at DESC)')
     return connection
+
+
+def transaction_words(data):
+    if not isinstance(data, str) or not re.fullmatch(r'0x[0-9a-fA-F]*', data) or (len(data) - 10) % 64:
+        raise ValueError('Invalid transaction input')
+    return [int(data[i:i+64], 16) for i in range(10, len(data), 64)]
+
+
+def journey_input(kind, tx, account):
+    data = tx.get('input', '').lower()
+    words = transaction_words(data)
+    if kind == 'buy':
+        # swapExactETHForTokens(minOut, path, recipient, deadline)
+        if len(words) < 7 or words[1] != 128 or words[2] != int(account, 16) or words[4] != 2 or words[5] != int(WBNB, 16) or words[6] != int(WOTR[56], 16) or words[0] <= 0 or int(tx.get('value', '0x0'), 16) <= 0:
+            raise ValueError('Buy route mismatch')
+        return str(int(tx['value'], 16)), words[0]
+    # execute(bytes commands, bytes[] inputs, uint256 deadline), v4 swap command 0x10.
+    if len(words) < 5 or words[0] != 96 or words[3] != 1 or words[4] >> 248 != 0x10 or int(tx.get('value', '0x0'), 16) != 0:
+        raise ValueError('Swap route mismatch')
+    return None, None
+
+
+def transfer_amount(receipt, token, sender, recipient):
+    total = 0
+    for log in receipt.get('logs', []):
+        topics = log.get('topics', [])
+        if (log.get('address', '').lower() == token and len(topics) == 3
+                and topics[0].lower() == TRANSFER
+                and int(topics[1], 16) == int(sender, 16)
+                and int(topics[2], 16) == int(recipient, 16)):
+            total += int(log['data'], 16)
+    return total
+
+
+def inspect_journey(kind, tx_hash):
+    if kind not in JOURNEY or not HASH.fullmatch(tx_hash):
+        raise ValueError('Invalid journey transaction')
+    chain, target, selector = JOURNEY[kind]
+    tx = rpc(chain, 'eth_getTransactionByHash', [tx_hash])
+    if not tx or not ADDRESS.fullmatch(tx.get('from', '')) or tx.get('to', '').lower() != target or not tx.get('input', '').lower().startswith(selector):
+        raise ValueError('Not a Tevumi journey transaction')
+    account = tx['from'].lower()
+    input_amount, minimum = journey_input(kind, tx, account)
+    status, output_amount, block_number = 'pending', None, None
+    created_at = int(time.time())
+    receipt = rpc(chain, 'eth_getTransactionReceipt', [tx_hash]) if tx.get('blockNumber') else None
+    if receipt:
+        block_number = int(receipt['blockNumber'], 16)
+        block = rpc(chain, 'eth_getBlockByNumber', [hex(block_number), False])
+        if not block or not block.get('timestamp'):
+            raise ValueError('Transaction block time unavailable')
+        created_at = int(block['timestamp'], 16)
+        if int(receipt['status'], 16) == 0:
+            status = 'failed'
+        elif kind == 'buy':
+            received = transfer_amount(receipt, WOTR[56], BNB_PAIR, account)
+            if received < minimum:
+                raise ValueError('Buy receipt has no matching WOTR delivery')
+            status, output_amount = 'verified', str(received)
+        else:
+            spent = transfer_amount(receipt, WOTR[5042], account, ARC_POOL_MANAGER)
+            if spent <= 0:
+                raise ValueError('Swap receipt has no matching WOTR debit')
+            before = int(rpc(chain, 'eth_getBalance', [account, hex(block_number - 1)]), 16)
+            after = int(rpc(chain, 'eth_getBalance', [account, hex(block_number)]), 16)
+            gas = int(receipt['gasUsed'], 16) * int(receipt['effectiveGasPrice'], 16)
+            received = after - before + gas
+            if received <= 0:
+                raise ValueError('Swap receipt has no matching native USDC increase')
+            status, input_amount, output_amount = 'verified', str(spent), str(received)
+    return {'kind': kind, 'tx_hash': tx_hash.lower(), 'account': account,
+            'input_amount': input_amount, 'output_amount': output_amount,
+            'status': status, 'block_number': block_number, 'created_at': created_at}
+
+
+def upsert_journey(connection, kind, tx_hash):
+    item = inspect_journey(kind, tx_hash)
+    now = int(time.time())
+    connection.execute('''INSERT INTO journey_transfers
+      (kind,tx_hash,account,input_amount,output_amount,status,block_number,created_at,checked_at)
+      VALUES(:kind,:tx_hash,:account,:input_amount,:output_amount,:status,:block_number,:created_at,:checked_at)
+      ON CONFLICT(kind,tx_hash) DO UPDATE SET input_amount=COALESCE(excluded.input_amount,journey_transfers.input_amount),
+      output_amount=COALESCE(excluded.output_amount,journey_transfers.output_amount),
+      status=excluded.status,block_number=excluded.block_number,created_at=excluded.created_at,
+      checked_at=excluded.checked_at''',
+      {**item, 'checked_at': now})
+    connection.commit()
+    return item
+
+
+def update_journey_pending(connection):
+    rows = connection.execute("SELECT kind,tx_hash FROM journey_transfers WHERE status='pending' ORDER BY checked_at LIMIT 20").fetchall()
+    for row in rows:
+        try:
+            upsert_journey(connection, row['kind'], row['tx_hash'])
+        except (ValueError, TimeoutError, urllib.error.URLError, OSError, KeyError):
+            continue
 
 
 def matching_log(receipt, address, topic):
@@ -203,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == '/healthz':
             return self.send_json(200, {'ok': True})
-        if url.path not in ('/transfers', '/usdc-transfers'):
+        if url.path not in ('/transfers', '/usdc-transfers', '/journey-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         query = parse_qs(url.query)
         account = query.get('account', [''])[0].lower()
@@ -214,7 +324,14 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.send_json(400, {'error': 'Invalid page'})
         with closing(database()) as connection:
-            if url.path == '/usdc-transfers':
+            if url.path == '/journey-transfers':
+                kind = query.get('kind', [''])[0]
+                if kind not in JOURNEY:
+                    return self.send_json(400, {'error': 'Invalid kind'})
+                rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,status,block_number,created_at
+                  FROM journey_transfers WHERE account=? AND kind=? ORDER BY created_at DESC,tx_hash DESC LIMIT 11 OFFSET ?''',
+                  (account, kind, page * 10)).fetchall()
+            elif url.path == '/usdc-transfers':
                 rows = connection.execute('''SELECT source_hash,amount,target_chain,mint_recipient,nonce,status,created_at
                   FROM usdc_transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
                   (account, page * 10)).fetchall()
@@ -225,7 +342,7 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(200, {'items': [dict(row) for row in rows[:10]], 'more': len(rows) > 10})
 
     def do_POST(self):
-        if self.path not in ('/transfers', '/usdc-transfers'):
+        if self.path not in ('/transfers', '/usdc-transfers', '/journey-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         try:
             size = int(self.headers.get('Content-Length', '0'))
@@ -233,7 +350,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid body')
             item = json.loads(self.rfile.read(size))
             with closing(database()) as connection:
-                if self.path == '/usdc-transfers':
+                if self.path == '/journey-transfers':
+                    result = upsert_journey(connection, item.get('kind'), item.get('hash', ''))
+                elif self.path == '/usdc-transfers':
                     tx_hash = item.get('hash', '')
                     result = upsert_usdc_source(connection, tx_hash)
                 else:
@@ -252,6 +371,7 @@ def worker():
             with closing(database()) as connection:
                 update_pending(connection)
                 update_usdc_pending(connection)
+                update_journey_pending(connection)
         except (sqlite3.Error, OSError):
             pass
         time.sleep(20)

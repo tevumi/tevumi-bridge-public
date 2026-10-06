@@ -48,28 +48,6 @@ function record(kind) { try { return JSON.parse(localStorage.getItem(key(kind)) 
 function save(kind, value) { localStorage.setItem(key(kind), JSON.stringify(value)); }
 function clear(kind) { localStorage.removeItem(key(kind)); }
 function status(kind, message) { $(`journey-${kind}-status`).textContent = message; }
-const buyHistory=document.createElement('section');
-buyHistory.id='journey-buy-history';
-buyHistory.className='journey-buy-history';
-buyHistory.hidden=true;
-buyHistory.innerHTML='<h3></h3><p class="journey-buy-history-date"></p><p class="journey-buy-history-amount"></p><a target="_blank" rel="noopener noreferrer"></a>';
-$('journey-buy-card').after(buyHistory);
-function renderBuyHistory() {
-  const item=account ? record('buy') : null;
-  const ready=activeTab==='buy' && item?.state==='verified' && hashOk(item.hash) && /^\d+$/.test(item.received || '');
-  buyHistory.hidden=!ready;
-  if (!ready) return;
-  buyHistory.querySelector('h3').textContent=local('Last purchase','上次购买');
-  const timestamp=Number(item.createdAt);
-  const date=Number.isFinite(timestamp) && timestamp>0
-    ? new Intl.DateTimeFormat(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{dateStyle:'medium',timeStyle:'short'}).format(new Date(timestamp))
-    : local('Time unavailable','时间暂不可用');
-  buyHistory.querySelector('.journey-buy-history-date').textContent=local(`Started ${date} · BNB Chain`,`发起时间：${date} · BNB Chain`);
-  buyHistory.querySelector('.journey-buy-history-amount').textContent=`${formatEther(BigInt(item.received))} WOTR`;
-  const link=buyHistory.querySelector('a');
-  link.href=`https://bscscan.com/tx/${item.hash}`;
-  link.textContent=local(`View transaction ${item.hash.slice(0,10)}…${item.hash.slice(-6)} ↗`,`查看交易 ${item.hash.slice(0,10)}…${item.hash.slice(-6)} ↗`);
-}
 function amount(value) {
   assert(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(value) && parseEther(value) > 0n, 'Enter a positive amount with up to 18 decimal places.');
   return parseEther(value);
@@ -78,6 +56,7 @@ function setTab(tab) {
   const previousTab = activeTab;
   activeTab = tab;
   document.body.dataset.view = tab;
+  window.dispatchEvent(new CustomEvent('tevumi:journey-tab',{detail:{tab}}));
   $('asset-picker').hidden = tab !== 'bridge';
   $('wotr-journey').hidden = tab === 'bridge';
   for (const item of ['buy','bridge','swap']) $(`context-${item}`).hidden = item !== tab;
@@ -96,7 +75,6 @@ function setTab(tab) {
     $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
   }
   if (account && previousTab !== tab) void loadBalances();
-  renderBuyHistory();
 }
 function setStep(step) {
   activeStep = step;
@@ -151,12 +129,15 @@ async function tx(kind, chainId, to, data, value=0n, extra={}) {
   }
   assert(hashOk(hash), 'Wallet did not return a transaction hash. Do not submit again.');
   save(kind,{...pending,state:'submitted',hash});
+  if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash}}));
   return hash;
 }
 async function verify(kind) {
   if (!account) return null;
   const item = record(kind);
   if (!item) return null;
+  if (item.state === 'verified' && (kind !== 'swap' || item.usdcArrivalVerified === true)) return item;
+  if (item.state === 'failed') return item;
   if (!hashOk(item.hash)) return item;
   const reader = readers[item.chainId];
   const [transaction,receipt] = await Promise.all([reader.getTransaction(item.hash),reader.getTransactionReceipt(item.hash)]);
@@ -204,6 +185,7 @@ async function verify(kind) {
   }
   const verified = {...item,state:'verified',block:receipt.blockNumber};
   save(kind,verified);
+  if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}}));
   return verified;
 }
 async function balances(requestId) {
@@ -353,6 +335,7 @@ async function refreshAll() {
   for (const kind of ['buy','approve-token','approve-permit','swap']) {
     try { await verify(kind); } catch (error) { status(kind==='buy'?'buy':'swap',cleanError(error)); }
   }
+  for (const kind of ['buy','swap']) { const item=record(kind); if (hashOk(item?.hash)) window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}})); }
   const buyRecord = record('buy'), swapRecord = record('swap');
   if (buyRecord?.state === 'verified') status('buy','');
   else if (buyRecord?.state === 'failed') status('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
@@ -376,7 +359,6 @@ async function refreshAll() {
 function draw() {
   const view = bridgeView();
   account = view.account || null;
-  renderBuyHistory();
   $('header-connect').hidden = false;
   $('header-connect').disabled = busy || view.busy;
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
