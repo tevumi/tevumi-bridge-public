@@ -6,6 +6,7 @@ import {arcFeeParams} from '../immediate-deploy/arc-fees.js';
 import {bridgeView,selectedWalletProvider} from '../immediate-deploy/live.js';
 import {chooseAsset, chooseDirection} from './search.js';
 import {currentLanguage} from './locale.js';
+import {renderWalletButton} from './wallet-picker.js';
 
 const $ = id => document.getElementById(id);
 const A = Object.freeze({
@@ -353,7 +354,7 @@ function draw() {
   account = view.account || null;
   $('header-connect').hidden = false;
   $('header-connect').disabled = busy || view.busy;
-  $('header-connect').textContent = account ? `${account.slice(0,6)}…${account.slice(-4)} ▾` : local('Connect wallet','连接钱包');
+  renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
   $('journey-connect').hidden = Boolean(account);

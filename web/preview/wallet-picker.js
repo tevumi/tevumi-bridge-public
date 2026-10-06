@@ -33,6 +33,25 @@ function brand(item) {
   return null;
 }
 
+const genericWalletIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 9V6a2 2 0 0 1 2-2h13M16 13h5"/><circle cx="16" cy="13" r="1" fill="currentColor" stroke="none"/></svg>';
+
+export function renderWalletButton(button,provider,account,language='en') {
+  const zh=language==='zh-CN';
+  button.classList.toggle('tevumi-active-wallet',Boolean(account));
+  if (!account) {
+    button.textContent=zh?'连接钱包':'Connect wallet';
+    button.removeAttribute('title');
+    button.removeAttribute('aria-label');
+    return;
+  }
+  const kind=brand({provider,name:'',rdns:''});
+  const walletName=kind==='metamask'?'MetaMask':kind==='okx'?'OKX Wallet':zh?'当前钱包':'Current wallet';
+  const label=zh?`${walletName} · ${account} · 点击切换钱包`:`${walletName} · ${account} · Change wallet`;
+  button.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:kind==='okx'?WalletBrandedOkx.default:genericWalletIcon;
+  button.setAttribute('title',label);
+  button.setAttribute('aria-label',label);
+}
+
 let dialog;
 function walletDialog() {
   if (dialog) return dialog;

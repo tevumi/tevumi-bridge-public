@@ -11,3 +11,8 @@
 .transfer-history #history-more{margin-top:12px;min-height:36px;background:#edf4ec;color:#1b553d}
 @media(max-width:570px){.workspace .activity,.transfer-history{padding:16px}.history-card-top{flex-wrap:wrap}}
 .quote.warning{background:#fff4e6;border-color:#e5c48f;color:#704716}
+#wallet-button.tevumi-active-wallet{display:grid;place-items:center;width:52px;min-width:52px;height:52px;padding:0}
+#wallet-button.tevumi-active-wallet svg{display:block;width:28px;height:28px}
+#wallet-button.tevumi-active-wallet:focus-visible{outline:3px solid #79ad89;outline-offset:3px}
+@media(max-width:570px){#wallet-button.tevumi-active-wallet{width:42px;min-width:42px;height:42px}#wallet-button.tevumi-active-wallet svg{width:24px;height:24px}}
+@media(max-width:570px){.topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.top-actions{display:contents}.topbar .brand{grid-column:1;grid-row:1}.topbar #wallet-button{grid-column:2;grid-row:1;justify-self:end}.topbar .back{grid-column:1;grid-row:2;align-self:center}.topbar .language{grid-column:2;grid-row:2;justify-self:end}}

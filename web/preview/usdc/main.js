@@ -3,7 +3,7 @@ import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
 import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
 import {rpc} from '../../immediate-deploy/rpc.js';
 import {chainBadge, iconFor} from './chain-icons.js';
-import {pickWallet} from '../wallet-picker.js';
+import {pickWallet,renderWalletButton} from '../wallet-picker.js';
 
 const $ = id => document.getElementById(id);
 const kit = new BridgeKit();
@@ -260,7 +260,7 @@ function updateButton() {
   $('new-transfer-button').hidden = !(account && currentRecord?.state === 'success' && hasRecordedHash(currentRecord));
   $('new-transfer-button').disabled = working;
   $('new-transfer-button').textContent = t('Start a new transfer','发起新一笔跨链');
-  $('wallet-button').textContent = account ? `${short(account)} ▾` : t('Connect wallet','连接钱包');
+  renderWalletButton($('wallet-button'),provider,account,language);
 }
 function recordLabel(record) {
   if (record.state === 'success' && serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(record)))) return t('Destination verified','目标链已核验');
