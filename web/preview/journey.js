@@ -48,6 +48,28 @@ function record(kind) { try { return JSON.parse(localStorage.getItem(key(kind)) 
 function save(kind, value) { localStorage.setItem(key(kind), JSON.stringify(value)); }
 function clear(kind) { localStorage.removeItem(key(kind)); }
 function status(kind, message) { $(`journey-${kind}-status`).textContent = message; }
+const buyHistory=document.createElement('section');
+buyHistory.id='journey-buy-history';
+buyHistory.className='journey-buy-history';
+buyHistory.hidden=true;
+buyHistory.innerHTML='<h3></h3><p class="journey-buy-history-date"></p><p class="journey-buy-history-amount"></p><a target="_blank" rel="noopener noreferrer"></a>';
+$('journey-buy-card').after(buyHistory);
+function renderBuyHistory() {
+  const item=account ? record('buy') : null;
+  const ready=activeTab==='buy' && item?.state==='verified' && hashOk(item.hash) && /^\d+$/.test(item.received || '');
+  buyHistory.hidden=!ready;
+  if (!ready) return;
+  buyHistory.querySelector('h3').textContent=local('Last purchase','上次购买');
+  const timestamp=Number(item.createdAt);
+  const date=Number.isFinite(timestamp) && timestamp>0
+    ? new Intl.DateTimeFormat(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{dateStyle:'medium',timeStyle:'short'}).format(new Date(timestamp))
+    : local('Time unavailable','时间暂不可用');
+  buyHistory.querySelector('.journey-buy-history-date').textContent=local(`Started ${date} · BNB Chain`,`发起时间：${date} · BNB Chain`);
+  buyHistory.querySelector('.journey-buy-history-amount').textContent=`${formatEther(BigInt(item.received))} WOTR`;
+  const link=buyHistory.querySelector('a');
+  link.href=`https://bscscan.com/tx/${item.hash}`;
+  link.textContent=local(`View transaction ${item.hash.slice(0,10)}…${item.hash.slice(-6)} ↗`,`查看交易 ${item.hash.slice(0,10)}…${item.hash.slice(-6)} ↗`);
+}
 function amount(value) {
   assert(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(value) && parseEther(value) > 0n, 'Enter a positive amount with up to 18 decimal places.');
   return parseEther(value);
@@ -74,6 +96,7 @@ function setTab(tab) {
     $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
   }
   if (account && previousTab !== tab) void loadBalances();
+  renderBuyHistory();
 }
 function setStep(step) {
   activeStep = step;
@@ -331,9 +354,10 @@ async function refreshAll() {
     try { await verify(kind); } catch (error) { status(kind==='buy'?'buy':'swap',cleanError(error)); }
   }
   const buyRecord = record('buy'), swapRecord = record('swap');
-  if (buyRecord?.state === 'verified') status('buy',`Bought ${formatEther(BigInt(buyRecord.received))} WOTR · BNB transaction ${buyRecord.hash}`);
+  if (buyRecord?.state === 'verified') status('buy','');
   else if (buyRecord?.state === 'failed') status('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
   else if (buyRecord) status('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
+  else status('buy','');
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
   if (swapRecord?.state === 'verified') status('swap',swapRecord.usdcArrivalVerified === true
     ? local(`Saved swap: Arc USDC arrival verified in block ${swapRecord.block} · ${swapRecord.hash}`,`已保存的兑换记录：Arc USDC 到账已在区块 ${swapRecord.block} 核验 · ${swapRecord.hash}`)
@@ -352,6 +376,7 @@ async function refreshAll() {
 function draw() {
   const view = bridgeView();
   account = view.account || null;
+  renderBuyHistory();
   $('header-connect').hidden = false;
   $('header-connect').disabled = busy || view.busy;
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
