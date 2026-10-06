@@ -34,6 +34,7 @@ try {
   });
   await page.goto(origin,{waitUntil:'domcontentloaded'});
   await page.locator('#journey-connect').click();
+  await page.locator('.tevumi-wallet-other').click();
   await page.locator('#journey-wallet').getByText(/Connected:/).waitFor({state:'attached',timeout:30000});
   await page.locator('#journey-buy-refresh').click();
   await page.locator('#journey-buy-quote').getByText(/Estimated receive:/).waitFor({timeout:30000});

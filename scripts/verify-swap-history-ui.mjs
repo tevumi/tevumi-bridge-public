@@ -20,6 +20,7 @@ try {
     if (await page.locator('#journey-wotr').inputValue() !== '') throw Error(`SWAP_AMOUNT_PREFILLED_${label}`);
     if (await page.locator('#journey-portal').isVisible()) throw Error(`OLD_RESULT_WITHOUT_WALLET_${label}`);
     await page.locator('#journey-connect').click();
+    await page.locator('.tevumi-wallet-other').click();
     await page.locator('#journey-wallet').getByText(/Connected:/).waitFor({ timeout: 30000 });
     await page.evaluate(wallet => {
       localStorage.setItem(`tevumi-journey-v1:${wallet.toLowerCase()}:swap`, JSON.stringify({

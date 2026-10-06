@@ -24,6 +24,8 @@ try {
       }]));
     }, wallet);
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    await page.locator('#wallet-button').click();
+    await page.locator('.tevumi-wallet-other').click();
     await page.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
     await page.locator('#transfer-history summary').click();
     await page.locator('.history-card').first().getByText('Approval declined').waitFor();
@@ -59,6 +61,8 @@ try {
     }));
   }, wallet);
   await recovery.goto(origin, { waitUntil: 'domcontentloaded' });
+  await recovery.locator('#wallet-button').click();
+  await recovery.locator('.tevumi-wallet-other').click();
   await recovery.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
   if (!(await recovery.locator('#retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
@@ -76,6 +80,8 @@ try {
     }));
   }, wallet);
   await walletWait.goto(origin, { waitUntil: 'domcontentloaded' });
+  await walletWait.locator('#wallet-button').click();
+  await walletWait.locator('.tevumi-wallet-other').click();
   await walletWait.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
   await walletWait.locator('#transfer-history summary').click();
   if (!(await walletWait.locator('#activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
@@ -107,6 +113,8 @@ try {
     }]));
   }, { address: wallet, source: hash });
   await indexed.goto(origin, { waitUntil: 'domcontentloaded' });
+  await indexed.locator('#wallet-button').click();
+  await indexed.locator('.tevumi-wallet-other').click();
   await indexed.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
   await indexed.locator('#transfer-history summary').click();
   await indexed.locator('.history-card').first().getByText('Destination verified').waitFor();

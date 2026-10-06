@@ -61,8 +61,9 @@ try {
   });
   await walletPage.goto(origin, { waitUntil: 'domcontentloaded' });
   await walletPage.locator('#header-connect').click();
+  await walletPage.locator('.tevumi-wallet-other').click();
   await walletPage.locator('.language-switch').waitFor({ state: 'visible', timeout: 30000 });
-  if (await walletPage.locator('#header-connect').isVisible()) throw Error('CONNECTED_HEADER_CONNECT');
+  if (!(await walletPage.locator('#header-connect').isVisible())) throw Error('CONNECTED_WALLET_SWITCH_HIDDEN');
   await walletPage.close();
   console.log(JSON.stringify({ status: 'ROUTE_DESK_UI_OK', origin }));
 } finally {

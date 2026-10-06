@@ -3,6 +3,7 @@ import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
 import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
 import {rpc} from '../../immediate-deploy/rpc.js';
 import {chainBadge, iconFor} from './chain-icons.js';
+import {pickWallet} from '../wallet-picker.js';
 
 const $ = id => document.getElementById(id);
 const kit = new BridgeKit();
@@ -43,7 +44,7 @@ let serverLoading = false;
 let serverUnavailable = false;
 const syncedBurns = new Set();
 const syncingBurns = new Set();
-let walletChoices = [];
+let walletAccountsChanged = null;
 let language = 'en';
 const t = (en,zh) => language === 'zh-CN' ? zh : en;
 const labels = {
@@ -241,7 +242,7 @@ function updateButton() {
   const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord());
   $('bridge-button').disabled = !ready;
   $('retry-button').hidden = !(account && currentRecord?.state === 'error' && currentRecord.result);
-  $('wallet-button').textContent = account ? short(account) : t('Connect wallet','连接钱包');
+  $('wallet-button').textContent = account ? `${short(account)} ▾` : t('Connect wallet','连接钱包');
 }
 function recordLabel(record) {
   if (record.approvalRejected) return t('Approval declined','授权已拒绝');
@@ -398,26 +399,22 @@ function acceptQuote(result) {
     updateButton();
 }
 async function chooseWallet() {
-  if (provider && account) return;
-  if (!provider && walletChoices.length === 1) provider=walletChoices[0].provider;
-  if (!provider && walletChoices.length > 1) {
-    const selection=window.prompt(`Choose wallet:\n${walletChoices.map((item,index)=>`${index+1}. ${item.name}`).join('\n')}`,'1');
-    const index=Number(selection)-1;
-    if (!Number.isInteger(index) || index < 0 || index >= walletChoices.length) return;
-    provider=walletChoices[index].provider;
-  }
-  provider ||= window.ethereum;
-  if (!provider) { setStatus('No browser wallet was detected.'); return; }
+  if (working || pendingRecord()) { setStatus(t('Review the current transfer before changing wallets.','切换钱包前请先核对当前跨链记录。')); return; }
+  const choice=await pickWallet(language);
+  if (!choice) return;
   try {
-    const accounts=await provider.request({method:'eth_requestAccounts'});
+    const accounts=await choice.provider.request({method:'eth_requestAccounts'});
     if (!accounts?.length) throw Error('Wallet returned no account.');
-    await useWallet(provider,accounts[0]);
+    await useWallet(choice.provider,accounts[0]);
   } catch (error) { setStatus(cleanError(error)); }
 }
 async function useWallet(selectedProvider,address) {
+  const nextAdapter=await createViemAdapterFromProvider({provider:selectedProvider});
+  if (provider && walletAccountsChanged) provider.removeListener?.('accountsChanged',walletAccountsChanged);
   provider=selectedProvider;
   account=getAddress(address);
-  adapter=await createViemAdapterFromProvider({provider});
+  resetQuote(); currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false; serverUnavailable=false;
+  adapter=nextAdapter;
   renderLanguage();
   loadRecord();
   void loadServerHistory(true);
@@ -425,7 +422,7 @@ async function useWallet(selectedProvider,address) {
   await readBalance();
   renderRecipient();
   scheduleQuote();
-  provider.on?.('accountsChanged', async accounts => {
+  walletAccountsChanged=async accounts => {
     resetQuote(); account=accounts?.[0] ? getAddress(accounts[0]) : null;
     balance=null; tokenBalance=null; currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false;
     $('balance').textContent=account ? 'Loading Arc balance…' : 'Connect to see Arc USDC balance';
@@ -433,26 +430,8 @@ async function useWallet(selectedProvider,address) {
     if (!account) language='en';
     if (!account) { renderRecord(); renderHistory(); }
     renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
-  });
-}
-async function discoverWallets() {
-  const announced=[];
-  window.addEventListener('eip6963:announceProvider', event => {
-    if (!announced.some(item=>item.provider===event.detail.provider)) announced.push({provider:event.detail.provider,name:event.detail.info?.name || 'Browser wallet'});
-  });
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
-  await new Promise(resolve=>setTimeout(resolve,250));
-  walletChoices=announced;
-  const candidates=walletChoices.length ? walletChoices : window.ethereum ? [{provider:window.ethereum,name:'Browser wallet'}] : [];
-  const connected=[];
-  for (const candidate of candidates) {
-    try {
-      const accounts=await candidate.provider.request({method:'eth_accounts'});
-      if (accounts?.length) connected.push({provider:candidate.provider,address:accounts[0]});
-    } catch { /* wallet may require an explicit connection */ }
-  }
-  if (connected.length===1) await useWallet(connected[0].provider,connected[0].address);
-  updateButton();
+  };
+  provider.on?.('accountsChanged',walletAccountsChanged);
 }
 function recordEvent(payload) {
   if (!currentRecord || !['pending','unknown'].includes(currentRecord.state)) return;
@@ -558,4 +537,4 @@ $('history-more').addEventListener('click',()=>void loadServerHistory());
 $('transfer-history').addEventListener('toggle',()=>{if ($('transfer-history').open && account && !serverRecords.length) void loadServerHistory(true);});
 for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;renderLanguage();scheduleQuote();renderRecord();});
 renderLanguage();
-void discoverWallets();
+updateButton();

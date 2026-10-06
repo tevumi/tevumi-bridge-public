@@ -3,7 +3,7 @@ import {V4Planner, Actions, URVersion} from '@uniswap/v4-sdk';
 import {rpc} from '../immediate-deploy/rpc.js';
 import {classifyWalletSendError} from '../immediate-deploy/wallet-result.js';
 import {arcFeeParams} from '../immediate-deploy/arc-fees.js';
-import {bridgeView} from '../immediate-deploy/live.js';
+import {bridgeView,selectedWalletProvider} from '../immediate-deploy/live.js';
 import {chooseAsset, chooseDirection} from './search.js';
 import {currentLanguage} from './locale.js';
 
@@ -84,16 +84,17 @@ function setStep(step) {
     else $(`journey-step-${item}`).removeAttribute('aria-current');
   }
 }
-async function walletOn(chainId) {
-  assert(account && window.ethereum, 'Connect your wallet first.');
+async function walletOn(chainId,wallet=selectedWalletProvider()) {
+  assert(account && wallet, 'Connect your wallet first.');
   const wanted = '0x' + chainId.toString(16);
-  if (!same(await window.ethereum.request({method:'eth_chainId'}), wanted)) await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:wanted}]});
-  const accounts = await window.ethereum.request({method:'eth_accounts'});
+  if (!same(await wallet.request({method:'eth_chainId'}), wanted)) await wallet.request({method:'wallet_switchEthereumChain',params:[{chainId:wanted}]});
+  const accounts = await wallet.request({method:'eth_accounts'});
   assert(accounts?.length && same(getAddress(accounts[0]), account), 'Wallet account changed. Reconnect before continuing.');
-  assert(same(await window.ethereum.request({method:'eth_chainId'}), wanted), 'Wallet network is not the selected chain.');
+  assert(same(await wallet.request({method:'eth_chainId'}), wanted), 'Wallet network is not the selected chain.');
 }
 async function tx(kind, chainId, to, data, value=0n, extra={}) {
-  await walletOn(chainId);
+  const wallet=selectedWalletProvider();
+  await walletOn(chainId,wallet);
   const reader = readers[chainId];
   const nonce = await reader.getTransactionCount(account, 'pending');
   let gasEstimate;
@@ -119,7 +120,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}) {
   if (chainId === 56) request.gasPrice = '0x'+gasPrice.toString(16);
   else { request.maxFeePerGas = arcFees.maxFeePerGas; request.maxPriorityFeePerGas = arcFees.maxPriorityFeePerGas; }
   let hash;
-  try { hash = await window.ethereum.request({method:'eth_sendTransaction',params:[request]}); }
+  try { hash = await wallet.request({method:'eth_sendTransaction',params:[request]}); }
   catch (error) {
     if (['rejected','not_submitted'].includes(classifyWalletSendError(error))) { clear(kind); throw Error('Wallet did not submit the transaction.'); }
     throw Error('Wallet result is still being checked. Do not submit again.');
@@ -350,10 +351,13 @@ async function refreshAll() {
 function draw() {
   const view = bridgeView();
   account = view.account || null;
-  $('header-connect').hidden = Boolean(account);
+  $('header-connect').hidden = false;
+  $('header-connect').disabled = busy || view.busy;
+  $('header-connect').textContent = account ? `${account.slice(0,6)}…${account.slice(-4)} ▾` : local('Connect wallet','连接钱包');
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
   $('journey-connect').hidden = Boolean(account);
+  $('journey-connect').disabled = busy || view.busy;
   $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapQuote?.stage === 'token' ? local('Approve WOTR','授权 WOTR') : swapQuote?.stage === 'permit' ? local('Approve swap access','授权兑换权限') : swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Review approval','检查授权');

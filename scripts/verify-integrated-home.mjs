@@ -43,6 +43,7 @@ try {
   ], more: false }) }));
   await walletPage.goto(origin, { waitUntil: 'domcontentloaded' });
   await walletPage.locator('#journey-connect').click();
+  await walletPage.locator('.tevumi-wallet-other').click();
   await walletPage.locator('[data-language="zh-CN"]').click();
   await walletPage.locator('#journey-buy-balance').getByText(/BNB Chain 余额：.*BNB/).waitFor({ timeout: 30000 });
   await walletPage.locator('#nav-swap').click();

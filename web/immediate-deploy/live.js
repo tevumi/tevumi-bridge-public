@@ -3,6 +3,7 @@ import {rpc} from './rpc.js';
 import {arcFeeParams} from './arc-fees.js';
 import {classifyWalletSendError} from './wallet-result.js';
 import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/production-transfer.js';
+import {pickWallet} from '../preview/wallet-picker.js';
 
 const $=id=>document.getElementById(id);
 const owner='0x489594537CB76aC256079D710B6E18498E1a5402';
@@ -32,7 +33,8 @@ const adminIface=new Interface(adminAbi),appIface=new Interface(appAbi),tokenIfa
 const storageKey=()=>`tevumi-immediate-${assetId}-live-v1`;
 const providers=Object.fromEntries(Object.entries(networks).map(([side,network])=>[side,new BrowserProvider({request:({method,params=[]})=>rpc(network.chainId,method,params)})]));
 let account=null,busy=false,records={};
-let walletEventsBound=false;
+let selectedWallet=null, walletEventHandlers=null;
+export const selectedWalletProvider=()=>selectedWallet;
 let selectedSide='bsc';
 const activeTrackers=new Set();
 const activeReconciliations=new Set();
@@ -84,25 +86,32 @@ function renderRecords(){
  emitView();
 }
 async function connect(){
- ensure(window.ethereum,'未找到浏览器钱包。');
- if(!walletEventsBound&&typeof window.ethereum.on==='function'){
-  walletEventsBound=true;
-  const disconnected=()=>{account=null;records={};$('wallet-state').textContent='未连接钱包';$('fee-state').textContent='连接钱包后显示所选资产的余额。';note('');renderRecords();};
-  window.ethereum.on('accountsChanged',accounts=>{if(!accounts?.length||!same(accounts[0],account))disconnected();});
-  window.ethereum.on('disconnect',disconnected);
+ const choice=await pickWallet(document.documentElement.lang);
+ if(!choice)return;
+ const nextWallet=choice.provider;
+ const list=await nextWallet.request({method:'eth_requestAccounts'});
+ ensure(list?.[0],'钱包未返回账户。');
+ if(selectedWallet&&walletEventHandlers){
+  selectedWallet.removeListener?.('accountsChanged',walletEventHandlers.accountsChanged);
+  selectedWallet.removeListener?.('disconnect',walletEventHandlers.disconnect);
  }
- const list=await window.ethereum.request({method:'eth_requestAccounts'});account=getAddress(list[0]);load();await clearVerifiedLegacyArcAttempt();
+ selectedWallet=nextWallet;
+ const disconnected=()=>{account=null;records={};$('wallet-state').textContent='未连接钱包';$('fee-state').textContent='连接钱包后显示所选资产的余额。';note('');renderRecords();};
+ walletEventHandlers={accountsChanged:accounts=>{if(!accounts?.length||!same(accounts[0],account))disconnected();},disconnect:disconnected};
+ selectedWallet.on?.('accountsChanged',walletEventHandlers.accountsChanged);
+ selectedWallet.on?.('disconnect',walletEventHandlers.disconnect);
+ account=getAddress(list[0]);load();await clearVerifiedLegacyArcAttempt();
  for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}
  for(const kind of ['approve-bsc','send-bsc','send-arc'])if(records[kind]?.unknown)trackUnknown(kind);
  $('wallet-state').textContent=`已连接 ${account}`;await refresh(true);
 }
 async function switchTo(side){
- ensure(account&&window.ethereum,'请先连接钱包。');
+ ensure(account&&selectedWallet,'请先连接钱包。');
  const chainId='0x'+networks[side].chainId.toString(16);
- if(!same(await window.ethereum.request({method:'eth_chainId'}),chainId))await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId}]});
- const accounts=await window.ethereum.request({method:'eth_accounts'});
+ if(!same(await selectedWallet.request({method:'eth_chainId'}),chainId))await selectedWallet.request({method:'wallet_switchEthereumChain',params:[{chainId}]});
+ const accounts=await selectedWallet.request({method:'eth_accounts'});
  ensure(accounts?.length&&same(getAddress(accounts[0]),account),'钱包账户已切换，请重新连接。');
- ensure(same(await window.ethereum.request({method:'eth_chainId'}),chainId),'钱包网络切换失败。');
+ ensure(same(await selectedWallet.request({method:'eth_chainId'}),chainId),'钱包网络切换失败。');
 }
 async function state(side){
  const provider=providers[side],app=new Contract(pair[side],appAbi,provider),other=side==='bsc'?'arc':'bsc';
@@ -207,7 +216,7 @@ async function submit(kind,side,to,data,value=0n,amountLD){
  records[kind]={unknown:true,to,dataHash:keccak256(data),account,side,sourceStart,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
  note(`${kind} 正在请求钱包确认；请核对网络、合约和费用。`);
  let hash;
- try{hash=await window.ethereum.request({method:'eth_sendTransaction',params:[tx]});}
+ try{hash=await selectedWallet.request({method:'eth_sendTransaction',params:[tx]});}
  catch(error){
   const outcome=classifyWalletSendError(error);
   if(outcome==='rejected'){delete records[kind];save();throw Error('已在钱包拒绝，未提交交易。');}

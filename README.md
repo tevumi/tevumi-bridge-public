@@ -6,6 +6,8 @@ Tevumi Bridge now centers on the community demonstration token **Wobble Otter (W
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 6, 2026
 
+The live app now offers an explicit wallet chooser for MetaMask and OKX Wallet on the Buy, Bridge, Swap and USDC exit pages, with a separate Chrome Web Store link for each. It discovers multiple installed wallets with EIP-6963 and routes connection and signing requests to the selected wallet. Public browser checks passed with simulated wallets. Switching wallets does not resolve or bypass a wallet risk warning; live MetaMask testing and any USDC bridge completion remain unverified.
+
 **Optional USDC exit:** After a verified Arc swap and native-USDC arrival, the Swap result offers an independent [Bridge USDC page](https://bridge.tevumi.com/preview/usdc/index.html), powered by Circle Bridge Kit. It discovers supported mainnet destinations, checks the connected wallet's Arc USDC balance and shows a live fee estimate. The public interface and read-only Arc-to-Base quote have been checked; **no real-wallet USDC bridge transaction or destination arrival has yet been verified**. It is separate from the LayerZero WOTR bridge. Transfers use real USDC and fees; review the current quote and wallet prompts.
 
 The USDC destination picker shows chain icons and names, with search and initials where no matching artwork is available. Network artwork comes from [Web3 Icons](https://github.com/0xa3k5/web3icons) under the MIT license; icons are visual aids, while Circle's SDK and the live quote determine available routes.
