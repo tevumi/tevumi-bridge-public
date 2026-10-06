@@ -8,6 +8,8 @@ Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** �
 
 Buy、Bridge、Swap 现在只有右上角一个可见的钱包连接入口。Swap 页面在未连接钱包时也展示 Arc Portal 和独立 USDC 跨链两张卡片；没有已核验兑换时，Portal 卡片只做通用介绍，不声称已到账，已有核验结果仍可显示。10 月 7 日的本地及公网桌面/手机浏览器回归通过。
 
+Buy、Bridge、Swap 和独立 Bridge USDC 的交易记录仅在连接钱包后显示。断开连接会隐藏并收起历史栏，不删除已保存的记录。
+
 线上 Buy、Bridge、Swap 和独立 USDC 出口共用显式钱包选择弹窗。MetaMask 可选；OKX Wallet 仍显示图标和 Chrome 商店链接，禁用的连接项只注明“暂时不可用”。页面通过 EIP-6963 发现多个已安装钱包，把请求交给当前选中的钱包；本地及公网模拟钱包浏览器测试已通过。下述两笔真实 Arc→Ethereum USDC 跨链已核验，但截图不能确定实际签名的钱包插件；此前 OKX 风险提示的具体规则仍未知。在网站切换钱包不会自动撤销旧钱包插件保存的站点授权。
 
 钱包选择弹窗现使用 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons) 中的 MetaMask 与 OKX 品牌图标，取代字母占位块；图标本身不代表该钱包当前可连接。

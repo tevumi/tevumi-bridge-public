@@ -20,6 +20,7 @@ try {
     await page.locator('#nav-bridge').click();
     if (await page.getByRole('button', { name: 'Connect wallet', exact: true }).count() !== 1) throw Error(`BRIDGE_DUPLICATE_WALLET_ENTRY_${label}`);
     await page.locator('#nav-swap').click();
+    if (await page.locator('#journey-swap-history').isVisible()) throw Error(`GUEST_SWAP_HISTORY_VISIBLE_${label}`);
     if (await page.locator('#journey-wotr').inputValue() !== '') throw Error(`SWAP_AMOUNT_PREFILLED_${label}`);
     if (!(await page.locator('#journey-portal').isVisible()) || !(await page.locator('#journey-usdc-link').isVisible())) throw Error(`NEXT_ACTIONS_HIDDEN_WITHOUT_WALLET_${label}`);
     if ((await page.locator('#journey-portal-title').textContent()).includes('Saved swap')) throw Error(`FALSE_SAVED_RESULT_WITHOUT_WALLET_${label}`);

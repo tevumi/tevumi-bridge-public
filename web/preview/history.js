@@ -6,6 +6,7 @@ const panel = document.querySelector('#history-panel');
 const list = document.querySelector('#history-list');
 const more = document.querySelector('#history-more');
 let shownAccount = null;
+let activeAccount = bridgeView().account?.toLowerCase() || null;
 let page = 0;
 let loading = false;
 let items = [];
@@ -86,7 +87,12 @@ async function load(reset = false) {
 panel.addEventListener('toggle', () => { if (panel.open) void load(true); });
 more.addEventListener('click', () => { void load(); });
 window.addEventListener('tevumi:bridge-view', () => {
-  const account = bridgeView().account?.toLowerCase();
+  const account = bridgeView().account?.toLowerCase() || null;
+  panel.hidden = !account;
+  if (account !== activeAccount) {
+    panel.open = false;
+    activeAccount = account;
+  }
   if (account !== shownAccount) {
     shownAccount = null;
     items = [];
@@ -98,3 +104,4 @@ window.addEventListener('tevumi:bridge-view', () => {
 window.addEventListener('tevumi:history-changed', () => { if (panel.open) void load(true); });
 window.addEventListener('tevumi:locale-change', () => { if (panel.open && shownAccount && !loading) renderCards(); });
 setInterval(() => { if (panel.open && shownAccount && page === 1) void load(true); }, 20000);
+panel.hidden = !activeAccount;

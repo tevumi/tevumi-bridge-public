@@ -8,6 +8,8 @@ Tevumi Bridge now centers on the community demonstration token **Wobble Otter (W
 
 Buy, Bridge and Swap now have one visible wallet entry in the top-right header. The Swap page shows Arc Portal and the independent USDC bridge cards before wallet connection. Without a verified swap, the Portal card gives a general introduction and makes no arrival claim; a verified saved swap can still show its result. Local and public desktop/mobile browser checks passed on October 7.
 
+Transfer history on Buy, Bridge, Swap and Bridge USDC appears after wallet connection. Disconnecting hides and closes the history panel without deleting the stored records.
+
 The live app offers an explicit wallet chooser on the Buy, Bridge, Swap and USDC exit pages. MetaMask remains selectable. OKX Wallet stays visible with its icon and Chrome Web Store link; its disabled connection option says only “Temporarily unavailable.” EIP-6963 discovery routes requests to the selected wallet. Local and public browser checks passed with simulated wallets. Two real Arc-to-Ethereum USDC transfers are verified below; the screenshots do not establish which wallet extension signed. OKX's earlier risk warning remains unexplained. Switching wallets on the site does not automatically revoke a previous wallet extension's saved site permission.
 
 The wallet chooser shows the MetaMask and OKX brand icons from the MIT-licensed [Web3 Icons](https://github.com/0xa3k5/web3icons) package instead of letter placeholders. These icons do not indicate that a wallet is currently available for connection.

@@ -62,6 +62,11 @@ try {
     await page.locator('#operation-title').getByText('跨链').waitFor();
     await page.evaluate(() => window.ethereum.__emit('accountsChanged', []));
     await page.locator('#wallet-state').getByText('Wallet not connected').waitFor();
+    if (await page.locator('#history-panel').isVisible()) throw Error('DISCONNECTED_BRIDGE_HISTORY_VISIBLE');
+    await page.locator('#nav-buy').click();
+    if (await page.locator('#journey-buy-history').isVisible()) throw Error('DISCONNECTED_BUY_HISTORY_VISIBLE');
+    await page.locator('#nav-swap').click();
+    if (await page.locator('#journey-swap-history').isVisible()) throw Error('DISCONNECTED_SWAP_HISTORY_VISIBLE');
     if (await page.locator('.language-switch').isVisible()) throw Error('DISCONNECTED_SWITCH_VISIBLE');
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('DISCONNECTED_LANGUAGE_NOT_RESET');
     await page.locator('#header-connect').click();

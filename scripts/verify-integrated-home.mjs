@@ -10,8 +10,10 @@ try {
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     await page.locator('#chain-state').getByText(/BSC：发送/).waitFor({ state: 'attached', timeout: 30000 });
     if (await page.locator('#nav-buy').getAttribute('aria-current') !== 'page' || !(await page.locator('#wotr-journey').isVisible())) throw Error(`BUY_DEFAULT_${label}`);
+    if (await page.locator('#journey-buy-history').isVisible()) throw Error(`GUEST_BUY_HISTORY_VISIBLE_${label}`);
     if (await page.locator('#asset-picker').isVisible()) throw Error(`BRIDGE_DEFAULT_VISIBLE_${label}`);
     await page.locator('#nav-bridge').click();
+    if (await page.locator('#history-panel').isVisible()) throw Error(`GUEST_BRIDGE_HISTORY_VISIBLE_${label}`);
     if (await page.locator('#asset-search').isVisible() || await page.locator('#selected-name').textContent() !== 'WOTR') throw Error(`LEGACY_ASSET_VISIBLE_${label}`);
     if (await page.locator('#send-amount').inputValue() !== '500') throw Error(`WOTR_DEFAULT_AMOUNT_${label}`);
     if (await page.locator('#send-bsc').isVisible()) throw Error(`SIGNING_WITHOUT_WALLET_${label}`);

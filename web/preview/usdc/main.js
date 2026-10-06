@@ -282,6 +282,8 @@ function transactionLinks(container,record) {
 }
 function renderHistory() {
   const list=$('history-list');
+  $('transfer-history').hidden=!account;
+  if (!account) $('transfer-history').open=false;
   list.replaceChildren();
   $('history-more').hidden=!account || !serverMore || serverLoading;
   if (!account) { list.textContent=t('Connect your wallet to view transfer history.','连接钱包后查看跨链记录。'); return; }
@@ -445,13 +447,6 @@ async function useWallet(selectedProvider,address) {
   account=getAddress(address);
   resetQuote(); currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false; serverUnavailable=false;
   adapter=nextAdapter;
-  renderLanguage();
-  loadRecord();
-  void loadServerHistory(true);
-  updateButton();
-  await readBalance();
-  renderRecipient();
-  scheduleQuote();
   walletAccountsChanged=async accounts => {
     resetQuote(); account=accounts?.[0] ? getAddress(accounts[0]) : null;
     balance=null; tokenBalance=null; currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false;
@@ -462,6 +457,13 @@ async function useWallet(selectedProvider,address) {
     renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
   };
   provider.on?.('accountsChanged',walletAccountsChanged);
+  renderLanguage();
+  loadRecord();
+  void loadServerHistory(true);
+  updateButton();
+  await readBalance();
+  renderRecipient();
+  scheduleQuote();
 }
 function recordEvent(payload) {
   if (!currentRecord || !['pending','unknown'].includes(currentRecord.state)) return;

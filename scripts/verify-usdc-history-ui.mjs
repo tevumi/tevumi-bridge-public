@@ -7,7 +7,8 @@ try {
   for (const [label, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
     const page = await browser.newPage({ viewport });
     await page.addInitScript(address => {
-      window.ethereum = { request: async ({ method }) => {
+      const listeners = {};
+      window.ethereum = { on: (name, callback) => { listeners[name] = callback; }, __emit: (name, value) => listeners[name]?.(value), request: async ({ method }) => {
         if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
         if (method === 'eth_chainId') return '0x13b2';
         throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
@@ -23,10 +24,15 @@ try {
         steps: [{ name: 'burn', txHash: `0x${'a'.repeat(64)}` }], events: [],
       }]));
     }, wallet);
+    await page.route('**/api/usdc-transfers**', route => route.request().method() === 'GET'
+      ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [], more: false }) })
+      : route.fulfill({ status: 404, body: '{}' }));
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    if (await page.locator('#transfer-history').isVisible()) throw Error(`GUEST_USDC_HISTORY_VISIBLE_${label}`);
     await page.locator('#wallet-button').click();
     await page.locator('.tevumi-wallet-other').click();
-    await page.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+    await page.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
+    if (!(await page.locator('#transfer-history').isVisible())) throw Error(`CONNECTED_USDC_HISTORY_HIDDEN_${label}`);
     await page.locator('#transfer-history summary').click();
     await page.locator('.history-card').first().getByText('Approval declined').waitFor();
     if (await page.locator('.history-card').count() !== 2) throw Error(`HISTORY_COUNT_${label}`);
@@ -42,6 +48,8 @@ try {
     await page.locator('#lang-zh').click();
     if (!(await page.locator('.history-card').first().innerText()).includes('授权已拒绝')) throw Error(`CHINESE_STATUS_${label}`);
     await page.screenshot({ path: `.local/usdc-history-${label}.png`, fullPage: true });
+    await page.evaluate(() => window.ethereum.__emit('accountsChanged', []));
+    await page.locator('#transfer-history').waitFor({ state: 'hidden' });
     await page.close();
   }
   const recovery = await browser.newPage();
@@ -63,7 +71,7 @@ try {
   await recovery.goto(origin, { waitUntil: 'domcontentloaded' });
   await recovery.locator('#wallet-button').click();
   await recovery.locator('.tevumi-wallet-other').click();
-  await recovery.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+  await recovery.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
   if (!(await recovery.locator('#retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#activity-body').innerText()).includes('The SDK stopped before completion')) throw Error('SOURCE_HASH_MISCLASSIFIED');
@@ -82,7 +90,7 @@ try {
   await walletWait.goto(origin, { waitUntil: 'domcontentloaded' });
   await walletWait.locator('#wallet-button').click();
   await walletWait.locator('.tevumi-wallet-other').click();
-  await walletWait.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+  await walletWait.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
   await walletWait.locator('#transfer-history summary').click();
   if (!(await walletWait.locator('#activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
   if (!(await walletWait.locator('.history-card').first().innerText()).includes('Awaiting wallet')) throw Error('WALLET_WAIT_LABEL');
@@ -115,7 +123,7 @@ try {
   await indexed.goto(origin, { waitUntil: 'domcontentloaded' });
   await indexed.locator('#wallet-button').click();
   await indexed.locator('.tevumi-wallet-other').click();
-  await indexed.locator('#wallet-button').getByText('0x67bf').waitFor({ timeout: 30000 });
+  await indexed.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
   await indexed.locator('#transfer-history summary').click();
   await indexed.locator('.history-card').first().getByText('Destination verified').waitFor();
   if (await indexed.locator('.history-card').count() !== 2) throw Error(`SERVER_DEDUPLICATION_${await indexed.locator('.history-card').count()}_${await indexed.locator('#history-list').innerText()}`);

@@ -11,6 +11,7 @@ for (const kind of ['buy', 'swap']) {
   const panel = document.createElement('details');
   panel.className = 'advanced journey-history';
   panel.id = `journey-${kind}-history`;
+  panel.hidden = true;
   const heading = document.createElement('summary');
   const list = document.createElement('div');
   list.className = 'history-list';
@@ -109,10 +110,19 @@ async function index(kind, hash) {
 }
 
 window.addEventListener('tevumi:journey-hash', event => { void index(event.detail?.kind, event.detail?.hash); });
-function showTab(tab) { for (const kind of ['buy','swap']) views[kind].panel.hidden = tab !== kind; }
+function showTab(tab) {
+  const account = bridgeView().account;
+  for (const kind of ['buy','swap']) views[kind].panel.hidden = !account || tab !== kind;
+}
 window.addEventListener('tevumi:journey-tab', event => showTab(event.detail?.tab));
+let activeAccount = bridgeView().account?.toLowerCase() || null;
 window.addEventListener('tevumi:bridge-view', () => {
-  const account = bridgeView().account?.toLowerCase();
+  const account = bridgeView().account?.toLowerCase() || null;
+  if (account !== activeAccount) {
+    for (const kind of ['buy','swap']) views[kind].panel.open = false;
+    activeAccount = account;
+  }
+  showTab(document.body.dataset.view || 'buy');
   for (const kind of ['buy', 'swap']) {
     const view = views[kind];
     if (view.account === account) continue;
