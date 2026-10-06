@@ -2,3 +2,7 @@
 .tevumi-wallet-emblem{background:#fff2e9;color:inherit;font-size:inherit}
 .tevumi-wallet-emblem.okx{background:#f2f4f1;color:inherit;font-size:inherit}
 .tevumi-wallet-emblem svg{display:block;width:27px;height:27px}
+.tevumi-wallet-row.is-paused{background:#f5f7f3;border-color:#dfe5dc}
+.tevumi-wallet-row.is-paused .tevumi-wallet-option:disabled{opacity:1;color:#607568}
+.tevumi-wallet-row.is-paused .tevumi-wallet-emblem{opacity:.62}
+.tevumi-wallet-row.is-paused .tevumi-wallet-copy small{color:#806e4d}

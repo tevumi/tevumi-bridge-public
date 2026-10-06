@@ -27,9 +27,8 @@ function discoveredWallets() {
 
 function brand(item) {
   const name = `${item.name} ${item.rdns}`.toLowerCase();
+  if (item.provider === window.okxwallet || item.provider?.isOkxWallet || item.provider?.isOKExWallet || /okx|okex/.test(name)) return 'okx';
   if (/metamask/.test(name)) return 'metamask';
-  if (/okx|okex/.test(name)) return 'okx';
-  if (item.provider?.isOkxWallet || item.provider?.isOKExWallet) return 'okx';
   if (item.provider?.isMetaMask) return 'metamask';
   return null;
 }
@@ -50,9 +49,11 @@ export async function pickWallet(language='en') {
   // Wallets may announce after initial page load. A short discovery window keeps
   // the explicit user choice independent of whichever extension owns window.ethereum.
   await new Promise(resolve => setTimeout(resolve,200));
-  const available = [...announced, ...choices].filter((item,index,list) => list.findIndex(other => other.provider === item.provider) === index);
-  const ordered = ['metamask','okx'].map(kind => available.find(item => brand(item) === kind));
-  const other = available.filter(item => !brand(item));
+  const discovered=[...announced,...choices];
+  const available=discovered.filter((item,index,list) => list.findIndex(other => other.provider === item.provider) === index);
+  const blockedProviders=new Set(discovered.filter(item => brand(item)==='okx').map(item=>item.provider));
+  const ordered=['metamask','okx'].map(kind => discovered.find(item => brand(item) === kind));
+  const other=available.filter(item => !brand(item) && !blockedProviders.has(item.provider));
   const modal = walletDialog();
   modal.replaceChildren();
   const head = document.createElement('div'); head.className='tevumi-wallet-head';
@@ -71,13 +72,14 @@ export async function pickWallet(language='en') {
   for (const [index,kind] of ['metamask','okx'].entries()) {
     const item=ordered[index];
     const row=document.createElement('div'); row.className='tevumi-wallet-row';
-    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item;
+    if (kind==='okx') row.classList.add('is-paused');
+    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item || kind==='okx';
     const emblem=document.createElement('span'); emblem.className=`tevumi-wallet-emblem ${kind}`; emblem.setAttribute('aria-hidden','true'); emblem.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:WalletBrandedOkx.default;
     const copy=document.createElement('span'); copy.className='tevumi-wallet-copy';
     const name=document.createElement('strong'); name.textContent=kind==='metamask'?'MetaMask':'OKX Wallet';
-    const state=document.createElement('small'); state.textContent=item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
+    const state=document.createElement('small'); state.textContent=kind==='okx' ? (zh?'暂时不可用 · 兼容性验证中':'Temporarily unavailable · compatibility review') : item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
     copy.append(name,state); option.append(emblem,copy);
-    if (item) option.onclick=()=>finish({provider:item.provider,name:name.textContent});
+    if (item && kind!=='okx') option.onclick=()=>finish({provider:item.provider,name:name.textContent});
     const install=document.createElement('a'); install.href=STORES[kind]; install.target='_blank'; install.rel='noopener noreferrer'; install.textContent=zh?'Chrome 商店 ↗':'Chrome Web Store ↗'; install.setAttribute('aria-label',`${name.textContent} · Chrome Web Store`);
     row.append(option,install); rows.append(row);
   }
