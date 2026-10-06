@@ -71,7 +71,6 @@ function setTab(tab) {
     $('journey-intro').textContent = tab === 'buy'
       ? local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。')
       : local('Swap WOTR for native USDC on Arc. Review the live quote before confirming.','在 Arc 将 WOTR 兑换为原生 USDC。确认前请核对实时报价。');
-    $(`journey-${tab}-card`).querySelector('.journey-actions').prepend($('journey-connect'));
     $(`journey-${tab}-card`).querySelector('.journey-card-heading').after($('journey-wallet'));
   }
   if (account && previousTab !== tab) void loadBalances();
@@ -364,8 +363,6 @@ function draw() {
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
-  $('journey-connect').hidden = Boolean(account);
-  $('journey-connect').disabled = busy || view.busy;
   $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapQuote?.stage === 'token' ? local('Approve WOTR','授权 WOTR') : swapQuote?.stage === 'permit' ? local('Approve swap access','授权兑换权限') : swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Review approval','检查授权');
@@ -382,13 +379,13 @@ function draw() {
   $('journey-route-bridge').classList.toggle('done',bridgeDone);
   $('journey-route-swap').classList.toggle('done',record('swap')?.state==='verified');
   const portalReady = Boolean(account && record('swap')?.state === 'verified' && record('swap')?.usdcArrivalVerified === true);
-  $('journey-next').hidden = !portalReady;
+  $('journey-next').hidden = false;
   const savedSwap = portalReady ? record('swap') : null;
   const savedIn = /^\d+$/.test(savedSwap?.amountIn || '') ? `${displayBalance(BigInt(savedSwap.amountIn))} WOTR` : local('WOTR','WOTR');
   const savedOut = /^\d+$/.test(savedSwap?.nativeUsdcReceived || '') ? `${displayBalance(BigInt(savedSwap.nativeUsdcReceived))} USDC` : local('USDC','USDC');
-  $('journey-portal-title').textContent = local('Saved swap: USDC arrived on Arc','历史兑换：USDC 已到达 Arc');
+  $('journey-portal-title').textContent = portalReady ? local('Saved swap: USDC arrived on Arc','历史兑换：USDC 已到达 Arc') : local('Explore USDC on Arc','探索 Arc 上的 USDC');
   $('journey-portal-details').textContent = portalReady ? local(`${savedIn} → ${savedOut} · Arc block ${savedSwap.block}`,`${savedIn} → ${savedOut} · Arc 区块 ${savedSwap.block}`) : '';
-  $('journey-portal-copy').textContent = local('This saved result is separate from a new swap. Arc Portal opens separately and transfers nothing automatically.','这条历史结果与新兑换相互独立。Arc Portal 会在新页面打开，不会自动转移资产。');
+  $('journey-portal-copy').textContent = portalReady ? local('This saved result is separate from a new swap. Arc Portal opens separately and transfers nothing automatically.','这条历史结果与新兑换相互独立。Arc Portal 会在新页面打开，不会自动转移资产。') : local('Explore USDC options on Arc Portal. It opens separately and transfers nothing automatically.','前往 Arc Portal 了解 USDC 的用途。它会在新页面打开，不会自动转移资产。');
   $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
   $('journey-usdc-title').textContent = local('Bridge USDC to another chain','将 USDC 跨往其他链');
   $('journey-usdc-copy').textContent = local('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');
@@ -410,7 +407,6 @@ $('nav-buy').addEventListener('click',()=>setTab('buy'));
 $('nav-bridge').addEventListener('click',()=>setTab('bridge'));
 $('nav-swap').addEventListener('click',()=>setTab('swap'));
 for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventListener('click',()=>setStep(step));
-$('journey-connect').addEventListener('click',()=>{$('connect').click();});
 $('header-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));
 $('journey-bnb').addEventListener('input',()=>{buyQuote=null;renderLiveText();draw();});

@@ -16,10 +16,15 @@ try {
       } };
     }, address);
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
+    if (await page.getByRole('button', { name: 'Connect wallet', exact: true }).count() !== 1) throw Error(`DUPLICATE_WALLET_ENTRY_${label}`);
+    await page.locator('#nav-bridge').click();
+    if (await page.getByRole('button', { name: 'Connect wallet', exact: true }).count() !== 1) throw Error(`BRIDGE_DUPLICATE_WALLET_ENTRY_${label}`);
     await page.locator('#nav-swap').click();
     if (await page.locator('#journey-wotr').inputValue() !== '') throw Error(`SWAP_AMOUNT_PREFILLED_${label}`);
-    if (await page.locator('#journey-portal').isVisible()) throw Error(`OLD_RESULT_WITHOUT_WALLET_${label}`);
-    await page.locator('#journey-connect').click();
+    if (!(await page.locator('#journey-portal').isVisible()) || !(await page.locator('#journey-usdc-link').isVisible())) throw Error(`NEXT_ACTIONS_HIDDEN_WITHOUT_WALLET_${label}`);
+    if ((await page.locator('#journey-portal-title').textContent()).includes('Saved swap')) throw Error(`FALSE_SAVED_RESULT_WITHOUT_WALLET_${label}`);
+    if (await page.getByRole('button', { name: 'Connect wallet', exact: true }).count() !== 1) throw Error(`SWAP_DUPLICATE_WALLET_ENTRY_${label}`);
+    await page.locator('#header-connect').click();
     await page.locator('.tevumi-wallet-other').click();
     await page.locator('#journey-wallet').getByText(/Connected:/).waitFor({ timeout: 30000 });
     await page.evaluate(wallet => {

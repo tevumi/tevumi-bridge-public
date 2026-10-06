@@ -25,7 +25,7 @@ const exact = new Map(Object.entries({
   '从 WOTR': 'From WOTR',
   '到 USDC。': 'to USDC.',
   '在 Arc 池中将 WOTR 兑换为原生 USDC。到账数量取决于实时报价。': 'Exchange WOTR for native USDC in the Arc pool. The output depends on the live quote.',
-  '在 Arc 钱包保留一些原生 USDC 支付 Gas。只有兑换和到账均核验后才显示可选的 Arc Portal 链接。': 'Keep some native USDC in your Arc wallet to pay gas. The optional Arc Portal link appears only after the swap and arrival are verified.',
+  '在 Arc 钱包保留一些原生 USDC 支付 Gas。你可以随时探索 Arc Portal 或查看 USDC 跨链路线。': 'Keep some native USDC in your Arc wallet to pay gas. You can explore Arc Portal or review USDC bridge routes at any time.',
   '选择操作': 'Choose an action',
   '购买': 'Buy',
   '跨链': 'Bridge',

@@ -34,7 +34,7 @@ try {
     await page.locator('#nav-buy').getByText('Buy').waitFor();
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('SAVED_GUEST_LANGUAGE_NOT_IGNORED');
     if (await page.locator('.language-switch').isVisible()) throw Error('GUEST_SWITCH_VISIBLE');
-    await page.locator('#journey-connect').click();
+    await page.locator('#header-connect').click();
     await page.locator('.tevumi-wallet-other').click();
     await page.locator('.language-switch').waitFor({ state: 'visible', timeout: 30000 });
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('CONNECTED_LANGUAGE_JUMP');
@@ -64,7 +64,7 @@ try {
     await page.locator('#wallet-state').getByText('Wallet not connected').waitFor();
     if (await page.locator('.language-switch').isVisible()) throw Error('DISCONNECTED_SWITCH_VISIBLE');
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('DISCONNECTED_LANGUAGE_NOT_RESET');
-    await page.locator('#connect').click();
+    await page.locator('#header-connect').click();
     await page.locator('.tevumi-wallet-other').click();
     await page.locator('.language-switch').waitFor({ state: 'visible', timeout: 30000 });
     if (await page.locator('html').getAttribute('lang') !== 'en') throw Error('RECONNECTED_LANGUAGE_JUMP');

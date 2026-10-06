@@ -42,7 +42,7 @@ try {
     { chain: 5042, target_chain: 56, asset: 'cat', source_hash: '0x' + 'c'.repeat(64), target_hash: null, status: 'in_transit', amount_ld: '5000000000000', created_at: 1790492900 },
   ], more: false }) }));
   await walletPage.goto(origin, { waitUntil: 'domcontentloaded' });
-  await walletPage.locator('#journey-connect').click();
+  await walletPage.locator('#header-connect').click();
   await walletPage.locator('.tevumi-wallet-other').click();
   await walletPage.locator('[data-language="zh-CN"]').click();
   await walletPage.locator('#journey-buy-balance').getByText(/BNB Chain 余额：.*BNB/).waitFor({ timeout: 30000 });
