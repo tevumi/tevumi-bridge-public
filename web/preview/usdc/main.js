@@ -117,7 +117,7 @@ async function loadServerHistory(reset=false) {
     serverRecords=[...serverRecords,...(body.items || [])];
     serverMore=Boolean(body.more); serverPage++;
   } catch { if (same(account,expected)) serverUnavailable=true; }
-  finally { serverLoading=false; if (same(account,expected)) renderHistory(); }
+  finally { serverLoading=false; if (same(account,expected)) { renderHistory(); renderRecord(); } }
 }
 async function syncBurn(record) {
   const hash=burnHash(record);
@@ -239,12 +239,17 @@ function params(chain) {
   return {from:{adapter,chain:directArc},to,amount:amountValue(),token:'USDC',config:{transferSpeed:'SLOW',batchTransactions:false}};
 }
 function updateButton() {
-  const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord());
+  const ready = Boolean(account && adapter && estimate && Date.now()-estimatedAt < 60000 && !working && !pendingRecord() && currentRecord?.state !== 'success');
   $('bridge-button').disabled = !ready;
+  $('bridge-button').textContent = currentRecord?.state === 'success' ? t('Previous transfer complete','上一笔跨链已完成') : t('Review and bridge USDC','确认报价并跨链 USDC');
   $('retry-button').hidden = !(account && currentRecord?.state === 'error' && currentRecord.result);
+  $('new-transfer-button').hidden = !(account && currentRecord?.state === 'success' && hasRecordedHash(currentRecord));
+  $('new-transfer-button').disabled = working;
+  $('new-transfer-button').textContent = t('Start a new transfer','发起新一笔跨链');
   $('wallet-button').textContent = account ? `${short(account)} ▾` : t('Connect wallet','连接钱包');
 }
 function recordLabel(record) {
+  if (record.state === 'success' && serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(record)))) return t('Destination verified','目标链已核验');
   if (record.approvalRejected) return t('Approval declined','授权已拒绝');
   if (record.state==='pending' && !hasRecordedHash(record)) return t('Awaiting wallet','等待钱包');
   return ({success:t('SDK completed','SDK 已完成'),pending:t('Processing','处理中'),error:t('Action needed','需要处理'),cancelled:t('Cancelled','已取消'),unknown:t('Check status','待核查')})[record.state] || t('Check status','待核查');
@@ -308,7 +313,7 @@ function renderRecord() {
   else if (currentRecord.state === 'pending') append(t('The SDK is processing this transfer. Do not send again.','SDK 正在处理这笔跨链，请勿重复发送。'));
   else if (currentRecord.state === 'unknown') append(t('The result is unclear. Check the saved transaction before another attempt.','结果暂不明确，再次尝试前请核对已保存的交易。'));
   else if (currentRecord.state === 'error') append(t('The SDK stopped before completion. Review any source transaction before resuming; your wallet may request another signature.','SDK 未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
-  else if (currentRecord.state === 'success') append(t('The SDK reported completion. Verify the destination transaction independently.','SDK 已报告完成；请独立核验目标链交易。'));
+  else if (currentRecord.state === 'success') append(serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord))) ? t('The destination CCTP message has been used on-chain. To send again, start a separate transfer below.','目标链 CCTP 消息已在链上执行。如需再次跨链，请在下方发起新的一笔。') : t('The SDK reported completion. Destination verification is still pending; review the history before starting a separate transfer.','SDK 已报告完成，目标链核验仍在进行；再次跨链前请核对历史记录。'));
   if (!currentRecord.approvalRejected && currentRecord.errorMessage) append(cleanError(currentRecord.errorMessage));
   const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,historyEntry(currentRecord)); body.append(links);
   updateButton();
@@ -344,10 +349,21 @@ function resetQuote() {
   estimate=null; estimatedAt=0; quoteSequence++;
   updateButton();
 }
+function startNewTransfer() {
+  if (working || currentRecord?.state !== 'success' || !hasRecordedHash(currentRecord)) return;
+  currentRecord=null;
+  if (key()) localStorage.removeItem(key());
+  $('amount').value='';
+  setStatus('');
+  renderRecord();
+  scheduleQuote();
+  $('amount').focus();
+}
 function scheduleQuote() {
   clearTimeout(quoteTimer);
   resetQuote();
   if (!account) { setQuote(t('Connect your wallet to see a live quote.','连接钱包后即可查看实时报价。')); return; }
+  if (currentRecord?.state === 'success') { setQuote(t('This transfer is complete. Start a separate transfer below to get a new quote.','本笔跨链已完成。若需再次跨链，请在下方发起新的一笔并重新获取报价。')); return; }
   const chain=selectedChain();
   if (!chain) { setQuote(t('Choose a destination chain.','请选择目标链。')); return; }
   if (!validRecipient(chain)) { setQuote(t('Enter a valid destination recipient address.','请输入有效的目标链收款地址。')); return; }
@@ -492,7 +508,7 @@ async function startBridge() {
       saveRecord({...currentRecord,state:rejected ? 'cancelled' : 'unknown',errorMessage:cleanError(error)});
     }
     setStatus(`${cleanError(error)} Check the saved transfer before sending again.`);
-  } finally { working=false; if (needsFeeReview) updateButton(); else if (currentRecord?.state==='cancelled') scheduleQuote(); else resetQuote(); renderRecord(); }
+  } finally { working=false; if (needsFeeReview) updateButton(); else if (currentRecord?.state==='cancelled') scheduleQuote(); else { resetQuote(); setQuote(currentRecord?.state==='success' ? t('This transfer is complete. Start a separate transfer below to get a new quote.','本笔跨链已完成。若需再次跨链，请在下方发起新的一笔并重新获取报价。') : t('Review the current transfer before requesting another quote.','重新报价前请先核对当前跨链记录。')); } renderRecord(); }
 }
 async function retryBridge() {
   if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
@@ -533,8 +549,10 @@ $('amount').addEventListener('input',scheduleQuote);
 $('recipient').addEventListener('input',scheduleQuote);
 $('bridge-button').addEventListener('click',()=>void startBridge());
 $('retry-button').addEventListener('click',()=>void retryBridge());
+$('new-transfer-button').addEventListener('click',startNewTransfer);
 $('history-more').addEventListener('click',()=>void loadServerHistory());
 $('transfer-history').addEventListener('toggle',()=>{if ($('transfer-history').open && account && !serverRecords.length) void loadServerHistory(true);});
 for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;renderLanguage();scheduleQuote();renderRecord();});
 renderLanguage();
 updateButton();
+setInterval(()=>{if (account && !document.hidden && currentRecord?.state==='success' && !serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord)))) void loadServerHistory(true);},30000);

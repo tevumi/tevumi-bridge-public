@@ -6,15 +6,15 @@ Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** �
 
 **线上入口：**https://bridge.tevumi.com/ · **状态核对日期：**2026-10-06
 
-线上 Buy、Bridge、Swap 和独立 USDC 出口已增加显式钱包选择弹窗，分别显示 MetaMask、OKX Wallet 及各自的 Chrome 商店链接。页面通过 EIP-6963 发现多个已安装钱包，把连接和签名请求交给用户选中的钱包；公网模拟钱包浏览器测试已通过。切换钱包不代表可以绕过风险警告；真实 MetaMask 钱包测试与 USDC 跨链完成仍待验证。
+线上 Buy、Bridge、Swap 和独立 USDC 出口已增加显式钱包选择弹窗，分别显示 MetaMask、OKX Wallet 及各自的 Chrome 商店链接。页面通过 EIP-6963 发现多个已安装钱包，把连接和签名请求交给用户选中的钱包；公网模拟钱包浏览器测试已通过。下述两笔真实 Arc→Ethereum USDC 跨链已核验，但截图不能确定实际签名的钱包插件；此前 OKX 风险提示的具体规则仍未知。
 
-**可选 USDC 出口：**Arc 兑换及原生 USDC 到账核验后，Swap 结果区会出现独立的 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。**公网页面、只读 Arc→Base 报价已验证；尚无真实钱包 USDC 跨链及目的链到账证据。** 本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。
+**可选 USDC 出口：**Arc 兑换及原生 USDC 到账核验后，Swap 结果区会出现独立的 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。10 月 6 日测试钱包两笔各 2 USDC 的 Arc→Ethereum 跨链已在目标链独立核验，分别铸造到账 `0.356427` 和 `0.379543 USDC`；这不代表 Arc→Base 已有真实交易验证。本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。
 
 USDC 选链列表现显示图标与链名，并可搜索；没有对应图标的链使用字母标识。图标来自 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons)，只辅助识别；实际可用路线仍以 Circle SDK 与实时报价为准。
 
-USDC 页面现有按连接钱包分页的服务器跨链历史。只有 Arc 的 CCTP 销毁回执经服务器核验才入库；EVM 目标链还须匹配 Circle 消息并核验目标链，才显示已到账。浏览器仍保存未完成交易的 SDK 恢复资料，不能单凭本地状态认定到账。目前尚无 Tevumi 测试钱包的真实 USDC 跨链核验证据。若钱包拒绝授权且页面未保存交易哈希，再次尝试前请先核对钱包活动；若已经记录源链交易，应先核对并恢复原跨链，不要重新发起一笔。
+USDC 页面现有按连接钱包分页的服务器跨链历史。只有 Arc 的 CCTP 销毁回执经服务器核验才入库；EVM 目标链还须匹配 Circle 消息并核验目标链，才显示已到账。浏览器仍保存未完成交易的 SDK 恢复资料，不能单凭本地状态认定到账。两笔已核验转账分别有独立的 [Arc 源链交易](https://explorer.arc.io/tx/0xe9dd83d6f3c335d08b3f6788764a8b292507c36ea1d5b85a33e85a836c416766)（[第二笔](https://explorer.arc.io/tx/0x0ead19c06fa31b2f861d5f12b4eb0e9f7c1a38f1e928b58d86bdc2de968565aa)）及匹配的 [Ethereum 铸造交易](https://etherscan.io/tx/0x1be1c71e3fa0f638026e4ae29dab661293322b84e5ef28c31c4574a61265df7b)（[第二笔](https://etherscan.io/tx/0xf8e15edfd378e32fbae9536543ddd51e4bd2e8b7678bfc822c3afc76aea2d473)）。已完成后页面区分上一笔结果和“发起新一笔跨链”；点击新操作会清空旧数量、重新报价，历史仍保留。若钱包拒绝授权且页面未保存交易哈希，再次尝试前请先核对钱包活动；若已经记录源链交易，应先核对并恢复原跨链，不要重新发起一笔。
 
-针对 10 月 5 日用户报告的 OKX Wallet 风险拦截，单纯关闭 SDK 的合并交易仍未解除警告。当前 USDC 页面改用 Circle SDK 的标准 Arc CCTP TokenMessengerV2 路径，并核对其官方主网地址；页面突出显示高额目标链费用和准确授权增额。本地 Arc 主网分叉已验证授权和源链销毁，**但 10 月 6 日真实钱包复测仍出现 OKX 风险拦截，尚无目标链到账证据**。用户截图展示多个目标链报价，但无法确定弹窗对应哪条路线。新报价费用及 Gas 不高于已展示报价时可一次点击继续；上涨时须再确认。不要绕过钱包警告；无源链哈希的记录仍显示“等待钱包”，不误称链上处理中。
+针对 10 月 5 日用户报告的 OKX Wallet 风险拦截，单纯关闭 SDK 的合并交易仍未解除警告。当前 USDC 页面改用 Circle SDK 的标准 Arc CCTP TokenMessengerV2 路径，并核对其官方主网地址；页面突出显示高额目标链费用和准确授权增额。本地 Arc 主网分叉已验证授权和源链销毁。10 月 6 日较早一次 OKX 复测仍受拦截，具体规则未知；之后两笔 Arc→Ethereum 真实到账已核验，但不能仅凭截图判定签名插件。新报价费用及 Gas 不高于已展示报价时可一次点击继续；上涨时须再确认。不要绕过钱包警告；无源链哈希的记录仍显示“等待钱包”，不误称链上处理中。
 
 首页 Bridge 的 BNB Chain 与 Arc 方向卡片也显示图标和链名；切换方向时图标与名称一起交换。该视觉更新不改变 WOTR 跨链规则或钱包交易流程。
 
