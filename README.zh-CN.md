@@ -53,6 +53,23 @@ Tevumi Bridge 正在参与 **Arc Microgrants**：用户已于 9 月 28 日提交
 
 WOTR 合约地址：[BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5) `0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5`；[Arc](https://explorer.arc.io/address/0x70Cedd901366ad932203BBB08B22DcD4d4510028) `0x70Cedd901366ad932203BBB08B22DcD4d4510028`。
 
+## 四阶段主网流程已核验 — 2026-10-07
+
+同一测试钱包已完成 Buy → WOTR Bridge → Swap → Bridge USDC 到 Base。独立只读核验确认成功回执、LayerZero OFT GUID 和数量匹配、Arc 兑换付款、Circle CCTP 消息与已使用 nonce，以及 Base 向该钱包实际铸造的 USDC。用户报告通过网站完成这些操作；链上证明钱包和交易顺序，不能识别具体网页会话。
+
+测试钱包：`0x67bfb3BeF4f4A3Cb25Bc529E948d40bcfc0874CD`。
+
+| 操作 | 时间（10 月 7 日 UTC） | 已核验结果 | 交易 |
+| --- | --- | --- | --- |
+| Buy · BNB Chain | 04:43:41 | 0.00007 BNB → 1022.636152494306730568 WOTR | [查看交易](https://bscscan.com/tx/0x52080a3dadbf09271b9c5fd5f1a9145d67de7adcb99e469da2ac2ee578af7f93) |
+| Bridge · BNB Chain | 04:50:18 | 1000 WOTR 转出 | [查看交易](https://bscscan.com/tx/0x37709766402a213e07d491df151b9c6d416a9f26c1b83f0a0feb33cf5a600201) |
+| Bridge · Arc | 04:50:39 | 1000 WOTR 到账 | [查看交易](https://explorer.arc.io/tx/0x58136fad15ac9f4cac33374707e6561d5806044d595f74b6df896dae80e2e2a8) |
+| Swap · Arc | 05:21:42 | 1000 WOTR → 0.052498171057709016 原生 USDC | [查看交易](https://explorer.arc.io/tx/0x5c3f16111ae274873ab938edbc43732a251d68555c3011a04cdd6f6659c5a7b0) |
+| Bridge USDC · Arc | 05:38:49 | 0.4 USDC 销毁 | [查看交易](https://explorer.arc.io/tx/0x1b908dc805133f643692514dc50ddc9650f9819c2e1cc1fd28713dbd30fe8f1e) |
+| Bridge USDC · Base | 05:38:59 | 0.345503 USDC 到账; 0.054497 USDC 转发费用 | [查看交易](https://basescan.org/tx/0xc99829f0bc6ade5bcdf9f6b09ec52c4728193a5609bab1038060693782275181) |
+
+这组交易证明四个功能步骤使用真实主网资产打通，**不是单次买入的收益计算**。钱包已有余额；后续跨出的 0.4 USDC 高于本次兑换得到的约 0.052498 USDC，因此包含钱包原有 USDC。兑换数额为扣除 Arc Gas 前所得，Base 到账已扣除 CCTP 转发费用。WOTR 是演示代币；历史核验不保证未来报价或转账结果。
+
 ## 使用页面
 
 当前首页使用顶部 Buy / Bridge / Swap 三入口、独立交易表单及随操作变化的路线说明或真实跨链进度；窄屏下内容改为单列。
@@ -77,4 +94,4 @@ Arc 兑换交易与原生 USDC 到账均核验后，Swap 页面才会显示前�
 
 新同事编辑或发布前应先向维护者获取私有项目与协作边界文档。不得将私有仓库或其 `docs/` 目录直接镜像到公开仓库。
 
-Swap 现在提供 **授权并兑换**：网页点一次，按需逐笔请求精确额度授权，等待确认后再请求兑换。钱包仍需分别确认，首次缺少两层授权时最多三次。兑换保留原最低到账，新报价低于该值、授权失败或钱包改变时停止；取消兑换保留已确认授权。本地及公网页面模拟钱包回归通过，本次更新的真实钱包验收待测试。
+Swap 现在提供 **授权并兑换**：网页点一次，按需逐笔请求精确额度授权，等待确认后再请求兑换。钱包仍需分别确认，首次缺少两层授权时最多三次。兑换保留原最低到账，新报价低于该值、授权失败或钱包改变时停止；取消兑换保留已确认授权。本地及公网页面模拟钱包回归通过；用户随后报告真实兑换成功，回执及付款已独立核验。链上不能单独证明网页点击次数。

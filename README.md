@@ -49,6 +49,23 @@ Earlier on October 3, the test wallet's **500 WOTR approval to Permit2**, subseq
 
 WOTR contract addresses: [BNB Chain](https://bscscan.com/token/0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5) `0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5`; [Arc](https://explorer.arc.io/address/0x70Cedd901366ad932203BBB08B22DcD4d4510028) `0x70Cedd901366ad932203BBB08B22DcD4d4510028`.
 
+## Verified four-stage mainnet journey — October 7, 2026
+
+The same test wallet completed Buy → WOTR Bridge → Swap → Bridge USDC to Base. Independent read-only checks confirmed the successful receipts, matching LayerZero OFT GUID and amounts, Arc swap payment, and Circle CCTP message/used nonce plus the actual Base USDC mint to the wallet. The user reports completing these operations through the app; chain evidence identifies the wallet and ordered transactions, not the browser session.
+
+Test wallet: `0x67bfb3BeF4f4A3Cb25Bc529E948d40bcfc0874CD`.
+
+| Operation | Time (UTC, Oct 7) | Verified result | Transaction |
+| --- | --- | --- | --- |
+| Buy · BNB Chain | 04:43:41 | 0.00007 BNB → 1022.636152494306730568 WOTR | [View transaction](https://bscscan.com/tx/0x52080a3dadbf09271b9c5fd5f1a9145d67de7adcb99e469da2ac2ee578af7f93) |
+| Bridge · BNB Chain | 04:50:18 | 1000 WOTR sent | [View transaction](https://bscscan.com/tx/0x37709766402a213e07d491df151b9c6d416a9f26c1b83f0a0feb33cf5a600201) |
+| Bridge · Arc | 04:50:39 | 1000 WOTR received | [View transaction](https://explorer.arc.io/tx/0x58136fad15ac9f4cac33374707e6561d5806044d595f74b6df896dae80e2e2a8) |
+| Swap · Arc | 05:21:42 | 1000 WOTR → 0.052498171057709016 native USDC | [View transaction](https://explorer.arc.io/tx/0x5c3f16111ae274873ab938edbc43732a251d68555c3011a04cdd6f6659c5a7b0) |
+| Bridge USDC · Arc | 05:38:49 | 0.4 USDC burned | [View transaction](https://explorer.arc.io/tx/0x1b908dc805133f643692514dc50ddc9650f9819c2e1cc1fd28713dbd30fe8f1e) |
+| Bridge USDC · Base | 05:38:59 | 0.345503 USDC received; 0.054497 USDC forwarding fee | [View transaction](https://basescan.org/tx/0xc99829f0bc6ade5bcdf9f6b09ec52c4728193a5609bab1038060693782275181) |
+
+These transactions verify the four functional stages using real mainnet assets. They are **not a single-purchase return calculation**: the wallet had existing balances, and the 0.4 USDC exit exceeds the roughly 0.052498 USDC from this swap, so it also used previously held USDC. The swap amount is before Arc gas; the Base received amount is after the CCTP forwarding fee. WOTR is a demonstration token. These dated results do not guarantee future quotes or transfers.
+
 ## Using the app
 
 The current homepage uses a top Buy / Bridge / Swap navigation, a dedicated transaction form and route-specific guidance or transfer progress. The Bridge direction cards show BNB Chain and Arc icons beside their names, and reverse both together. On narrow screens, the actions remain at the top and the content becomes a single column.
@@ -75,4 +92,4 @@ This public snapshot contains the source and the bilingual overview above. Detai
 
 New contributors should obtain the private project and repository boundaries from a maintainer before editing or publishing. Never mirror the private repository or its `docs/` directory into the public repository.
 
-Swap now offers **Approve and swap**: one page click requests each necessary exact-amount approval, waits for confirmation, and then requests the swap. Wallet confirmations remain separate (up to three when both authorization layers are missing). The swap keeps the original minimum receive and stops if the refreshed quote falls below it, an approval fails, or the wallet changes. Canceling the swap retains already confirmed approvals. Local and live-page simulated-wallet tests passed; real-wallet acceptance of this update is pending.
+Swap now offers **Approve and swap**: one page click requests each necessary exact-amount approval, waits for confirmation, and then requests the swap. Wallet confirmations remain separate (up to three when both authorization layers are missing). The swap keeps the original minimum receive and stops if the refreshed quote falls below it, an approval fails, or the wallet changes. Canceling the swap retains already confirmed approvals. Local and live-page simulated-wallet tests passed; the user later reported a successful real swap, whose receipt and payment were independently verified. Chain evidence does not establish how many page clicks occurred.
