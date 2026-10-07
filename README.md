@@ -74,3 +74,5 @@ Development uses local tests and isolated mainnet forks before limited mainnet c
 This public snapshot contains the source and the bilingual overview above. Detailed operational documentation and the internal change log remain in the private repository; they are reviewed separately before any material is published here.
 
 New contributors should obtain the private project and repository boundaries from a maintainer before editing or publishing. Never mirror the private repository or its `docs/` directory into the public repository.
+
+Swap now offers **Approve and swap**: one page click requests each necessary exact-amount approval, waits for confirmation, and then requests the swap. Wallet confirmations remain separate (up to three when both authorization layers are missing). The swap keeps the original minimum receive and stops if the refreshed quote falls below it, an approval fails, or the wallet changes. Canceling the swap retains already confirmed approvals. Local and live-page simulated-wallet tests passed; real-wallet acceptance of this update is pending.

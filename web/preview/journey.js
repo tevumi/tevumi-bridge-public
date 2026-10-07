@@ -40,13 +40,14 @@ let balanceData = null;
 let balanceError = false;
 let balanceRequest = 0;
 let busy = false;
+let swapProgress = '';
 let activeTab = 'buy';
 let activeStep = 'buy';
 
-function key(kind) { return `tevumi-journey-v1:${account?.toLowerCase()}:${kind}`; }
+function key(kind,owner=account) { return `tevumi-journey-v1:${owner?.toLowerCase()}:${kind}`; }
 function record(kind) { try { return JSON.parse(localStorage.getItem(key(kind)) || 'null'); } catch { return {state:'unknown'}; } }
-function save(kind, value) { localStorage.setItem(key(kind), JSON.stringify(value)); }
-function clear(kind) { localStorage.removeItem(key(kind)); }
+function save(kind, value,owner=account) { localStorage.setItem(key(kind,owner), JSON.stringify(value)); }
+function clear(kind,owner=account) { localStorage.removeItem(key(kind,owner)); }
 function status(kind, message) { $(`journey-${kind}-status`).textContent = message; }
 function amount(value) {
   assert(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(value) && parseEther(value) > 0n, 'Enter a positive amount with up to 18 decimal places.');
@@ -93,9 +94,11 @@ async function walletOn(chainId,wallet=selectedWalletProvider()) {
   assert(accounts?.length && same(getAddress(accounts[0]), account), 'Wallet account changed. Reconnect before continuing.');
   assert(same(await wallet.request({method:'eth_chainId'}), wanted), 'Wallet network is not the selected chain.');
 }
-async function tx(kind, chainId, to, data, value=0n, extra={}) {
+async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
+  const transactionAccount = account;
   const wallet=selectedWalletProvider();
   await walletOn(chainId,wallet);
+  guard();
   const reader = readers[chainId];
   const nonce = await reader.getTransactionCount(account, 'pending');
   let gasEstimate;
@@ -116,23 +119,26 @@ async function tx(kind, chainId, to, data, value=0n, extra={}) {
   assert(maxGasPrice > 0n, 'Network fee quote is unavailable.');
   assert(await reader.getBalance(account) > value + gasEstimate * 13n / 10n * maxGasPrice, 'Wallet lacks native coin for the amount and maximum estimated gas.');
   const pending = {state:'unknown',nonce,chainId,to,data,value:value.toString(),createdAt:Date.now(),...extra};
-  save(kind,pending);
+  guard();
+  save(kind,pending,transactionAccount);
   const request = {from:account,to,data,value:'0x'+value.toString(16),gas:'0x'+(gasEstimate*12n/10n+1n).toString(16),chainId:'0x'+chainId.toString(16)};
   if (chainId === 56) request.gasPrice = '0x'+gasPrice.toString(16);
   else { request.maxFeePerGas = arcFees.maxFeePerGas; request.maxPriorityFeePerGas = arcFees.maxPriorityFeePerGas; }
   let hash;
   try { hash = await wallet.request({method:'eth_sendTransaction',params:[request]}); }
   catch (error) {
-    if (['rejected','not_submitted'].includes(classifyWalletSendError(error))) { clear(kind); throw Error('Wallet did not submit the transaction.'); }
+    if (['rejected','not_submitted'].includes(classifyWalletSendError(error))) { clear(kind,transactionAccount); throw Error(local('Wallet did not submit the transaction.','钱包未提交交易。')); }
     throw Error('Wallet result is still being checked. Do not submit again.');
   }
   assert(hashOk(hash), 'Wallet did not return a transaction hash. Do not submit again.');
-  save(kind,{...pending,state:'submitted',hash});
+  save(kind,{...pending,state:'submitted',hash},transactionAccount);
   if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash}}));
+  guard();
   return hash;
 }
 async function verify(kind) {
   if (!account) return null;
+  const verificationAccount = account;
   const item = record(kind);
   if (!item) return null;
   if (item.state === 'verified' && (kind !== 'swap' || item.usdcArrivalVerified === true)) return item;
@@ -141,8 +147,8 @@ async function verify(kind) {
   const reader = readers[item.chainId];
   const [transaction,receipt] = await Promise.all([reader.getTransaction(item.hash),reader.getTransactionReceipt(item.hash)]);
   if (!transaction || !receipt) return item;
-  assert(same(transaction.from,account) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), 'Saved transaction does not match the chain transaction.');
-  if (receipt.status !== 1) { save(kind,{...item,state:'failed'}); return {...item,state:'failed'}; }
+  assert(same(transaction.from,verificationAccount) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), 'Saved transaction does not match the chain transaction.');
+  if (receipt.status !== 1) { save(kind,{...item,state:'failed'},verificationAccount); return {...item,state:'failed'}; }
   if (kind === 'buy') {
     let received = 0n;
     const iface = new Interface(tokenAbi);
@@ -183,7 +189,7 @@ async function verify(kind) {
     }
   }
   const verified = {...item,state:'verified',block:receipt.blockNumber};
-  save(kind,verified);
+  save(kind,verified,verificationAccount);
   if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}}));
   return verified;
 }
@@ -297,27 +303,48 @@ async function swap() {
   assert(swapQuote && Date.now()-swapQuote.at < 60000, 'Refresh the Arc quote before signing.');
   assert(amount($('journey-wotr').value.trim()) === swapQuote.value, 'Amount changed. Refresh the quote.');
   for (const kind of ['approve-token','approve-permit','swap']) assert(!record(kind) || ['failed','verified'].includes(record(kind).state), 'A prior transaction is being checked. Do not submit again.');
+  const old = {...swapQuote};
+  const originalAccount = account, originalWallet = selectedWalletProvider();
+  const guard = () => {
+    assert(same(account,originalAccount) && selectedWalletProvider() === originalWallet, local('Wallet changed. Refresh the quote before continuing.','钱包已改变，请重新刷新报价。'));
+    assert(amount($('journey-wotr').value.trim()) === old.value, local('Amount changed. Refresh the quote.','数量已改变，请重新刷新报价。'));
+  };
+  const progress = (en,zh) => { swapProgress = local(en,zh); status('swap',swapProgress); draw(); };
+  const approve = async (kind,to,data) => {
+    guard();
+    progress('Confirm approval in your wallet…','请在钱包确认授权…');
+    const hash = await tx(kind,5042,to,data,0n,{},guard);
+    progress('Confirming approval…','授权确认中…');
+    const receipt = await readers[5042].waitForTransaction(hash,1,120000);
+    guard();
+    assert(receipt, local('Approval is still pending. Do not submit again.','授权仍待确认，请勿重复提交。'));
+    const checked = await verify(kind);
+    guard();
+    assert(checked?.state === 'verified', local('Approval failed or could not be verified. Swap stopped.','授权失败或尚未核验，已停止兑换。'));
+  };
   const token = new Contract(A.arcWotr,tokenAbi,readers[5042]);
   const permit = new Contract(A.permit2,permitAbi,readers[5042]);
   const allowance = await token.allowance(account,A.permit2);
-  if (allowance < swapQuote.value) {
-    const data = new Interface(tokenAbi).encodeFunctionData('approve',[A.permit2,swapQuote.value]);
-    const hash = await tx('approve-token',5042,A.arcWotr,data);
-    status('swap',`WOTR approval submitted: ${hash}. Checking receipt…`);
-    await readers[5042].waitForTransaction(hash,1,120000).catch(()=>null); await refreshAll(); await quoteSwap().catch(()=>null); return;
+  guard();
+  if (allowance < old.value) {
+    const data = new Interface(tokenAbi).encodeFunctionData('approve',[A.permit2,old.value]);
+    await approve('approve-token',A.arcWotr,data);
+    assert(await token.allowance(originalAccount,A.permit2) >= old.value, local('WOTR allowance is not confirmed. Swap stopped.','WOTR 授权额度尚未确认，已停止兑换。'));
   }
   const allowance2 = await permit.allowance(account,A.arcWotr,A.router);
   const now = BigInt((await readers[5042].getBlock('latest')).timestamp);
-  if (allowance2.amount < swapQuote.value || allowance2.expiration < now+1200n) {
+  guard();
+  if (allowance2.amount < old.value || allowance2.expiration < now+1200n) {
     const deadline = now+3600n;
-    const data = new Interface(permitAbi).encodeFunctionData('approve',[A.arcWotr,A.router,swapQuote.value,deadline]);
-    const hash = await tx('approve-permit',5042,A.permit2,data);
-    status('swap',`Permit2 approval submitted: ${hash}. Checking receipt…`);
-    await readers[5042].waitForTransaction(hash,1,120000).catch(()=>null); await refreshAll(); await quoteSwap().catch(()=>null); return;
+    const data = new Interface(permitAbi).encodeFunctionData('approve',[A.arcWotr,A.router,old.value,deadline]);
+    await approve('approve-permit',A.permit2,data);
   }
-  const old = swapQuote;
+  progress('Checking the latest quote…','正在复核最新报价…');
+  guard();
   await quoteSwap();
-  assert(swapQuote.out >= old.minOut && swapQuote.value === old.value, 'Arc price changed. Review a fresh quote.');
+  guard();
+  assert(swapQuote.stage === 'swap', local('Approval is not ready. Refresh the quote before continuing.','授权尚未就绪，请刷新报价后再试。'));
+  assert(swapQuote.out >= old.minOut && swapQuote.value === old.value, local('Arc price changed beyond your minimum. Review the new quote before retrying.','Arc 价格变化已超出原最低到账，请核对新报价后再试。'));
   const planner = new V4Planner();
   planner.addSwapAction(Actions.SWAP_EXACT_IN_SINGLE,[{poolKey,zeroForOne:false,amountIn:old.value.toString(),amountOutMinimum:old.minOut.toString(),hookData:'0x'}],URVersion.V2_0);
   planner.addAction(Actions.SETTLE_ALL,[A.arcWotr,old.value.toString()]);
@@ -325,7 +352,10 @@ async function swap() {
   const deadline = BigInt((await readers[5042].getBlock('latest')).timestamp+900);
   const data = new Interface(routerAbi).encodeFunctionData('execute',['0x10',[planner.finalize()],deadline]);
   await readers[5042].call({from:account,to:A.router,data});
-  const hash = await tx('swap',5042,A.router,data,0n,{minOut:old.minOut.toString(),amountIn:old.value.toString()});
+  guard();
+  progress('Confirm the swap in your wallet…','请在钱包确认兑换…');
+  const hash = await tx('swap',5042,A.router,data,0n,{minOut:old.minOut.toString(),amountIn:old.value.toString()},guard);
+  swapProgress = local('Confirming swap…','兑换确认中…');
   swapQuote = null; status('swap',`Arc swap submitted: ${hash}. Checking the receipt…`); draw();
   await readers[5042].waitForTransaction(hash,1,120000).catch(()=>null); await refreshAll();
 }
@@ -351,7 +381,7 @@ async function refreshAll() {
   else if (permitRecord?.state === 'verified') status('swap',local('Swap access approval confirmed. Refresh the quote, then swap WOTR for USDC.','兑换权限授权已确认。刷新报价后，即可把 WOTR 兑换为 USDC。'));
   else if (tokenRecord?.state === 'failed') status('swap',local('WOTR approval failed on-chain. Refresh the quote before retrying.','WOTR 授权链上失败。刷新报价后再试。'));
   else if (tokenRecord && tokenRecord.state !== 'verified') status('swap',local(`Checking WOTR approval${tokenRecord.hash ? ': '+tokenRecord.hash : ''}. Do not submit again.`,`正在核对 WOTR 授权${tokenRecord.hash ? '：'+tokenRecord.hash : ''}。请勿重复提交。`));
-  else if (tokenRecord?.state === 'verified') status('swap',local('WOTR approval confirmed. Refresh the quote, then approve swap access.','WOTR 授权已确认。刷新报价后，再授权兑换权限。'));
+  else if (tokenRecord?.state === 'verified') status('swap',local('WOTR approval confirmed. Refresh the quote to continue with approval and swap.','WOTR 授权已确认。刷新报价后，即可继续授权并兑换。'));
   await loadBalances();
   draw();
 }
@@ -365,7 +395,8 @@ function draw() {
   $('journey-wallet').hidden = !account;
   $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
-  $('journey-swap-action').textContent = swapQuote?.stage === 'token' ? local('Approve WOTR','授权 WOTR') : swapQuote?.stage === 'permit' ? local('Approve swap access','授权兑换权限') : swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Review approval','检查授权');
+  $('journey-swap-action').textContent = swapProgress || (swapQuote?.stage === 'swap' ? local('Swap WOTR for USDC','兑换 WOTR 为 USDC') : local('Approve and swap','授权并兑换'));
+  $('journey-wotr').disabled = busy;
   $('journey-wotr').placeholder = local('Enter amount','输入数量');
   $('journey-buy-refresh').disabled = busy || !account;
   $('journey-swap-refresh').disabled = busy || !account;
@@ -401,7 +432,7 @@ async function run(action, kind) {
   busy = true; draw();
   try { await action(); }
   catch (error) { status(kind,cleanError(error)); }
-  finally { busy = false; draw(); }
+  finally { busy = false; swapProgress = ''; draw(); }
 }
 $('nav-buy').addEventListener('click',()=>setTab('buy'));
 $('nav-bridge').addEventListener('click',()=>setTab('bridge'));
