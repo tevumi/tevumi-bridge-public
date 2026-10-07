@@ -22,7 +22,7 @@ Swap 及原生 USDC 到账核验后，旧交易在“交易记录”中查看，
 
 连接后，右上角按钮只显示当前页面正在使用的钱包的一枚图标；悬停或辅助阅读可查看钱包名称和完整地址，点击仍可重新选择。另一个钱包插件可能继续保存此前的网站授权，需在那个插件内手动移除。
 
-**可选 USDC 出口：**Arc 兑换及原生 USDC 到账核验后，Swap 结果区会出现独立的 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。10 月 6 日测试钱包两笔各 2 USDC 的 Arc→Ethereum 跨链已在目标链独立核验，分别铸造到账 `0.356427` 和 `0.379543 USDC`。另有一笔 [1 USDC Arc→Base 销毁](https://explorer.arc.io/tx/0x1f0c1c81364a671e1fd43327c8f30b770945ce4ec8edbdfc5d6bf3bad53d3426)及 [Base 实际到账 0.945120 USDC](https://basescan.org/tx/0xad717c16deedc4870b0bbb59d327a849d7801409c8d1ad65263abbf9c3c26ece)已核验。Circle 执行转发费为 `0.054880 USDC`，Arc 授权和销毁另付 `0.003812982 USDC` Gas；这是本笔实际值，不是固定费用。本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。
+**可选 USDC 出口：**Swap 页面在未连接钱包时也展示独立 [Bridge USDC 页面](https://bridge.tevumi.com/preview/usdc/index.html)入口；已核验兑换才附带对应的历史结果。该页接入 Circle Bridge Kit，动态显示支持的主网目标链、当前钱包 Arc USDC 余额和实时报价，与原有 LayerZero WOTR 桥是两条不同路线。10 月 6 日测试钱包两笔各 2 USDC 的 Arc→Ethereum 跨链已在目标链独立核验，分别铸造到账 `0.356427` 和 `0.379543 USDC`。另有一笔 [1 USDC Arc→Base 销毁](https://explorer.arc.io/tx/0x1f0c1c81364a671e1fd43327c8f30b770945ce4ec8edbdfc5d6bf3bad53d3426)及 [Base 实际到账 0.945120 USDC](https://basescan.org/tx/0xad717c16deedc4870b0bbb59d327a849d7801409c8d1ad65263abbf9c3c26ece)已核验。Circle 执行转发费为 `0.054880 USDC`，Arc 授权和销毁另付 `0.003812982 USDC` Gas；这是本笔实际值，不是固定费用。本功能使用真实 USDC 并产生费用，签名前请核对当时报价和钱包提示。
 
 USDC 选链列表现显示图标与链名，并可搜索；没有对应图标的链使用字母标识。图标来自 MIT 许可的 [Web3 Icons](https://github.com/0xa3k5/web3icons)，只辅助识别；实际可用路线仍以 Circle SDK 与实时报价为准。
 
@@ -30,7 +30,7 @@ USDC 页面现有按连接钱包分页的服务器跨链历史。只有 Arc 的 
 
 服务器核验目标链到账后，页面自动展开“跨链记录”并清空上一笔表单，已完成交易不再重复显示为“当前跨链记录”。尚未完成独立到账核验的交易仍保留当前状态，以便检查或恢复。
 
-针对 10 月 5 日用户报告的 OKX Wallet 风险拦截，单纯关闭 SDK 的合并交易仍未解除警告。当前 USDC 页面改用 Circle SDK 的标准 Arc CCTP TokenMessengerV2 路径，并核对其官方主网地址；页面突出显示高额目标链费用和准确授权增额。本地 Arc 主网分叉已验证授权和源链销毁。10 月 6 日较早一次 OKX 复测仍受拦截，具体规则未知；之后两笔 Arc→Ethereum 真实到账已核验，但不能仅凭截图判定签名插件。新报价费用及 Gas 不高于已展示报价时可一次点击继续；上涨时须再确认。不要绕过钱包警告；无源链哈希的记录仍显示“等待钱包”，不误称链上处理中。
+针对 10 月 5 日用户报告的 OKX Wallet 风险拦截，单纯关闭 SDK 的合并交易仍未解除警告。当前 USDC 页面改用 Circle SDK 的标准 Arc CCTP TokenMessengerV2 路径，并核对其官方主网地址；页面突出显示高额目标链费用和准确授权增额。本地 Arc 主网分叉已验证授权和源链销毁。10 月 6 日较早一次 OKX 复测仍受拦截，具体规则未知；之后两笔 Arc→Ethereum 真实到账已核验，但不能仅凭截图判定签名插件。新报价费用及 Gas 不高于已展示报价时可一次点击继续；上涨时须再确认。不要绕过钱包警告；无源链哈希的拒签归入浏览器历史，不误称链上处理中。
 
 首页 Bridge 的 BNB Chain 与 Arc 方向卡片也显示图标和链名；切换方向时图标与名称一起交换。该视觉更新不改变 WOTR 跨链规则或钱包交易流程。
 
