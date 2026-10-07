@@ -190,6 +190,8 @@ const exact = new Map(Object.entries({
   '发送计划异常。': 'Transfer plan is invalid.',
   '存在广播结果不明的交易，请先核验。': 'A transaction has an unclear broadcast result. Verify it first.',
   '原发送 GUID 或目标链起始区块缺失。请先恢复发送交易。': 'The source GUID or destination start block is missing. Recover the source transaction first.',
+  '缺少原发送交易哈希，无法核验到账。': 'The original source transaction hash is missing; arrival cannot be verified.',
+  '原发送交易未确认成功或账户不匹配。': 'The source transaction is not confirmed successful or its account does not match.',
   '到账索引暂不可用；请保留原发送哈希，稍后再点核验，不要重新发送。': 'Arrival index is unavailable. Keep the source hash and verify later; do not send again.',
   '目标链交易哈希格式异常。': 'Destination transaction hash has an invalid format.',
   '目标链到账交易未成功或区块不匹配。': 'Destination transaction failed or the block does not match.',

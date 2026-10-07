@@ -232,9 +232,12 @@ async function submit(kind,side,to,data,value=0n,amountLD){
   ensure(receipt,'回执等待超时。原哈希已保存，请刷新或按哈希恢复。');
   await verifyRecord(kind,hash);await refresh(true);note(`${kind} 回执已核验：${hash}`);
  }finally{
-  if(kind.startsWith('send-'))void publishTransfer(side,hash);
+  if(kind.startsWith('send-')){
+   void publishTransfer(side,hash);
+   // A receipt/RPC failure must not leave a saved source hash without a tracker.
+   trackDelivery(side==='bsc'?'arc':'bsc',hash);
+  }
  }
- if(kind.startsWith('send-'))trackDelivery(side==='bsc'?'arc':'bsc',hash);
 }
 function trackDelivery(side,hash){
  const trackedAsset=assetId,trackedAccount=account,origin=side==='arc'?'bsc':'arc';
@@ -375,7 +378,24 @@ async function archiveCompletedRound(){
 }
 async function delivered(side){
  const origin=side==='arc'?'bsc':'arc',record=records[`send-${origin}`];
- ensure(record?.guid&&record.targetStart!==undefined,'原发送 GUID 或目标链起始区块缺失。请先恢复发送交易。');
+ const observedAsset=assetId,observedAccount=account;
+ const stillCurrent=()=>records[`send-${origin}`]===record&&assetId===observedAsset&&same(account,observedAccount);
+ ensure(record?.hash,'缺少原发送交易哈希，无法核验到账。');
+ if(record.deliveredHash)return;
+ // Refresh may restore the hash before the source receipt/GUID was saved.
+ // For delivery, prove the actual OFT transfer, including wallet-wrapped calls.
+ // Exact call matching still governs unknown-broadcast/approval recovery.
+ if(!record.guid){
+  const [tx,receipt]=await Promise.all([providers[origin].getTransaction(record.hash),providers[origin].getTransactionReceipt(record.hash)]);
+  ensure(stillCurrent(),'钱包或资产已切换，请重新加载当前状态。');
+  ensure(tx&&receipt?.status===1&&same(tx.from,record.account)&&same(record.account,observedAccount),'原发送交易未确认成功或账户不匹配。');
+  const event=receipt.logs.filter(log=>same(log.address,pair[origin])).map(log=>{try{return appIface.parseLog(log);}catch{return null;}}).find(event=>event?.name==='OFTSent'&&Number(event.args.dstEid)===networks[side].eid&&same(event.args.fromAddress,record.account)&&event.args.amountSentLD===recordAmount(record)&&event.args.amountReceivedLD===recordAmount(record));
+  ensure(event,'未找到匹配的 OFTSent 事件。');
+  record.guid=event.args.guid;record.blockNumber=receipt.blockNumber;record.unknown=false;save();
+ }
+ ensure(stillCurrent(),'钱包或资产已切换，请重新加载当前状态。');
+ ensure(record.guid,'未找到匹配的 OFTSent 事件。');
+ const hasTargetStart=Number.isSafeInteger(record.targetStart)&&record.targetStart>=0;
  let destinationHash;
  try {
   const response=await fetch(`https://scan.layerzero-api.com/v1/messages/guid/${record.guid}`,{signal:AbortSignal.timeout(15000)});
@@ -389,7 +409,10 @@ async function delivered(side){
  if(!destinationHash){
   try {
    const latest=await provider.getBlockNumber();
-   for(let start=record.targetStart;start<=latest;start+=2000){
+   // Older browser records may lack this hint. GUID + contract + recipient +
+   // amount identify delivery; use a bounded recent scan when the hint is absent.
+   const first=hasTargetStart?record.targetStart:Math.max(0,latest-8192);
+   for(let start=first;start<=latest;start+=2000){
     const logs=await provider.getLogs({address:pair[side],topics:[topic,record.guid],fromBlock:start,toBlock:Math.min(start+1999,latest)});
     if(logs.length){destinationHash=logs[0].transactionHash;break;}
    }
@@ -398,13 +421,15 @@ async function delivered(side){
  if(!destinationHash){note(`${side} 尚未查到匹配 GUID 的到账事件。请稍后重新核验，不要重发。`);return;}
  ensure(/^0x[0-9a-f]{64}$/i.test(destinationHash),'目标链交易哈希格式异常。');
  const receipt=await provider.getTransactionReceipt(destinationHash);
- ensure(receipt?.status===1&&receipt.blockNumber>=record.targetStart,'目标链到账交易未成功或区块不匹配。');
+ ensure(stillCurrent(),'钱包或资产已切换，请重新加载当前状态。');
+ ensure(receipt?.status===1&&(!hasTargetStart||receipt.blockNumber>=record.targetStart),'目标链到账交易未成功或区块不匹配。');
  const found=receipt.logs.filter(log=>same(log.address,pair[side])&&same(log.topics[0],topic)&&same(log.topics[1],record.guid)).find(log=>{
   const event=appIface.parseLog(log);
   return Number(event.args.srcEid)===networks[origin].eid&&same(event.args.toAddress,record.account)&&event.args.amountReceivedLD===recordAmount(record);
  });
  ensure(found,'目标链回执未找到与原 GUID、账户和数量匹配的到账事件。');
  record.deliveredHash=destinationHash;record.deliveredBlock=receipt.blockNumber;save();
+ void publishTransfer(origin,record.hash);
  note(`${side} 到账已核验：${destinationHash}`);
  if(account)void quoteStatus().catch(()=>{});
 }

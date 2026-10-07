@@ -132,8 +132,8 @@ function updateView() {
     button.hidden = false;
     button.disabled = busy || searching || (action.startsWith('send-') && (Boolean(amountError) || !routeReady || routePaused));
   }
-  document.querySelector('#send-bsc').textContent = source?.deliveredHash ? '再次跨链' : '授权并跨链';
-  document.querySelector('#send-arc').textContent = source?.deliveredHash ? '再次跨链' : '开始跨链';
+  document.querySelector('#send-bsc').textContent = '授权并跨链';
+  document.querySelector('#send-arc').textContent = '开始跨链';
   document.querySelector('#approval-note').hidden = side !== 'bsc' || !account;
   const summary = document.querySelector('#status-summary');
   if (unknownKind) summary.textContent = '正在核对上一笔交易，请勿重复发起。核对完成后页面会自动更新。';
