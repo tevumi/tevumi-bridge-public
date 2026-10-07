@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#faf9f5">
+  <meta name="theme-color" content="#061014">
   <meta name="description" content="Bridge Arc USDC to another Circle-supported chain with Tevumi.">
   <title>Bridge USDC · Tevumi</title>
-  <link rel="icon" type="image/svg+xml" href="/brand/tevumi.svg">
+  <link rel="icon" type="image/webp" href="../visual/tevumi-orbit.webp">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../dark-theme.css">
   <script type="module" src="./main.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Tevumi home"><img src="../../public/brand/tevumi.svg" width="40" height="40" alt=""><span>tevumi</span></a>
+    <a class="brand" href="/" aria-label="Tevumi home"><img src="../visual/tevumi-orbit.webp" width="48" height="42" alt=""><span>tevumi</span></a>
     <div class="top-actions"><a class="back" href="/?action=swap" id="back-link">← Back to Swap</a><div class="language" id="language" hidden><button id="lang-en" type="button" aria-pressed="true">EN</button><button id="lang-zh" type="button" aria-pressed="false">简体中文</button></div><button id="wallet-button" type="button">Connect wallet</button></div>
   </header>
   <main class="layout">
@@ -33,7 +34,7 @@
       </div>
       <details class="transfer-history" id="transfer-history" hidden><summary id="history-title">Transfer history</summary><p id="history-note">Verified transfers load from our server; unfinished SDK attempts remain in this browser.</p><div id="activity" hidden><div id="activity-body" aria-live="polite"></div><button id="retry-button" type="button" hidden>Resume transfer</button><button id="new-transfer-button" type="button" hidden>Start a new transfer</button></div><div id="history-list" class="history-list" aria-live="polite">Connect your wallet to view saved attempts.</div><button type="button" id="history-more" hidden>Load more verified transfers</button></details>
     </section>
-    <aside class="aside"><p class="eyebrow" id="aside-label">WHAT HAPPENS NEXT</p><h2 id="aside-title">One transfer.<br>Clear progress.</h2><ol><li><span>01</span><div><strong id="stage-one">Approve and send</strong><p id="stage-one-help">Circle's SDK requests any needed approval and starts the Arc transfer.</p></div></li><li><span>02</span><div><strong id="stage-two">Bridge confirmation</strong><p id="stage-two-help">The SDK follows the burn, attestation, and destination mint.</p></div></li><li><span>03</span><div><strong id="stage-three">USDC arrives</strong><p id="stage-three-help">Destination confirmation is shown only after the SDK reports success.</p></div></li></ol><p class="aside-note" id="aside-note">Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.</p></aside>
+    <aside class="aside"><p class="eyebrow" id="aside-label">WHAT HAPPENS NEXT</p><h2 id="aside-title">One transfer.<br>Clear progress.</h2><ol><li><span>01</span><div><strong id="stage-one">Approve and send</strong><p id="stage-one-help">Circle's SDK requests any needed approval and starts the Arc transfer.</p></div></li><li><span>02</span><div><strong id="stage-two">Bridge confirmation</strong><p id="stage-two-help">The SDK follows the burn, attestation, and destination mint.</p></div></li><li><span>03</span><div><strong id="stage-three">USDC arrives</strong><p id="stage-three-help">Destination confirmation is shown only after the SDK reports success.</p></div></li></ol><p class="aside-note" id="aside-note">Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.</p><div class="context-art" aria-hidden="true"><img src="../visual/usdc-orbs.webp" width="768" height="640" alt="" decoding="async"></div></aside>
   </main>
   <footer><span>© 2026 Tevumi</span><span id="footer-note">Arc USDC → Circle-supported chains</span></footer>
 </body>

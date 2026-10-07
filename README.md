@@ -6,6 +6,8 @@ Tevumi Bridge now centers on the community demonstration token **Wobble Otter (W
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 7, 2026
 
+The live four-section interface now uses a shared dark Orbit theme with mint controls and responsive artwork. The selected wallet icon and language controls have matching desktop/mobile heights. This update changes presentation; the existing transaction, approval and history logic is retained.
+
 Buy, Bridge and Swap now have one visible wallet entry in the top-right header. The Swap page shows Arc Portal and the independent USDC bridge cards before wallet connection. Without a verified swap, the Portal card gives a general introduction and makes no arrival claim; a verified saved swap can still show its result. Local and public desktop/mobile browser checks passed on October 7.
 
 Transfer history on Buy, Bridge, Swap and Bridge USDC appears after wallet connection. Disconnecting hides and closes the history panel without deleting the stored records.

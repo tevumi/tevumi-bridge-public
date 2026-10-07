@@ -1,3 +1,4 @@
+@layer tevumi-base {
 /* Route Desk presentation. Existing transaction controllers and state nodes remain intact. */
 body{background:#faf9f5}
 .page-shell{display:block;min-height:100vh}
@@ -67,3 +68,5 @@ body{background:#faf9f5}
 #header-connect.tevumi-active-wallet{aspect-ratio:1}
 @media(max-width:760px){#header-connect.tevumi-active-wallet{width:42px;min-width:42px}#header-connect.tevumi-active-wallet svg{width:24px;height:24px}}
 @media(max-width:440px){.site-sidebar{padding:13px 15px}.site-sidebar .brand{font-size:20px}.header-tools{gap:6px}.language-switch{padding:2px}.language-switch button{padding:5px;font-size:10px}#header-connect{padding:0 10px}.app-body{padding:0 15px}.workspace-heading h2{font-size:52px}.bridge-form,.journey-card{padding:17px}.route-selector{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:6px}.route-chain>strong{padding:8px;font-size:12px}#reverse-direction{width:36px;height:36px;font-size:21px}.route-chain-icon{width:22px;height:22px}.bridge-form .route-chain>strong{gap:6px}}
+
+}

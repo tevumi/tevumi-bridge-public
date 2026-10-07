@@ -1,3 +1,4 @@
+@layer tevumi-base {
 :root{font-family:Inter,"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;color:#103229;background:#f7f6f1;font-synthesis:none}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -307,3 +308,5 @@ body{background:#f8f7f2}
 
 .journey-next{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.journey-next .journey-portal{display:flex;flex-direction:column;margin:0;background:#f5f8f4;border-color:#d3e1d6}.journey-next .journey-portal a{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-height:44px;margin-top:auto;text-align:center}
 @media(max-width:700px){.journey-next{grid-template-columns:1fr}}
+
+}

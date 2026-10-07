@@ -1,0 +1,85 @@
+/* Orbit visual skin. Transaction state, wallet selection and routing are unchanged. */
+:root{color-scheme:dark;--night:#061014;--panel:#0b1c22f2;--field:#091a20;--line:#345c66;--soft-line:#28464e;--ink:#f1f7fb;--muted:#acc7d5;--mint:#53f0d6;--quiet:#10282f;--warning:#ffd398;--danger:#ffb3a1;color:var(--ink);background:var(--night)}
+body{background:var(--night) url('./visual/aurora-background.webp') center top/cover no-repeat;color:var(--ink);min-height:100vh}
+::selection{background:#53f0d64d;color:#fff}
+.app-body{background:transparent}
+.site-sidebar,.topbar{background:#061014e8;border-color:var(--soft-line);color:var(--ink)}
+.site-sidebar .brand,.brand{color:var(--ink)}
+.site-sidebar .brand img,.brand img{border-radius:0;object-fit:contain;width:48px;height:42px}
+.product-nav{background:#091a20e8;border-color:var(--line)}
+.product-nav button{color:var(--ink)}
+.product-nav button[aria-current='page'],.product-nav button[aria-current='page']:hover{background:var(--mint);color:#04201f;box-shadow:0 0 22px #53f0d61a}
+.product-nav button:hover{background:var(--quiet);color:var(--mint)}
+.language-switch,.language{background:#0b1c22;border-color:var(--line)}
+.language-switch,.language{height:42px;align-items:center}
+#header-connect.tevumi-active-wallet,#wallet-button.tevumi-active-wallet{width:42px;min-width:42px;height:42px;min-height:42px;padding:0}
+#header-connect.tevumi-active-wallet svg,#wallet-button.tevumi-active-wallet svg{width:22px;height:22px}
+@media(max-width:760px){.language-switch,.language{height:36px}#header-connect.tevumi-active-wallet,#wallet-button.tevumi-active-wallet{width:36px;min-width:36px;height:36px;min-height:36px}#header-connect.tevumi-active-wallet svg,#wallet-button.tevumi-active-wallet svg{width:20px;height:20px}}
+.language-switch svg,.language-switch button,.language button{color:var(--muted)}
+.language-switch button[aria-pressed='true'],.language button[aria-pressed='true']{background:#1b353c;color:var(--ink);box-shadow:none}
+#header-connect,#wallet-button{background:#10282f;color:var(--ink);border:1px solid var(--line)}
+#header-connect:hover,#wallet-button:hover{background:#1b353c;border-color:var(--mint)}
+.eyebrow,.header-kicker,.context-view>.eyebrow,.flow-aside>.eyebrow{color:#a6e9e1}
+.workspace-heading h2,.journey-card h3,.context-view h3,.flow-aside h4,h1,h2{color:var(--ink)}
+.workspace-intro,.lead,.context-view>p:not(.eyebrow):not(.context-note),.journey-card-heading p,.journey-card p.balance-detail{color:var(--muted)}
+.bridge-form,.journey-card,.form-card,.advanced,.transfer-history{background:var(--panel);border-color:var(--line);border-radius:14px;box-shadow:0 14px 44px #0003}
+.bridge-form .field-heading,.field-heading,.fee-heading,.journey-card label,.journey-input strong,.journey-output span,.amount-field strong{color:#d4efed}
+.route-chain>span,.route small,.route label,.route .chain-picker>span:first-child{color:var(--muted)}
+.route-chain>strong,.route .source-chain,.destination-trigger,.amount-box,.journey-input,.journey-output,.amount-field,.recipient-row input{background:var(--field);border-color:var(--line);color:var(--ink)}
+.journey-input input,.amount-box input,.amount-field input,.journey-output strong{color:var(--ink);background:transparent}
+input::placeholder{color:#93a9b6;opacity:1}
+input{caret-color:var(--mint)}
+.journey-input:focus-within,.amount-box:focus-within,.amount-field:focus-within{outline:2px solid var(--mint);outline-offset:2px}
+.wallet-balance,.balance-detail,.amount-note,.fee-note,.hint,.recipient-row p,#wallet-state,#balance,.journey-card #journey-wallet{color:var(--muted)}
+.amount-box .field-label{color:#d4efed}
+.route-chain-icon,#arc-icon{background:#eaf3f3;border-radius:50%;padding:3px;box-sizing:content-box}
+.journey-card .journey-quote,.bridge-form .fee-state,.bridge-form .status-summary,.quote{background:#102930;border:1px solid var(--soft-line);color:#c3dedf}
+.quote.warning,.quote.error{background:#352719;border-color:#916a37;color:var(--warning)}
+.journey-message,.status,#message{color:var(--warning)}
+.journey-actions button,.bridge-form .primary-action button,#bridge-button,#retry-button,#new-transfer-button{background:var(--mint);color:#04201f;border:1px solid var(--mint);box-shadow:0 0 22px #53f0d622;transition:background .16s,box-shadow .16s,transform .16s}
+.journey-actions button:hover:not(:disabled),.bridge-form .primary-action button:hover:not(:disabled),#bridge-button:hover:not(:disabled),#retry-button:hover:not(:disabled),#new-transfer-button:hover:not(:disabled){background:#89ffe8;box-shadow:0 0 28px #53f0d640;transform:translateY(-1px)}
+.journey-actions button.secondary,.journey-portal a,#reverse-direction,#history-more{background:#0b2228;color:#d0eef3;border:1px solid var(--mint);box-shadow:none}
+.journey-actions button.secondary:hover:not(:disabled),.journey-portal a:hover,#reverse-direction:hover,#history-more:hover{background:#173a40;color:var(--mint)}
+.journey-actions button:disabled,.bridge-form .primary-action button:disabled,#bridge-button:disabled{background:#253a40;color:#a9bfc5;border-color:#3b545c;opacity:1;box-shadow:none;cursor:not-allowed;transform:none}
+.journey-next .journey-portal{background:#0b2228;border-color:var(--line);color:var(--ink)}
+.journey-portal p{color:var(--muted)}
+.context-panel,.aside,.context-route,.route-caution,.aside-note,.app-body footer,footer{border-color:var(--line)}
+.context-route,.context-route strong{color:var(--ink)}
+.context-note,.route-caution,.flow-aside #flow-intro,.flow-steps li,.flow-steps small,.aside li p,.aside-note,footer,.back{color:var(--muted)}
+.flow-steps li>span,.aside li>span{background:#102d35;color:#b9dedf;border:1px solid var(--line)}
+.flow-steps li.active>span{background:#103b3c;color:var(--mint);border-color:#39796e}
+.flow-steps li.active strong,.flow-steps strong,.aside li strong{color:var(--ink)}
+.flow-steps li:not(:last-child)::after{background:var(--line)}
+.context-view#context-buy .context-art,.context-view#context-swap .context-art,.context-art{display:block;height:auto;aspect-ratio:6/5;margin:22px -10px 0;border-radius:0;background:transparent;overflow:hidden;pointer-events:none}
+.context-art img{width:100%;height:100%;object-fit:contain;opacity:1;mix-blend-mode:normal;mask-image:linear-gradient(to bottom,transparent,#000 18%,#000 85%,transparent),linear-gradient(to right,transparent,#000 12%,#000 88%,transparent);mask-composite:intersect}
+.aside .context-art{margin:24px -14px 0}
+.advanced summary,.transfer-history summary,.history-card-top strong{color:var(--ink)}
+.history-list,.transfer-history>p,.history-card p,.history-card p:not(.history-status),.history-card-meta{color:var(--muted)}
+.history-card{background:#0b2228;border-color:var(--line);color:var(--ink)}
+.history-status{background:#203840;color:#d2e1e8}
+.history-arrived,.history-verified,.journey-history .history-verified,.history-success{background:#103a30;color:#78f4c0}
+.history-failed,.history-cancelled,.history-error{background:#482b26;color:var(--danger)}
+.history-links a,.history-card a{color:var(--mint)}
+.transfer-history #history-more{background:#0b2228;color:#d0eef3;border:1px solid var(--mint)}
+#activity p,#activity-body p{color:var(--muted)}
+.destination-panel{background:#10242b;border-color:var(--line);box-shadow:0 18px 42px #0008}
+.destination-panel input{background:var(--field);border-color:var(--line);color:var(--ink)}
+.destination-trigger:hover,.destination-trigger[aria-expanded=true],.destination-option:hover,.destination-option:focus-visible,.destination-option[aria-selected=true]{background:#173a40;border-color:var(--mint);color:var(--ink)}
+.destination-option{background:transparent;color:var(--ink)}
+.destination-empty{color:var(--muted)}
+.chain-badge{background:#eaf3f3;border-color:var(--line)}
+.route>span,.chevron{color:var(--mint)}
+.tevumi-wallet-dialog{background:#0c2027;color:var(--ink);border-color:var(--line);box-shadow:0 26px 80px #0008}
+.tevumi-wallet-dialog::backdrop{background:#020b10ba}
+.tevumi-wallet-close{background:#1b353c;color:var(--ink)}
+.tevumi-wallet-help,.tevumi-wallet-copy small{color:var(--muted)}
+.tevumi-wallet-row,.tevumi-wallet-other,.tevumi-wallet-row.is-paused{background:#10282f;border-color:var(--line);color:var(--ink)}
+.tevumi-wallet-option{color:var(--ink)}
+.tevumi-wallet-option:hover:not(:disabled),.tevumi-wallet-other:hover{background:#1b353c}
+.tevumi-wallet-row a{color:var(--mint)}
+.tevumi-wallet-row.is-paused .tevumi-wallet-option:disabled{color:#abbcc6}
+.tevumi-wallet-row.is-paused .tevumi-wallet-copy small{color:#abbcc6}
+:is(button,a,summary):focus-visible{outline:2px solid var(--mint);outline-offset:4px}
+@media(max-width:760px){body{background-size:auto 1200px}.context-art,.context-view#context-buy .context-art,.context-view#context-swap .context-art,.aside .context-art{display:none}.brand img,.site-sidebar .brand img{width:39px;height:34px}.journey-next .journey-portal a{font-size:12px}.flow-aside{display:block}.route-chain>strong{font-size:14px;padding:8px;gap:5px}.route-chain-icon{width:23px;height:23px;padding:2px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}.journey-actions button:hover,.bridge-form .primary-action button:hover,#bridge-button:hover{transform:none}}
+@media(forced-colors:active){body{background:Canvas;color:CanvasText}.context-art{display:none}.bridge-form,.journey-card,.form-card,.history-card,.transfer-history{border:1px solid CanvasText}}

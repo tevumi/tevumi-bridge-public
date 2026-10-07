@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f6f1">
+  <meta name="theme-color" content="#061014">
   <meta name="description" content="Buy WOTR on BNB Chain, bridge to Arc, and swap for native USDC with Tevumi Bridge.">
   <title>Tevumi Bridge · BNB Chain ↔ Arc</title>
-  <link rel="icon" type="image/svg+xml" href="/brand/tevumi.svg">
+  <link rel="icon" type="image/webp" href="./visual/tevumi-orbit.webp">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./route-desk.css">
+  <link rel="stylesheet" href="./dark-theme.css">
   <script type="module" src="./locale.js"></script>
   <script type="module" src="./search.js"></script>
   <script type="module" src="./journey.js"></script>
@@ -17,7 +18,7 @@
 <body data-asset="wotr" data-balance-only="true" data-history-api="true">
   <div class="page-shell">
     <header class="site-sidebar" aria-label="Main navigation">
-      <a class="brand" href="/" aria-label="Tevumi Bridge home"><img src="../public/brand/tevumi.svg" width="42" height="42" alt=""><span>tevumi</span></a>
+      <a class="brand" href="/" aria-label="Tevumi Bridge home"><img src="./visual/tevumi-orbit.webp" width="48" height="42" alt=""><span>tevumi</span></a>
       <nav class="product-nav" aria-label="Choose an action"><button id="nav-buy" type="button" aria-current="page"><span class="nav-icon" aria-hidden="true">＋</span><span>Buy</span></button><button id="nav-bridge" type="button"><span class="nav-icon" aria-hidden="true">⇄</span><span>Bridge</span></button><button id="nav-swap" type="button"><span class="nav-icon" aria-hidden="true">↻</span><span>Swap</span></button></nav>
       <div class="header-tools"><div class="language-switch" role="group" aria-label="Language" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><button type="button" data-language="en" aria-pressed="true">EN</button><button type="button" data-language="zh-CN" aria-pressed="false">简体中文</button></div><button id="header-connect" type="button">Connect wallet</button></div>
     </header>
@@ -61,9 +62,9 @@
         </div>
       </section>
       </div><aside class="context-panel" aria-label="Action details">
-        <div class="context-view" id="context-buy"><p class="eyebrow">BUY ON BNB CHAIN</p><h3>Start with WOTR.</h3><p>Exchange BNB for WOTR in the BNB Chain pool. Your quote appears after wallet connection.</p><div class="context-route"><span>BNB Chain</span><strong>BNB → WOTR</strong></div><p class="context-note">Check the live quote, minimum received and network fees before confirming in your wallet.</p><div class="context-art" aria-hidden="true"><img src="./orbits.png" alt=""></div></div>
-        <div class="context-view" id="context-bridge" hidden><p class="eyebrow">BRIDGE BETWEEN ECOSYSTEMS</p><h3>One asset.<br>Two chains.</h3><p>Move WOTR between BNB Chain and Arc in either direction.</p><div class="context-route context-route-bidirectional"><span>BNB Chain</span><strong>↔</strong><span>Arc</span></div><div class="flow-aside" aria-labelledby="flow-heading"><p class="eyebrow">TRANSFER STATUS</p><h4 id="flow-heading">Transfer progress</h4><p id="flow-intro">Your transfer will appear here once you start.</p><ol class="flow-steps"><li id="step-prepare" class="active"><span>1</span><div><strong>Prepare transfer</strong><small>Choose a direction, then connect your wallet</small></div></li><li id="step-source"><span>2</span><div><strong>Source-chain confirmation</strong><small>Confirm in your wallet and wait for the mainnet receipt</small></div></li><li id="step-destination"><span>3</span><div><strong>Destination-chain arrival</strong><small>Arrival is checked automatically after sending</small></div></li></ol><p class="route-caution">This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. Do not send again while a transaction is being checked.</p></div></div>
-        <div class="context-view" id="context-swap" hidden><p class="eyebrow">SWAP ON ARC</p><h3>From WOTR<br>to USDC.</h3><p>Exchange WOTR for native USDC in the Arc pool. The output depends on the live quote.</p><div class="context-route"><span>Arc</span><strong>WOTR → USDC</strong></div><p class="context-note">Keep some native USDC in your Arc wallet to pay gas. You can explore Arc Portal or review USDC bridge routes at any time.</p><div class="context-art" aria-hidden="true"><img src="./orbits.png" alt=""></div></div>
+        <div class="context-view" id="context-buy"><p class="eyebrow">BUY ON BNB CHAIN</p><h3>Start with WOTR.</h3><p>Exchange BNB for WOTR in the BNB Chain pool. Your quote appears after wallet connection.</p><div class="context-route"><span>BNB Chain</span><strong>BNB → WOTR</strong></div><p class="context-note">Check the live quote, minimum received and network fees before confirming in your wallet.</p><div class="context-art" aria-hidden="true"><img src="./visual/buy-orbs.webp" width="768" height="640" alt="" decoding="async"></div></div>
+        <div class="context-view" id="context-bridge" hidden><p class="eyebrow">BRIDGE BETWEEN ECOSYSTEMS</p><h3>One asset.<br>Two chains.</h3><p>Move WOTR between BNB Chain and Arc in either direction.</p><div class="context-route context-route-bidirectional"><span>BNB Chain</span><strong>↔</strong><span>Arc</span></div><div class="flow-aside" aria-labelledby="flow-heading"><p class="eyebrow">TRANSFER STATUS</p><h4 id="flow-heading">Transfer progress</h4><p id="flow-intro">Your transfer will appear here once you start.</p><ol class="flow-steps"><li id="step-prepare" class="active"><span>1</span><div><strong>Prepare transfer</strong><small>Choose a direction, then connect your wallet</small></div></li><li id="step-source"><span>2</span><div><strong>Source-chain confirmation</strong><small>Confirm in your wallet and wait for the mainnet receipt</small></div></li><li id="step-destination"><span>3</span><div><strong>Destination-chain arrival</strong><small>Arrival is checked automatically after sending</small></div></li></ol><p class="route-caution">This uses real assets and mainnet fees. Check the network, contract, and fees in your wallet. Do not send again while a transaction is being checked.</p></div><div class="context-art" aria-hidden="true"><img src="./visual/bridge-orbs.webp" width="768" height="640" alt="" decoding="async"></div></div>
+        <div class="context-view" id="context-swap" hidden><p class="eyebrow">SWAP ON ARC</p><h3>From WOTR<br>to USDC.</h3><p>Exchange WOTR for native USDC in the Arc pool. The output depends on the live quote.</p><div class="context-route"><span>Arc</span><strong>WOTR → USDC</strong></div><p class="context-note">Keep some native USDC in your Arc wallet to pay gas. You can explore Arc Portal or review USDC bridge routes at any time.</p><div class="context-art" aria-hidden="true"><img src="./visual/swap-orbs.webp" width="768" height="640" alt="" decoding="async"></div></div>
       </aside></div>
     </main>
     <footer><span>© 2026 Tevumi</span><span>BNB Chain ↔ Arc</span></footer>
