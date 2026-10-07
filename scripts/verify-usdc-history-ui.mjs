@@ -38,6 +38,7 @@ try {
     if (await page.locator('.history-card').count() !== 2) throw Error(`HISTORY_COUNT_${label}`);
     if (await page.locator('#retry-button').isVisible()) throw Error(`RETRY_REJECTED_APPROVAL_${label}`);
     if (await page.locator('#activity').isVisible()) throw Error(`DECLINED_APPROVAL_DUPLICATES_HISTORY_${label}`);
+    if (await page.locator('#activity-title').count()) throw Error(`STANDALONE_CURRENT_CARD_${label}`);
     if (!(await page.locator('.history-card').first().innerText()).includes('No transaction hash saved')) throw Error(`REJECTION_COPY_${label}`);
     if (!(await page.locator('.history-card').nth(1).innerText()).includes('SDK completed')) throw Error(`SUCCESS_NOT_VERIFIED_${label}`);
     if (!(await page.locator('.history-card').nth(1).locator('a').getAttribute('href')).endsWith(`/tx/0x${'a'.repeat(64)}`)) throw Error(`SOURCE_LINK_${label}`);
@@ -73,7 +74,8 @@ try {
   await recovery.locator('#wallet-button').click();
   await recovery.locator('.tevumi-wallet-other').click();
   await recovery.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
-  if (!(await recovery.locator('#retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
+  await recovery.locator('#transfer-history summary').click();
+  if (!(await recovery.locator('#history-list #retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#activity-body').innerText()).includes('The SDK stopped before completion')) throw Error('SOURCE_HASH_MISCLASSIFIED');
   await recovery.close();
@@ -93,12 +95,40 @@ try {
   await walletWait.locator('.tevumi-wallet-other').click();
   await walletWait.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
   await walletWait.locator('#transfer-history summary').click();
-  if (!(await walletWait.locator('#activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
+  if (!(await walletWait.locator('#history-list #activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
   if (!(await walletWait.locator('.history-card').first().innerText()).includes('Awaiting wallet')) throw Error('WALLET_WAIT_LABEL');
   if (!(await walletWait.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_DURING_WALLET_WAIT');
   await walletWait.locator('#lang-zh').click();
   if (!(await walletWait.locator('#activity-body').innerText()).includes('正在等待钱包确认')) throw Error('WALLET_WAIT_CHINESE');
   await walletWait.close();
+  for (const viewport of [{width:1440,height:900},{width:390,height:844}]) {
+    const pending=await browser.newPage({viewport});
+    const source=`0x${'f'.repeat(64)}`;
+    await pending.route('**/api/usdc-transfers**',route=>route.fulfill({json:{items:[{source_hash:source,amount:'500000',target_chain:'Base',status:'source_confirmed',created_at:1791190000}],more:false}}));
+    await pending.addInitScript(({address,source})=>{
+      window.ethereum={request:async({method})=>{
+        if (method==='eth_accounts'||method==='eth_requestAccounts') return [address];
+        if (method==='eth_chainId') return '0x13b2';
+        throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
+      }};
+      localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`,JSON.stringify({id:'processing',state:'pending',account:address,amount:'0.5',destination:'Base',createdAt:1791190000000,events:[{name:'burn',txHash:source}]}));
+    },{address:wallet,source});
+    await pending.goto(origin,{waitUntil:'domcontentloaded'});
+    await pending.locator('#wallet-button').click();
+    await pending.locator('.tevumi-wallet-other').click();
+    await pending.locator('#wallet-button.tevumi-active-wallet').waitFor({timeout:30000});
+    await pending.locator('#transfer-history summary').click();
+    await pending.locator('.history-card').getByText('Arc burn verified').waitFor();
+    if (await pending.locator('.history-card').count()!==1) throw Error('PROCESSING_DUPLICATE');
+    if (!(await pending.locator('#history-list .history-card #activity-body').innerText()).includes('Do not send again')) throw Error('PROCESSING_PROGRESS_MISSING');
+    if (await pending.locator('#activity-title').count()) throw Error('PROCESSING_STANDALONE_CARD');
+    if (!(await pending.locator('#bridge-button').isDisabled())) throw Error('PROCESSING_NEW_SEND_ENABLED');
+    await pending.locator('#lang-zh').click();
+    if (!(await pending.locator('#history-list').innerText()).includes('请勿重复发送')) throw Error('PROCESSING_CHINESE');
+    if (await pending.evaluate(()=>document.documentElement.scrollWidth>innerWidth)) throw Error('PROCESSING_OVERFLOW');
+    await pending.screenshot({path:`.local/usdc-processing-history-${viewport.width}.png`,fullPage:true});
+    await pending.close();
+  }
   const indexed = await browser.newPage();
   const hash = `0x${'c'.repeat(64)}`;
   await indexed.route('**/api/usdc-transfers**', async route => {

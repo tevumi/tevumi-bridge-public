@@ -68,7 +68,6 @@ const labels = {
   'stage-three':['USDC arrives','USDC 到账'],
   'stage-three-help':['Destination confirmation is shown only after the SDK reports success.','只有 SDK 报告成功后才显示目标链到账。'],
   'aside-note':['Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.','本操作使用真实 USDC 并产生网络费。签名前会再次检查报价，仍需在钱包确认。'],
-  'activity-title':['Current transfer','当前跨链记录'],
   'retry-button':['Resume transfer','继续原跨链'],
   'history-title':['Transfer history','跨链记录'],
   'history-note':['Verified transfers load from our server; unfinished SDK attempts remain in this browser.','已核验的跨链从服务器读取；未完成的 SDK 尝试仍保存在当前浏览器。'],
@@ -170,6 +169,7 @@ function saveHistory(record) {
 }
 function saveRecord(record) {
   currentRecord = normalizeRecord(record);
+  if (account) $('transfer-history').open=true;
   if (historyKey()) saveHistory(currentRecord);
   if (currentRecord.approvalRejected && !hasRecordedHash(currentRecord)) {
     if (key()) localStorage.removeItem(key());
@@ -288,6 +288,10 @@ function transactionLinks(container,record) {
 }
 function renderHistory() {
   const list=$('history-list');
+  const activity=$('activity');
+  activity.hidden=true;
+  $('transfer-history').append(activity);
+  let activeCard=null;
   $('transfer-history').hidden=!account;
   if (!account) $('transfer-history').open=false;
   list.replaceChildren();
@@ -307,6 +311,11 @@ function renderHistory() {
     const links=document.createElement('div'); links.className='history-links';
     const link=document.createElement('a'); link.href=`https://explorer.arc.io/tx/${item.source_hash}`; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent=t('Arc source transaction ↗','Arc 来源交易 ↗'); links.append(link);
     card.append(top,meta,links); list.append(card);
+    if (currentRecord && same(item.source_hash,burnHash(currentRecord))) {
+      activeCard=card;
+      const entry=historyEntry(currentRecord);
+      transactionLinks(links,{steps:[...entry.steps,...entry.events].filter(step=>!same(step.txHash,item.source_hash))});
+    }
   }
   const verified=new Set(serverRecords.map(item=>item.source_hash?.toLowerCase()));
   for (const item of historyRecords.filter(item=>!verified.has(burnHash(item)))) {
@@ -320,16 +329,17 @@ function renderHistory() {
     meta.textContent=`${date} · ${item.state==='success' ? t('SDK result; verify destination independently','SDK 结果；目标链仍需独立核验') : item.approvalRejected ? t('No transaction hash saved; check wallet activity','未保存交易哈希；请核对钱包记录') : t('Saved browser status','浏览器保存的状态')}`;
     const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,item);
     card.append(top,meta,links); list.append(card);
+    if (currentRecord && item.id===historyEntry(currentRecord).id) activeCard=card;
   }
+  if (account && activeCard) { activeCard.append(activity); renderRecord(); }
   if (!list.children.length) list.textContent=t('No USDC transfers found for this wallet.','此钱包暂无 USDC 跨链记录。');
 }
 function renderRecord() {
-  $('activity').hidden = !currentRecord;
+  $('activity').hidden = !(account && currentRecord && $('activity').closest('.history-card'));
   if (!currentRecord) return;
   const body = $('activity-body');
   body.replaceChildren();
   const append = message => { const p=document.createElement('p'); p.textContent=message; body.append(p); };
-  append(`${currentRecord.amount || '?'} USDC · Arc → ${currentRecord.destination || '?'} · ${recordLabel(currentRecord)}`);
   if (currentRecord.approvalRejected) append(t('Wallet approval was declined. No transaction hash was saved here; check wallet activity before trying again.','钱包授权已拒绝。这里未保存交易哈希；再次尝试前请核对钱包记录。'));
   else if (currentRecord.state === 'pending' && !hasRecordedHash(currentRecord)) append(t('Waiting for the wallet. No source transaction hash is saved. If the wallet blocks this request, check wallet activity before another attempt.','正在等待钱包确认，尚未保存源链交易哈希。如果钱包拦截了请求，再次尝试前请核对钱包活动。'));
   else if (currentRecord.state === 'pending') append(t('The SDK is processing this transfer. Do not send again.','SDK 正在处理这笔跨链，请勿重复发送。'));
@@ -337,7 +347,6 @@ function renderRecord() {
   else if (currentRecord.state === 'error') append(t('The SDK stopped before completion. Review any source transaction before resuming; your wallet may request another signature.','SDK 未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
   else if (currentRecord.state === 'success') append(serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord))) ? t('The destination CCTP message has been used on-chain. To send again, start a separate transfer below.','目标链 CCTP 消息已在链上执行。如需再次跨链，请在下方发起新的一笔。') : t('The SDK reported completion. Destination verification is still pending; review the history before starting a separate transfer.','SDK 已报告完成，目标链核验仍在进行；再次跨链前请核对历史记录。'));
   if (!currentRecord.approvalRejected && currentRecord.errorMessage) append(cleanError(currentRecord.errorMessage));
-  const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,historyEntry(currentRecord)); body.append(links);
   updateButton();
 }
 function renderChains() {
