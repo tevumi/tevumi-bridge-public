@@ -2,7 +2,13 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available. Earlier 币安人生 and CAT routes were small mainnet experiments and are no longer offered in the public asset picker; their historical receipts remain available.
+Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available.
+
+## Current deployment and permissions
+
+The current public asset picker supports WOTR only. 币安人生 and CAT were retired on October 4; references below describe historical tests, not currently offered assets. Historical deployment JSON files must not be treated as the live route list. See [deployment identities and dated limits](config/README.md).
+
+The live WOTR bridge uses ImmediateAdmin contracts controlled by a single EOA, with no timelock. Separate timelock/governance candidate contracts in this repository are not deployed as the live WOTR bridge. The October 8 read-only snapshot found a 1,000,000 WOTR single-transfer cap on both chains and near-maximum bucket window settings; these do not represent a meaningful daily risk-control quota. The Arc Swap UI currently supports WOTR → native USDC only; reverse swaps are not offered or validated by this application.
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 7, 2026
 

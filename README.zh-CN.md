@@ -2,7 +2,13 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入、跨链到 Arc，并可选择兑换为原生 USDC；WOTR 双向独立跨链仍保留。币安人生和 CAT 是早期小额主网实验，已从公开页面资产列表下架，历史交易回执仍可查看。
+Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入、跨链到 Arc，并可选择兑换为原生 USDC；WOTR 双向独立跨链仍保留。
+
+## 当前部署与权限
+
+当前公开资产选择器仅支持 WOTR。币安人生与 CAT 已于 10 月 4 日下架；下文相关内容仅为历史实验，不代表当前提供服务。历史部署 JSON 不等于现行通道清单，见[部署身份与日期限额](config/README.md)。
+
+线上 WOTR 桥由单个 EOA 控制的 ImmediateAdmin 管理，没有时间锁；仓库中的时间锁/治理候选合约不是线上 WOTR 桥。10 月 8 日只读快照显示两链单笔上限均为 1,000,000 WOTR，窗口参数接近 uint64 最大值，不构成有实际约束意义的每日风控额度。Arc Swap 页面当前仅支持 WOTR→原生 USDC，没有提供或验证反向兑换流程。
 
 **线上入口：**https://bridge.tevumi.com/ · **状态核对日期：**2026-10-07
 
