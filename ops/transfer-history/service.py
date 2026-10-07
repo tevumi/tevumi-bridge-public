@@ -190,12 +190,24 @@ def inspect_source(chain, tx_hash):
         raise ValueError('Transaction not found')
     asset = next((name for name, addresses in ASSETS.items()
                   if tx.get('to', '').lower() == addresses[chain]), None)
-    if not asset:
-        raise ValueError('Not a Tevumi bridge transaction')
-    if not tx.get('input', '').lower().startswith('0xc7c7f5b3'):
+    direct = asset is not None
+    if direct and not tx.get('input', '').lower().startswith('0xc7c7f5b3'):
         raise ValueError('Not a bridge send transaction')
     target_chain = 5042 if chain == 56 else 56
     receipt = rpc(chain, 'eth_getTransactionReceipt', [tx_hash]) if tx.get('blockNumber') else None
+    if not direct:
+        # Wallet routing may wrap send(). Only a successful receipt from a
+        # configured bridge can establish its identity; never trust the wrapper.
+        if not receipt or int(receipt['status'], 16) != 1:
+            raise ValueError('Wrapped bridge transaction not confirmed')
+        matches = [(name, log) for name, addresses in ASSETS.items()
+                   for log in receipt.get('logs', [])
+                   if log.get('address', '').lower() == addresses[chain]
+                   and len(log.get('topics', [])) == 3
+                   and log['topics'][0].lower() == OFT_SENT]
+        if len(matches) != 1:
+            raise ValueError('Wrapped transaction needs one verified bridge send')
+        asset = matches[0][0]
     status, guid, amount_ld = 'pending', None, None
     if receipt:
         if int(receipt['status'], 16) == 0:
@@ -210,6 +222,11 @@ def inspect_source(chain, tx_hash):
             words = [log['data'][2+i:2+i+64] for i in range(0, len(log['data'])-2, 64)]
             if len(words) < 3 or int(words[0], 16) != EIDS[target_chain] or int(words[1], 16) < 10**12 or int(words[1], 16) % 10**12 or int(words[1], 16) != int(words[2], 16):
                 raise ValueError('Transfer parameters mismatch')
+            if not direct and chain == 56:
+                token = {'wotr': WOTR[56], 'cat': '0x6894cde390a3f51155ea41ed24a33a4827d3063d',
+                         'binancelife': '0x924fa68a0fc644485b8df8abfa0a41c2e7744444'}[asset]
+                if transfer_amount(receipt, token, tx['from'], ASSETS[asset][chain]) != int(words[1], 16):
+                    raise ValueError('Wrapped bridge token debit mismatch')
             status, guid, amount_ld = 'in_transit', log['topics'][1].lower(), str(int(words[1], 16))
     return {'chain': chain, 'source_hash': tx_hash.lower(), 'account': tx['from'].lower(),
             'asset': asset, 'target_chain': target_chain, 'guid': guid, 'status': status, 'amount_ld': amount_ld}

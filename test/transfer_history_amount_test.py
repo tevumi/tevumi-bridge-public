@@ -14,6 +14,42 @@ spec.loader.exec_module(history)
 
 
 class AmountHistoryTest(unittest.TestCase):
+    def test_wrapped_wotr_send_requires_authenticated_receipt(self):
+        account = '0x' + '1' * 40
+        bridge = history.ASSETS['wotr'][56]
+        words = lambda *values: '0x' + ''.join(f'{value:064x}' for value in values)
+        amount = 1000 * 10**18
+        tx = {'from': account, 'to': '0x' + '9' * 40, 'input': '0xcef6d209', 'blockNumber': '0x1'}
+        sent = {'address': bridge, 'topics': [history.OFT_SENT, '0x' + '3' * 64, words(int(account, 16))],
+                'data': words(30417, amount, amount)}
+        debit = {'address': history.WOTR[56], 'topics': [history.TRANSFER, words(int(account, 16)), words(int(bridge, 16))], 'data': words(amount)}
+        receipt = {'status': '0x1', 'logs': [sent, debit]}
+        with patch.object(history, 'rpc', side_effect=[tx, receipt]):
+            row = history.inspect_source(56, '0x' + '2' * 64)
+        self.assertEqual(row['asset'], 'wotr')
+        self.assertEqual(row['amount_ld'], str(amount))
+        self.assertEqual(row['account'], account)
+        cases = {
+            'failed wrapper': {'status': '0x0', 'logs': [sent, debit]},
+            'fake emitter': {'status': '0x1', 'logs': [{**sent, 'address': tx['to']}, debit]},
+            'multiple sends': {'status': '0x1', 'logs': [sent, sent, debit]},
+            'wrong sender': {'status': '0x1', 'logs': [{**sent, 'topics': [history.OFT_SENT, sent['topics'][1], words(5)]}, debit]},
+            'missing debit': {'status': '0x1', 'logs': [sent]},
+            'wrong debit': {'status': '0x1', 'logs': [sent, {**debit, 'data': words(amount - 1)}]},
+            'wrong route': {'status': '0x1', 'logs': [{**sent, 'data': words(30102, amount, amount)}, debit]},
+        }
+        for label, invalid in cases.items():
+            with self.subTest(label=label), patch.object(history, 'rpc', side_effect=[tx, invalid]):
+                with self.assertRaises(ValueError):
+                    history.inspect_source(56, '0x' + '2' * 64)
+        with patch.object(history, 'rpc', return_value={**tx, 'blockNumber': None}):
+            with self.assertRaises(ValueError):
+                history.inspect_source(56, '0x' + '2' * 64)
+
+    def test_wotr_is_mapped_to_dedicated_bridge(self):
+        self.assertEqual(history.ASSETS['wotr'][56], '0xac93aa5dfd4dff9fc57c470fc6c9172f7a9bfbcf')
+        self.assertEqual(history.ASSETS['wotr'][5042], '0x70cedd901366ad932203bbb08b22dcd4d4510028')
+
     def test_existing_verified_rows_gain_legacy_amount(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'history.sqlite3')
@@ -31,7 +67,12 @@ class AmountHistoryTest(unittest.TestCase):
                 db.close()
 
     def test_verified_source_and_target_use_event_amount(self):
-        address = history.ASSETS['cat'][56]
+        for asset in ('cat', 'wotr'):
+            with self.subTest(asset=asset):
+                self._check_verified_source_and_target(asset)
+
+    def _check_verified_source_and_target(self, asset):
+        address = history.ASSETS[asset][56]
         account = '0x' + '1' * 40
         tx_hash = '0x' + '2' * 64
         guid = '0x' + '3' * 64
@@ -41,8 +82,9 @@ class AmountHistoryTest(unittest.TestCase):
         source_receipt = {'status': '0x1', 'logs': [{'address': address, 'topics': [history.OFT_SENT, guid, '0x' + f'{int(account, 16):064x}'], 'data': words(30417, amount, amount)}]}
         with patch.object(history, 'rpc', side_effect=[source_tx, source_receipt]):
             row = history.inspect_source(56, tx_hash)
+        self.assertEqual(row['asset'], asset)
         self.assertEqual(row['amount_ld'], str(amount))
-        target_receipt = {'status': '0x1', 'logs': [{'address': history.ASSETS['cat'][5042], 'topics': [history.OFT_RECEIVED, guid, '0x' + f'{int(account, 16):064x}'], 'data': words(30102, amount)}]}
+        target_receipt = {'status': '0x1', 'logs': [{'address': history.ASSETS[asset][5042], 'topics': [history.OFT_RECEIVED, guid, '0x' + f'{int(account, 16):064x}'], 'data': words(30102, amount)}]}
         with patch.object(history, 'rpc', return_value=target_receipt):
             self.assertTrue(history.inspect_target(row, '0x' + '4' * 64))
         target_receipt['logs'][0]['data'] = words(30102, 10**12)
