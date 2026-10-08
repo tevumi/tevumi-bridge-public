@@ -404,8 +404,8 @@ function draw() {
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
   $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
-  $('journey-buy-action').disabled = busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
-  $('journey-swap-action').disabled = busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
+  $('journey-buy-action').disabled = busy || view.busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
+  $('journey-swap-action').disabled = busy || view.busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapProgress || (reverseSwap || swapQuote?.stage === 'swap' ? local(`Swap ${swapAssets(reverseSwap).input} for ${swapAssets(reverseSwap).output}`,`兑换 ${swapAssets(reverseSwap).input} 为 ${swapAssets(reverseSwap).output}`) : local('Approve and swap','授权并兑换'));
   $('journey-wotr').disabled = busy;
   $('journey-swap-direction').disabled = busy || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));

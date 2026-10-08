@@ -50,6 +50,15 @@ export function amountValidation(value=amount){
 export function selectAmount(value){ensure(!busy,'当前操作尚未完成，请等待结果。');amount=value;emitView();}
 const recordAmount=record=>BigInt(record.amountLD??legacyAmountLD);
 const emitView=()=>window.dispatchEvent(new CustomEvent('tevumi:bridge-view',{detail:{account}}));
+function setBridgeBusy(value) {
+ busy=value;
+ // This controller owns bridge controls only. Background wallet restoration
+ // must not disable Swap, language selection, navigation or history controls.
+ for(const id of ['connect','refresh','recover','next-round','open-bsc','open-arc','pause-bsc','pause-arc','send-bsc','send-arc','check-bsc','check-arc','direction-bsc','direction-arc','reverse-direction']) {
+  const button=$(id);if(button)button.disabled=value;
+ }
+ emitView();
+}
 const accountKey=()=>storageKey()+':'+account.toLowerCase();
 const load=()=>{records={};try{const loaded=JSON.parse(localStorage.getItem(accountKey())||'{}');if(loaded&&typeof loaded==='object'&&!Array.isArray(loaded))records=loaded;}catch{/* keep empty */}renderRecords();};
 const save=()=>{localStorage.setItem(accountKey(),JSON.stringify(records));renderRecords();};
@@ -462,7 +471,7 @@ export async function selectAsset(id){
  ensure(id in pairs,'不支持的跨链资产。');
  ensure(!busy,'当前操作尚未完成，请等待结果。');
  if(id===assetId)return;
- busy=true;for(const button of document.querySelectorAll('button:not(#nav-buy):not(#nav-bridge):not(#nav-swap)'))button.disabled=true;
+ setBridgeBusy(true);
  try{
  assetId=id;assetName=assetNames[id];pair=pairs[id];amount=id==='wotr'?'500':'0.000001';limits={bsc:null,arc:null};routeState=null;
  records={};
@@ -471,11 +480,11 @@ export async function selectAsset(id){
  $('fee-state').textContent=document.body.dataset.balanceOnly==='true'?(account?'正在读取所选资产余额…':'连接钱包后显示所选资产的余额。'):(account?'正在读取双向余额和消息费报价…':'连接钱包后显示余额和双向消息费报价。');
  note('');
  try{await refresh(Boolean(account));}catch(error){note(errorText(error));}
- }finally{busy=false;for(const button of document.querySelectorAll('button:not(#nav-buy):not(#nav-bridge):not(#nav-swap)'))button.disabled=false;}
+ }finally{setBridgeBusy(false);}
 }
 // Navigation remains usable while wallet restoration and chain reads are pending.
 // Transaction controls still use the existing busy and verification guards.
-async function run(action){if(busy)return;busy=true;emitView();for(const button of document.querySelectorAll('button:not(#nav-buy):not(#nav-bridge):not(#nav-swap)'))button.disabled=true;try{await action();}catch(error){note(errorText(error));}finally{busy=false;for(const button of document.querySelectorAll('button:not(#nav-buy):not(#nav-bridge):not(#nav-swap)'))button.disabled=false;emitView();}}
+async function run(action){if(busy)return;setBridgeBusy(true);try{await action();}catch(error){note(errorText(error));}finally{setBridgeBusy(false);}}
 for(const side of ['bsc','arc']){
  if($(`open-${side}`))$(`open-${side}`).onclick=()=>run(()=>open(side));
  if($(`pause-${side}`))$(`pause-${side}`).onclick=()=>run(()=>pause(side));

@@ -1,6 +1,7 @@
 // Keep RPC requests pending to check navigation during wallet restoration.
 import {chromium} from '@playwright/test';
 const origin=process.env.TEVUMI_BASE_URL || 'http://127.0.0.1:5323/preview/web/preview/';
+const startUrl=new URL(origin);startUrl.searchParams.set('action','swap');
 const browser=await chromium.launch({headless:true});
 try {
  for(const [label,viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]]){
@@ -20,7 +21,7 @@ try {
    window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider}})));
   });
   for(let round=0;round<2;round++){
-   if(round)await page.reload({waitUntil:'domcontentloaded'});else await page.goto(origin,{waitUntil:'domcontentloaded'});
+   if(round)await page.reload({waitUntil:'domcontentloaded'});else await page.goto(startUrl.href,{waitUntil:'domcontentloaded'});
    await page.locator('#header-connect.tevumi-active-wallet').waitFor({timeout:10000});
    if(!blocked)throw Error('RPC_NOT_PENDING');
    for(const tab of ['bridge','swap','buy']){
@@ -29,8 +30,15 @@ try {
     await page.locator('#nav-'+tab).click({timeout:1500});
     if(await page.locator('#nav-'+tab).getAttribute('aria-current')!=='page')throw Error('NAV_DID_NOT_SWITCH_'+tab);
     if(Date.now()-start>1500)throw Error('NAV_WAITED_FOR_RPC');
+    if(tab==='bridge' && await page.locator('#send-bsc').isEnabled())throw Error('BRIDGE_SEND_ENABLED_BEFORE_ROUTE_VERIFICATION');
    }
    await page.locator('#nav-swap').click();
+   if(!await page.locator('#journey-swap-direction').isEnabled())throw Error('SWAP_DIRECTION_BLOCKED_BY_BRIDGE_READS');
+   await page.locator('#journey-swap-direction').click({timeout:1500});
+   if(!(await page.locator('#journey-swap-direction').textContent()).includes('USDC → WOTR'))throw Error('SWAP_DIRECTION_DID_NOT_SWITCH');
+   await page.locator('[data-language="zh-CN"]').click({timeout:1500});
+   if(await page.locator('#journey-swap-direction').textContent()!=='⇄ USDC → WOTR')throw Error('LANGUAGE_SWITCH_CHANGED_DIRECTION');
+   await page.locator('[data-language="en"]').click({timeout:1500});
    if(await page.locator('#journey-swap-action').isEnabled())throw Error('UNQUOTED_SWAP_ENABLED');
    if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('MOBILE_OVERFLOW');
   }

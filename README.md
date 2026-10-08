@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+Wallet restoration now locks only the bridge controls it owns. Navigation, language and Swap direction remain usable while chain reads are pending; transaction submission still waits for wallet activity and required checks.
+
 Quote failures now distinguish insufficient pool liquidity from temporary quote unavailability. Failed refreshes invalidate previous quotes; completed saved swaps no longer overwrite the current form status. Pending transactions still reconcile without resubmission. Liquidity is limited: a smaller amount may quote when a larger one cannot; always check the live quote.
 
 [English](README.md) · [简体中文](README.zh-CN.md)
