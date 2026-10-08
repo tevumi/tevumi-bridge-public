@@ -9,7 +9,8 @@ for(const reverse of [false,true]) {
   test(`swap ${reverse ? 'USDC → WOTR' : 'WOTR → USDC'} matches V4 SDK and requires exact wallet proof`,()=>{
     const planner=new V4Planner();
     planner.addSwapAction(Actions.SWAP_EXACT_IN_SINGLE,[{poolKey:POOL_KEY,zeroForOne:reverse,amountIn:'100',amountOutMinimum:'90',hookData:'0x'}],URVersion.V2_0);
-    planner.addAction(Actions.SETTLE_ALL,[reverse ? ZeroAddress : WOTR,'100']);
+    if (reverse) planner.addAction(Actions.SETTLE,[ZeroAddress,'100',true]);
+    else planner.addAction(Actions.SETTLE_ALL,[WOTR,'100']);
     planner.addAction(Actions.TAKE_ALL,[reverse ? WOTR : ZeroAddress,'90']);
     const plan=buildSwapPlan(reverse,100n,90n,123n);
     assert.equal(plan.data,new Interface(ROUTER_ABI).encodeFunctionData('execute',['0x10',[planner.finalize()],123n]));

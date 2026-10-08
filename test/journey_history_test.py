@@ -78,6 +78,8 @@ class JourneyHistoryTest(unittest.TestCase):
         with patch.object(history,'rpc',side_effect=[tx,receipt,{'timestamp':'0x64'}]):
             item=history.inspect_journey('swap',HASH)
         self.assertEqual((item['input_asset'],item['output_asset'],item['input_amount'],item['output_amount']),('USDC','WOTR','8','11'))
+        legacy={**tx,'input':history.swap_history.encode_plan(True,8,10,100,True)}
+        self.assertEqual(history.swap_history.inspect_input(legacy),(True,8,10))
         receipt['logs'][1]['topics'][2]='0x'+words(3)
         with patch.object(history,'rpc',side_effect=[tx,receipt,{'timestamp':'0x64'}]):
             with self.assertRaisesRegex(ValueError,'wallet transfer'):

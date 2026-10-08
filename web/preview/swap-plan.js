@@ -14,9 +14,12 @@ export function buildSwapPlan(reverse, amountIn, minOut, deadline) {
   if (typeof reverse !== 'boolean' || amountIn <= 0n || amountIn >= 2n**128n || minOut <= 0n || minOut >= 2n**128n) throw Error('Invalid swap amount or direction.');
   const abi = AbiCoder.defaultAbiCoder();
   const swap = abi.encode(['tuple(tuple(address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) poolKey,bool zeroForOne,uint128 amountIn,uint128 amountOutMinimum,bytes hookData)'],[{poolKey:POOL_KEY,zeroForOne:reverse,amountIn,amountOutMinimum:minOut,hookData:'0x'}]);
-  const settle = abi.encode(['address','uint256'],[reverse ? ZeroAddress : WOTR,amountIn]);
+  // Native input must settle the exact specified amount. If pool liquidity
+  // cannot consume it all, the remaining credit makes unlock revert atomically.
+  // SETTLE_ALL would only pay the debt and could strand unused msg.value.
+  const settle = reverse ? abi.encode(['address','uint256','bool'],[ZeroAddress,amountIn,true]) : abi.encode(['address','uint256'],[WOTR,amountIn]);
   const take = abi.encode(['address','uint256'],[reverse ? WOTR : ZeroAddress,minOut]);
-  const payload = abi.encode(['bytes','bytes[]'],['0x060c0f',[swap,settle,take]]);
+  const payload = abi.encode(['bytes','bytes[]'],[reverse ? '0x060b0f' : '0x060c0f',[swap,settle,take]]);
   return {data:new Interface(ROUTER_ABI).encodeFunctionData('execute',['0x10',[payload],deadline]),value:reverse ? amountIn : 0n};
 }
 

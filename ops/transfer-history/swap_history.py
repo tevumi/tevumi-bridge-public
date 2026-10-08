@@ -27,13 +27,13 @@ def array(values):
     return word(len(values)) + b''.join(heads + tails)
 
 
-def encode_plan(reverse, amount, minimum, deadline):
+def encode_plan(reverse, amount, minimum, deadline, legacy_native=False):
     """Canonical encoding; also used to reject extra commands and recipients."""
     swap = b''.join(word(v) for v in (32, 0, int(WOTR, 16), 3000, 60, 0,
                                       int(reverse), amount, minimum, 288, 0))
-    settle = word(0 if reverse else int(WOTR, 16)) + word(amount)
+    settle = word(0 if reverse else int(WOTR, 16)) + word(amount) + (word(1) if reverse and not legacy_native else b'')
     take = word(int(WOTR, 16) if reverse else 0) + word(minimum)
-    actions = dynamic(bytes.fromhex('060c0f'))
+    actions = dynamic(bytes.fromhex('060b0f' if reverse and not legacy_native else '060c0f'))
     payload = word(64) + word(64 + len(actions)) + actions + array([swap, settle, take])
     commands = dynamic(b'\x10')
     return '0x3593564c' + (word(96) + word(96 + len(commands)) + word(deadline)
@@ -67,7 +67,11 @@ def inspect_input(tx):
         amount, minimum = number(struct + 192), number(struct + 224)
         if reverse not in (0, 1) or not 0 < amount < 2**128 or not 0 < minimum < 2**128:
             raise ValueError('Swap amount or direction mismatch')
-        if text != encode_plan(bool(reverse), amount, minimum, number(64)):
+        canonical = encode_plan(bool(reverse), amount, minimum, number(64))
+        # v67 native SETTLE_ALL history remains readable only with the exact
+        # input debit proved by receipt_output; v68 never builds that call.
+        legacy = encode_plan(True, amount, minimum, number(64), True) if reverse else canonical
+        if text not in (canonical, legacy):
             raise ValueError('Swap route mismatch')
         if int(tx.get('value', '0x0'), 16) != (amount if reverse else 0):
             raise ValueError('Swap native payment mismatch')

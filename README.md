@@ -5,7 +5,7 @@
 Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available.
 
 
-**2026-10-08 · Bidirectional Swap:** Use the direction button in Swap to select USDC → WOTR, enter a small amount, refresh the quote, then confirm the swap in your wallet. Changing direction clears the amount and quote. Server history distinguishes both directions, including older WOTR → USDC entries. The native USDC amount uses 18 decimals; this is not the separate 6-decimal CCTP token interface. No new pool or liquidity was added.
+**2026-10-08 · Bidirectional Swap:** Use the direction button in Swap to select USDC → WOTR, enter a small amount, refresh the quote, then confirm the swap in your wallet. Changing direction clears the amount and quote. Server history distinguishes both directions, including older WOTR → USDC entries. The native USDC amount uses 18 decimals; this is not the separate 6-decimal CCTP token interface. No new pool or liquidity was added. Native-input swaps settle the complete specified input; if the pool can only fill part of it, the transaction reverts atomically rather than leaving unused native USDC in the router.
 
 ## Current deployment and permissions
 
