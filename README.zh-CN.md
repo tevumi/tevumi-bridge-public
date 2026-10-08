@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+报价失败现区分资金池流动性不足与暂时无法获取报价；刷新失败会撤销旧报价，已完成的历史兑换不再覆盖当前表单提示，未完成交易继续核验并防重复提交。演示池流动性有限，小额有报价不代表更大金额可成交，请以实时结果为准。
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入、跨链到 Arc，并可选择兑换为原生 USDC；WOTR 双向独立跨链仍保留。

@@ -1,6 +1,6 @@
 // Simulated wallet/RPC only. No real authorization or transaction broadcast.
 import {chromium} from '@playwright/test';
-import {Interface,parseEther} from 'ethers';
+import {AbiCoder,Interface,parseEther,id} from 'ethers';
 const origin=process.env.TEVUMI_BASE_URL || 'http://127.0.0.1:5322/preview/web/preview/';
 const user='0x67bfb3BeF4f4A3Cb25Bc529E948d40bcfc0874CD';
 const token='0x70Cedd901366ad932203BBB08B22DcD4d4510028';
@@ -16,11 +16,12 @@ const poolId='0x0b98404b6f6df1c01ecb4a44b8c7e0c11b722585f91c5bc77dc9e7d294d278b4
 const hex=n=>'0x'+BigInt(n).toString(16), pad=n=>'0x'+BigInt(n).toString(16).padStart(64,'0');
 const browser=await chromium.launch({headless:true});
 try {
- for(const mode of ['reverse-ready','reverse-reject','reverse-low-gas','reverse-pending','reverse-zh-mobile']) {
-  const page=await browser.newPage({viewport:mode==='reverse-zh-mobile'?{width:390,height:844}:{width:1440,height:900}});
+ for(const mode of ['quote-liquidity','quote-unavailable','quote-liquidity-zh','reverse-ready','reverse-reject','reverse-low-gas','reverse-pending','reverse-zh-mobile']) {
+  const page=await browser.newPage({viewport:mode==='reverse-zh-mobile'||mode==='quote-liquidity-zh'?{width:390,height:844}:{width:1440,height:900}});
   let tokenAllowance=mode==='both'||mode==='failed-approval'?0n:parseEther('1000');
   let permitAllowance=mode==='ready'?parseEther('1000'):0n;
   let quoteOut=parseEther('190');
+  let failQuote=mode.startsWith('quote-');
   const txs=new Map(), requests=[], errors=[];
   const swapLogs=[{address:manager,...pool.encodeEventLog('Swap',[poolId,router,-parseEther('0.01'),parseEther('190'),1,1,0,3000])},{address:token,...transfers.encodeEventLog('Transfer',[manager,user,parseEther('190')])}].map((log,index)=>({...log,index,transactionIndex:0,transactionHash:pad(1),blockHash:pad(101),blockNumber:101,removed:false}));
   page.on('pageerror',e=>errors.push(e.message));
@@ -53,6 +54,11 @@ try {
    window.ethereum=provider;
    window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider}})));
   },user);
+  if(mode.startsWith('quote-')) await page.addInitScript(address=>{
+    localStorage.setItem(`tevumi-journey-v1:${address.toLowerCase()}:swap`,JSON.stringify({state:'verified',usdcArrivalVerified:true,hash:'0x'+'a'.repeat(64),block:24763897}));
+    const interval=window.setInterval.bind(window);
+    window.setInterval=(fn,ms,...args)=>{if(ms===30000)window.testHistoryTick=fn;return interval(fn,ms,...args);};
+  },user);
   await page.route(/https:\/\/(rpc\.mainnet\.arc\.io|bsc[^/]*|bsc-dataseed[^/]*)\//,async route=>{
    const req=route.request().postDataJSON(), chain=route.request().url().includes('arc.io')?5042:56;
    const block={number:'0x65',hash:pad(101),parentHash:pad(100),timestamp:hex(1791350000),nonce:'0x0000000000000000',difficulty:'0x0',gasLimit:'0x1c9c380',gasUsed:'0x5208',miner:user,extraData:'0x',transactions:[],baseFeePerGas:hex(1000000000)};
@@ -76,7 +82,13 @@ try {
     }
     case 'eth_call':{
      const c=req.params[0], selector=c.data.slice(0,10), to=c.to.toLowerCase();
-     if(selector===qi.getFunction('quoteExactInputSingle').selector)result=qi.encodeFunctionResult('quoteExactInputSingle',[quoteOut,100000]);
+     if(selector===qi.getFunction('quoteExactInputSingle').selector) {
+       if(failQuote) {
+         const data=mode.startsWith('quote-liquidity') ? id('UnexpectedRevertBytes(bytes)').slice(0,10)+AbiCoder.defaultAbiCoder().encode(['bytes'],[id('NotEnoughLiquidity(bytes32)').slice(0,10)+poolId.slice(2)]).slice(2) : '0x';
+         await route.fulfill({json:{jsonrpc:'2.0',id:req.id,error:{code:3,message:'execution reverted',data}}});return;
+       }
+       result=qi.encodeFunctionResult('quoteExactInputSingle',[quoteOut,100000]);
+     }
      else if(selector===ti.getFunction('balanceOf').selector)result=ti.encodeFunctionResult('balanceOf',[parseEther('2000')]);
      else if(selector===ti.getFunction('allowance').selector&&to!==permit.toLowerCase())result=ti.encodeFunctionResult('allowance',[tokenAllowance]);
      else if(selector===pi.getFunction('allowance').selector&&to===permit.toLowerCase())result=pi.encodeFunctionResult('allowance',[permitAllowance,1791353600,0]);
@@ -91,12 +103,29 @@ try {
   await page.goto(origin,{waitUntil:'domcontentloaded'});
   await page.locator('#header-connect').click();
   await page.locator('.tevumi-wallet-option').first().click();
-  if(mode==='reverse-zh-mobile')await page.locator('[data-language="zh-CN"]').click();
+  if(mode==='reverse-zh-mobile'||mode==='quote-liquidity-zh')await page.locator('[data-language="zh-CN"]').click();
   await page.locator('#nav-swap').click();
   await page.locator('#journey-swap-direction').click();
   if (!(await page.locator('#journey-swap-card h3').textContent()).includes('USDC')) throw Error('MISSING_REVERSE_LABEL');
   await page.locator('#journey-wotr').fill('0.01');
   await page.locator('#journey-swap-refresh').click();
+  if(mode.startsWith('quote-')) {
+    const expected=mode==='quote-liquidity-zh' ? '当前资金池流动性不足' : mode==='quote-liquidity' ? 'Not enough pool liquidity' : 'Quote is temporarily unavailable';
+    await page.waitForFunction(text=>document.querySelector('#journey-swap-status').textContent.includes(text),expected,{timeout:45000});
+    await page.evaluate(()=>window.testHistoryTick());
+    await page.waitForTimeout(1500);
+    const failed=await page.locator('#journey-swap-status').textContent();
+    if(!failed.includes(expected)||failed.includes('24763897')||failed.includes('missing revert data')||await page.locator('#journey-swap-action').isEnabled()||requests.length)throw Error('QUOTE_STATUS_OVERWRITTEN:'+failed);
+    failQuote=false;
+    await page.locator('#journey-swap-refresh').click();
+    await page.waitForFunction(()=>!document.querySelector('#journey-swap-action').disabled,{timeout:45000});
+    if(await page.locator('#journey-swap-status').textContent())throw Error('RETRY_KEPT_ERROR');
+    failQuote=true;
+    await page.locator('#journey-swap-refresh').click();
+    await page.waitForFunction(text=>document.querySelector('#journey-swap-status').textContent.includes(text),expected,{timeout:45000});
+    if(await page.locator('#journey-swap-action').isEnabled()||requests.length)throw Error('FAILED_REFRESH_REUSED_QUOTE');
+    console.log(JSON.stringify({mode,passed:true,status:failed,requests}));await page.close();continue;
+  }
   await page.waitForFunction(()=>!document.querySelector('#journey-swap-action').disabled,{timeout:45000});
   if(mode==='reverse-ready') {
     await page.locator('#journey-swap-direction').click();

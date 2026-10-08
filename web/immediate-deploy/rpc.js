@@ -45,7 +45,11 @@ export async function rpc(chainId, method, params) {
           if (chainId === 5042 && attempt + 1 < attempts) await wait(500 * (attempt + 1));
           continue;
         }
-        throw Object.assign(Error(`只读节点拒绝 ${method}：${reason}`), { rpcRevert: true });
+        throw Object.assign(Error(`只读节点拒绝 ${method}：${reason}`), {
+          rpcRevert: true,
+          ...(Number.isInteger(body.error.code) ? {code: body.error.code} : {}),
+          ...(typeof body.error.data === 'string' && /^0x[0-9a-f]*$/i.test(body.error.data) && body.error.data.length <= 8194 ? {data: body.error.data} : {}),
+        });
       }
       if (body.result == null) { lastReason = '空结果'; break; }
       return body.result;

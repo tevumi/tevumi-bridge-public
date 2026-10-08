@@ -1,5 +1,6 @@
 import {BrowserProvider, Contract, Interface, ZeroAddress, formatEther, getAddress, parseEther} from 'ethers';
 import {buildSwapPlan, verifySwapReceipt, swapAssets} from './swap-plan.js';
+import {quoteFailure} from './quote-error.js';
 import {rpc} from '../immediate-deploy/rpc.js';
 import {classifyWalletSendError} from '../immediate-deploy/wallet-result.js';
 import {arcFeeParams} from '../immediate-deploy/arc-fees.js';
@@ -42,6 +43,8 @@ let balanceError = false;
 let balanceRequest = 0;
 let busy = false;
 let swapProgress = '';
+let statusEpoch = 0;
+const interactiveStatus = {buy:false,swap:false};
 let activeTab = 'buy';
 let activeStep = 'buy';
 
@@ -261,9 +264,12 @@ async function buy() {
   const hash = await tx('buy',56,A.pancake,data,quoted.value,{minOut:quoted.minOut.toString()});
   buyQuote = null; status('buy',`BNB transaction submitted: ${hash}. Checking the receipt…`); draw();
   await readers[56].waitForTransaction(hash,1,120000).catch(()=>null);
-  await refreshAll();
+  await refreshAll({operation:true});
 }
 async function quoteSwap() {
+  swapQuote = null;
+  renderLiveText();
+  draw();
   const quotedDirection = reverseSwap, quotedAccount = account;
   const value = amount($('journey-wotr').value.trim());
   assert(value < 2n**128n, 'Amount is too large for this pool.');
@@ -278,7 +284,14 @@ async function quoteSwap() {
   assert(quotedDirection ? usdcBalance > value : tokenBalance >= value, quotedDirection ? local('Keep enough native USDC for the amount and gas.','请留足兑换数量及 Gas 所需的原生 USDC。') : 'Not enough WOTR in this Arc wallet. Wait for bridge arrival.');
   assert(usdcBalance > 0n, 'Arc native USDC is needed for approval and swap gas.');
   const quoter = new Contract(A.quoter,quoterAbi,reader);
-  const result = await quoter.quoteExactInputSingle.staticCall({poolKey,zeroForOne:quotedDirection,exactAmount:value,hookData:'0x'});
+  let result;
+  try {
+    result = await quoter.quoteExactInputSingle.staticCall({poolKey,zeroForOne:quotedDirection,exactAmount:value,hookData:'0x'});
+  } catch (error) {
+    throw Error(quoteFailure(error) === 'liquidity'
+      ? local('Not enough pool liquidity to swap this full amount. Reduce the amount and refresh the quote. No swap was submitted.', '当前资金池流动性不足，无法完整兑换该数量。请减少数量后刷新报价；未提交兑换交易。')
+      : local('Quote is temporarily unavailable. Try refreshing again. No swap was submitted.', '暂时无法获取报价，请稍后重新刷新；未提交兑换交易。'));
+  }
   assert(result.amountOut > 0n, 'Arc pool returned no output quote.');
   assert(quotedDirection === reverseSwap && same(account,quotedAccount), 'Wallet or direction changed. Refresh the quote.');
   const minOut = result.amountOut*99n/100n;
@@ -286,6 +299,7 @@ async function quoteSwap() {
   const stage = quotedDirection ? 'swap' : tokenAllowance<value ? 'token' : permitAllowance.amount<value || permitAllowance.expiration<BigInt(block.timestamp+1200) ? 'permit' : 'swap';
   swapQuote = {reverse:quotedDirection,account:quotedAccount,value,out:result.amountOut,minOut,tokenBalance,usdcBalance,stage,at:Date.now()};
   renderLiveText();
+  status('swap','');
   draw();
 }
 async function swap() {
@@ -346,31 +360,37 @@ async function swap() {
   const hash = await tx('swap',5042,A.router,data,value,{direction:old.reverse ? 'usdc-to-wotr' : 'wotr-to-usdc',minOut:old.minOut.toString(),amountIn:old.value.toString()},guard);
   swapProgress = local('Confirming swap…','兑换确认中…');
   swapQuote = null; status('swap',`Arc swap submitted: ${hash}. Checking the receipt…`); draw();
-  await readers[5042].waitForTransaction(hash,1,120000).catch(()=>null); await refreshAll();
+  await readers[5042].waitForTransaction(hash,1,120000).catch(()=>null); await refreshAll({operation:true});
 }
-async function refreshAll() {
+async function refreshAll({operation=false} = {}) {
   if (!account) return;
+  const owner = account, epoch = statusEpoch;
+  const report = (kind,message) => {
+    if (same(owner,account) && epoch === statusEpoch && (operation || !busy && !interactiveStatus[kind])) status(kind,message);
+  };
   for (const kind of ['buy','approve-token','approve-permit','swap']) {
-    try { await verify(kind); } catch (error) { status(kind==='buy'?'buy':'swap',cleanError(error)); }
+    if (!same(owner,account)) return;
+    try { await verify(kind); } catch (error) { report(kind==='buy'?'buy':'swap',cleanError(error)); }
   }
+  if (!same(owner,account)) return;
   for (const kind of ['buy','swap']) { const item=record(kind); if (hashOk(item?.hash)) window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}})); }
   const buyRecord = record('buy'), swapRecord = record('swap');
-  if (buyRecord?.state === 'verified') status('buy','');
-  else if (buyRecord?.state === 'failed') status('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
-  else if (buyRecord) status('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
-  else status('buy','');
+  if (buyRecord?.state === 'verified') report('buy','');
+  else if (buyRecord?.state === 'failed') report('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
+  else if (buyRecord) report('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
+  else report('buy','');
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
-  if (swapRecord?.state === 'verified') status('swap',swapRecord.outputVerified === true
+  if (swapRecord?.state === 'verified') report('swap',(swapRecord.outputVerified === true || swapRecord.usdcArrivalVerified === true && swapRecord.direction !== 'usdc-to-wotr')
     ? ''
     : local(`Arc swap confirmed in block ${swapRecord.block}; checking swap output · ${swapRecord.hash}`,`Arc 兑换已在区块 ${swapRecord.block} 确认，正在核验兑换到账 · ${swapRecord.hash}`));
-  else if (swapRecord?.state === 'failed') status('swap',local('Arc swap failed on-chain. Refresh the quote before retrying.','Arc 兑换链上失败。刷新报价后再试。'));
-  else if (swapRecord) status('swap',local(`Arc swap is being checked${swapRecord.hash ? ': '+swapRecord.hash : ''}. Do not submit again.`,`正在核对 Arc 兑换${swapRecord.hash ? '：'+swapRecord.hash : ''}。请勿重复提交。`));
-  else if (permitRecord?.state === 'failed') status('swap',local('Swap access approval failed on-chain. Refresh the quote before retrying.','兑换权限授权链上失败。刷新报价后再试。'));
-  else if (permitRecord && permitRecord.state !== 'verified') status('swap',local(`Checking swap access approval${permitRecord.hash ? ': '+permitRecord.hash : ''}. Do not submit again.`,`正在核对兑换权限授权${permitRecord.hash ? '：'+permitRecord.hash : ''}。请勿重复提交。`));
-  else if (permitRecord?.state === 'verified') status('swap',local('Approval confirmed. Refresh the quote to continue.','授权已确认，请刷新报价后继续。'));
-  else if (tokenRecord?.state === 'failed') status('swap',local('WOTR approval failed on-chain. Refresh the quote before retrying.','WOTR 授权链上失败。刷新报价后再试。'));
-  else if (tokenRecord && tokenRecord.state !== 'verified') status('swap',local(`Checking WOTR approval${tokenRecord.hash ? ': '+tokenRecord.hash : ''}. Do not submit again.`,`正在核对 WOTR 授权${tokenRecord.hash ? '：'+tokenRecord.hash : ''}。请勿重复提交。`));
-  else if (tokenRecord?.state === 'verified') status('swap',local('WOTR approval confirmed. Refresh the quote to continue with approval and swap.','WOTR 授权已确认。刷新报价后，即可继续授权并兑换。'));
+  else if (swapRecord?.state === 'failed') report('swap',local('Arc swap failed on-chain. Refresh the quote before retrying.','Arc 兑换链上失败。刷新报价后再试。'));
+  else if (swapRecord) report('swap',local(`Arc swap is being checked${swapRecord.hash ? ': '+swapRecord.hash : ''}. Do not submit again.`,`正在核对 Arc 兑换${swapRecord.hash ? '：'+swapRecord.hash : ''}。请勿重复提交。`));
+  else if (permitRecord?.state === 'failed') report('swap',local('Swap access approval failed on-chain. Refresh the quote before retrying.','兑换权限授权链上失败。刷新报价后再试。'));
+  else if (permitRecord && permitRecord.state !== 'verified') report('swap',local(`Checking swap access approval${permitRecord.hash ? ': '+permitRecord.hash : ''}. Do not submit again.`,`正在核对兑换权限授权${permitRecord.hash ? '：'+permitRecord.hash : ''}。请勿重复提交。`));
+  else if (permitRecord?.state === 'verified') report('swap',local('Approval confirmed. Refresh the quote to continue.','授权已确认，请刷新报价后继续。'));
+  else if (tokenRecord?.state === 'failed') report('swap',local('WOTR approval failed on-chain. Refresh the quote before retrying.','WOTR 授权链上失败。刷新报价后再试。'));
+  else if (tokenRecord && tokenRecord.state !== 'verified') report('swap',local(`Checking WOTR approval${tokenRecord.hash ? ': '+tokenRecord.hash : ''}. Do not submit again.`,`正在核对 WOTR 授权${tokenRecord.hash ? '：'+tokenRecord.hash : ''}。请勿重复提交。`));
+  else if (tokenRecord?.state === 'verified') report('swap',local('WOTR approval confirmed. Refresh the quote to continue with approval and swap.','WOTR 授权已确认。刷新报价后，即可继续授权并兑换。'));
   await loadBalances();
   draw();
 }
@@ -436,10 +456,17 @@ function renderSwapDirection() {
 }
 async function run(action, kind) {
   if (busy) return;
+  statusEpoch++; if (kind === 'swap') interactiveStatus.swap = true; status(kind,'');
   busy = true; draw();
   try { await action(); }
   catch (error) { status(kind,cleanError(error)); }
-  finally { busy = false; swapProgress = ''; draw(); }
+  finally {
+    busy = false; swapProgress = '';
+    // Submitted transactions keep reconciling after the current action ends.
+    // A quote-only error remains owned by the form until the next user action.
+    if (kind === 'swap' && ['approve-token','approve-permit','swap'].some(item=>record(item) && !['failed','verified'].includes(record(item).state))) interactiveStatus.swap = false;
+    draw();
+  }
 }
 $('nav-buy').addEventListener('click',()=>setTab('buy'));
 $('nav-bridge').addEventListener('click',()=>setTab('bridge'));
@@ -448,13 +475,13 @@ for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventLi
 $('header-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));
 $('journey-bnb').addEventListener('input',()=>{buyQuote=null;renderLiveText();draw();});
-$('journey-wotr').addEventListener('input',()=>{swapQuote=null;renderLiveText();draw();});
+$('journey-wotr').addEventListener('input',()=>{statusEpoch++;interactiveStatus.swap=true;status('swap','');swapQuote=null;renderLiveText();draw();});
 $('journey-buy-refresh').addEventListener('click',()=>run(quoteBuy,'buy'));
 $('journey-buy-action').addEventListener('click',()=>run(buy,'buy'));
-$('journey-swap-direction').addEventListener('click',()=>{if ($('journey-swap-direction').disabled) return; reverseSwap=!reverseSwap; swapQuote=null; $('journey-wotr').value=''; status('swap',''); renderLiveText(); draw();});
+$('journey-swap-direction').addEventListener('click',()=>{if ($('journey-swap-direction').disabled) return; statusEpoch++;interactiveStatus.swap=true; reverseSwap=!reverseSwap; swapQuote=null; $('journey-wotr').value=''; status('swap',''); renderLiveText(); draw();});
 $('journey-swap-refresh').addEventListener('click',()=>run(quoteSwap,'swap'));
 $('journey-swap-action').addEventListener('click',()=>run(swap,'swap'));
-window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){buyQuote=null;swapQuote=null;balanceData=null;balanceError=false;balanceRequest++;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
+window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){statusEpoch++;interactiveStatus.buy=false;interactiveStatus.swap=false;status('buy','');status('swap','');buyQuote=null;swapQuote=null;balanceData=null;balanceError=false;balanceRequest++;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
 window.addEventListener('tevumi:locale-change',()=>{renderLiveText();draw();});
 setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30000);
 if (new URLSearchParams(window.location.search).get('action') === 'swap') setTab('swap');

@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+Quote failures now distinguish insufficient pool liquidity from temporary quote unavailability. Failed refreshes invalidate previous quotes; completed saved swaps no longer overwrite the current form status. Pending transactions still reconcile without resubmission. Liquidity is limited: a smaller amount may quote when a larger one cannot; always check the live quote.
+
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available.
