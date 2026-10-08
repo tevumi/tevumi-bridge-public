@@ -12,6 +12,7 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(__file__))
 import cctp_history
+import swap_history
 
 DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', '/var/lib/tevumi/transfer-history.sqlite3')
 HOST = os.environ.get('TEVUMI_HISTORY_HOST', '127.0.0.1')
@@ -77,6 +78,12 @@ def database():
       input_amount TEXT, output_amount TEXT, status TEXT NOT NULL,
       block_number INTEGER, created_at INTEGER NOT NULL, checked_at INTEGER NOT NULL,
       PRIMARY KEY(kind, tx_hash))''')
+    columns = {row[1] for row in connection.execute('PRAGMA table_info(journey_transfers)')}
+    for name in ('input_asset', 'output_asset'):
+        if name not in columns:
+            connection.execute(f'ALTER TABLE journey_transfers ADD COLUMN {name} TEXT')
+    connection.execute("UPDATE journey_transfers SET input_asset=CASE WHEN kind='buy' THEN 'BNB' ELSE 'WOTR' END, output_asset=CASE WHEN kind='buy' THEN 'WOTR' ELSE 'USDC' END WHERE input_asset IS NULL OR output_asset IS NULL")
+    connection.commit()
     connection.execute('CREATE INDEX IF NOT EXISTS journey_account_time ON journey_transfers(account,kind,created_at DESC)')
     return connection
 
@@ -95,10 +102,8 @@ def journey_input(kind, tx, account):
         if len(words) < 7 or words[1] != 128 or words[2] != int(account, 16) or words[4] != 2 or words[5] != int(WBNB, 16) or words[6] != int(WOTR[56], 16) or words[0] <= 0 or int(tx.get('value', '0x0'), 16) <= 0:
             raise ValueError('Buy route mismatch')
         return str(int(tx['value'], 16)), words[0]
-    # execute(bytes commands, bytes[] inputs, uint256 deadline), v4 swap command 0x10.
-    if len(words) < 5 or words[0] != 96 or words[3] != 1 or words[4] >> 248 != 0x10 or int(tx.get('value', '0x0'), 16) != 0:
-        raise ValueError('Swap route mismatch')
-    return None, None
+    reverse, amount, minimum = swap_history.inspect_input(tx)
+    return str(amount), minimum
 
 
 def transfer_amount(receipt, token, sender, recipient):
@@ -122,6 +127,9 @@ def inspect_journey(kind, tx_hash):
         raise ValueError('Not a Tevumi journey transaction')
     account = tx['from'].lower()
     input_amount, minimum = journey_input(kind, tx, account)
+    reverse = kind == 'swap' and int(tx.get('value', '0x0'), 16) > 0
+    input_asset = 'BNB' if kind == 'buy' else 'USDC' if reverse else 'WOTR'
+    output_asset = 'WOTR' if kind == 'buy' or reverse else 'USDC'
     status, output_amount, block_number = 'pending', None, None
     created_at = int(time.time())
     receipt = rpc(chain, 'eth_getTransactionReceipt', [tx_hash]) if tx.get('blockNumber') else None
@@ -139,18 +147,16 @@ def inspect_journey(kind, tx_hash):
                 raise ValueError('Buy receipt has no matching WOTR delivery')
             status, output_amount = 'verified', str(received)
         else:
-            spent = transfer_amount(receipt, WOTR[5042], account, ARC_POOL_MANAGER)
-            if spent <= 0:
-                raise ValueError('Swap receipt has no matching WOTR debit')
-            before = int(rpc(chain, 'eth_getBalance', [account, hex(block_number - 1)]), 16)
-            after = int(rpc(chain, 'eth_getBalance', [account, hex(block_number)]), 16)
-            gas = int(receipt['gasUsed'], 16) * int(receipt['effectiveGasPrice'], 16)
-            received = after - before + gas
-            if received <= 0:
-                raise ValueError('Swap receipt has no matching native USDC increase')
-            status, input_amount, output_amount = 'verified', str(spent), str(received)
+            received = swap_history.receipt_output(receipt, reverse, int(input_amount), minimum)
+            moved = transfer_amount(receipt, WOTR[5042],
+                                    ARC_POOL_MANAGER if reverse else account,
+                                    account if reverse else ARC_POOL_MANAGER)
+            if moved != (received if reverse else int(input_amount)):
+                raise ValueError('Swap receipt has no matching wallet transfer')
+            status, output_amount = 'verified', str(received)
     return {'kind': kind, 'tx_hash': tx_hash.lower(), 'account': account,
             'input_amount': input_amount, 'output_amount': output_amount,
+            'input_asset': input_asset, 'output_asset': output_asset,
             'status': status, 'block_number': block_number, 'created_at': created_at}
 
 
@@ -158,10 +164,11 @@ def upsert_journey(connection, kind, tx_hash):
     item = inspect_journey(kind, tx_hash)
     now = int(time.time())
     connection.execute('''INSERT INTO journey_transfers
-      (kind,tx_hash,account,input_amount,output_amount,status,block_number,created_at,checked_at)
-      VALUES(:kind,:tx_hash,:account,:input_amount,:output_amount,:status,:block_number,:created_at,:checked_at)
+      (kind,tx_hash,account,input_amount,output_amount,input_asset,output_asset,status,block_number,created_at,checked_at)
+      VALUES(:kind,:tx_hash,:account,:input_amount,:output_amount,:input_asset,:output_asset,:status,:block_number,:created_at,:checked_at)
       ON CONFLICT(kind,tx_hash) DO UPDATE SET input_amount=COALESCE(excluded.input_amount,journey_transfers.input_amount),
       output_amount=COALESCE(excluded.output_amount,journey_transfers.output_amount),
+      input_asset=excluded.input_asset,output_asset=excluded.output_asset,
       status=excluded.status,block_number=excluded.block_number,created_at=excluded.created_at,
       checked_at=excluded.checked_at''',
       {**item, 'checked_at': now})
@@ -345,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
                 kind = query.get('kind', [''])[0]
                 if kind not in JOURNEY:
                     return self.send_json(400, {'error': 'Invalid kind'})
-                rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,status,block_number,created_at
+                rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,input_asset,output_asset,status,block_number,created_at
                   FROM journey_transfers WHERE account=? AND kind=? ORDER BY created_at DESC,tx_hash DESC LIMIT 11 OFFSET ?''',
                   (account, kind, page * 10)).fetchall()
             elif url.path == '/usdc-transfers':

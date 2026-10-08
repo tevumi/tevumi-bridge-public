@@ -42,14 +42,15 @@ function render(kind) {
     const top = document.createElement('div');
     top.className = 'history-card-top';
     const title = document.createElement('strong');
-    title.textContent = kind === 'buy' ? text('BNB Chain · BNB → WOTR', 'BNB Chain · BNB → WOTR') : text('Arc · WOTR → USDC', 'Arc · WOTR → USDC');
+    const reverse = kind === 'swap' && item.input_asset === 'USDC' && item.output_asset === 'WOTR';
+    title.textContent = kind === 'buy' ? 'BNB Chain · BNB → WOTR' : reverse ? 'Arc · USDC → WOTR' : 'Arc · WOTR → USDC';
     const badge = document.createElement('span');
     badge.className = `history-status history-${item.status}`;
     badge.textContent = item.status === 'verified' ? text('Completed', '已完成') : item.status === 'failed' ? text('Failed on-chain', '链上失败') : text('Confirming', '确认中');
     top.append(title, badge);
     const meta = document.createElement('p');
-    const inputUnit = kind === 'buy' ? 'BNB' : 'WOTR';
-    const outputUnit = kind === 'buy' ? 'WOTR' : 'USDC';
+    const inputUnit = kind === 'buy' ? 'BNB' : reverse ? 'USDC' : 'WOTR';
+    const outputUnit = kind === 'buy' || reverse ? 'WOTR' : 'USDC';
     const input = /^\d+$/.test(item.input_amount || '') ? `${formatEther(BigInt(item.input_amount))} ${inputUnit}` : text('Amount unverified', '数量未核验');
     const output = item.status === 'verified' && /^\d+$/.test(item.output_amount || '') ? ` → ${formatEther(BigInt(item.output_amount))} ${outputUnit}` : '';
     meta.textContent = `${input}${output} · ${new Date(item.created_at * 1000).toLocaleString(currentLanguage(), {hour12: false})}`;

@@ -83,3 +83,6 @@ input{caret-color:var(--mint)}
 @media(max-width:760px){body{background-size:auto 1200px}.context-art,.context-view#context-buy .context-art,.context-view#context-swap .context-art,.aside .context-art{display:none}.brand img,.site-sidebar .brand img{width:39px;height:34px}.journey-next .journey-portal a{font-size:12px}.flow-aside{display:block}.route-chain>strong{font-size:14px;padding:8px;gap:5px}.route-chain-icon{width:23px;height:23px;padding:2px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}.journey-actions button:hover,.bridge-form .primary-action button:hover,#bridge-button:hover{transform:none}}
 @media(forced-colors:active){body{background:Canvas;color:CanvasText}.context-art{display:none}.bridge-form,.journey-card,.form-card,.history-card,.transfer-history{border:1px solid CanvasText}}
+
+.journey-card button.swap-direction { margin: 0 0 18px; min-height: 40px; width: auto; padding: 8px 18px; background: #0b2228; color: var(--mint); border: 1px solid var(--mint); border-radius: 10px; box-shadow: none; }
+.journey-card button.swap-direction:hover:not(:disabled) { background: #173a40; }

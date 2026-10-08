@@ -4,11 +4,14 @@
 
 Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available.
 
+
+**2026-10-08 · Bidirectional Swap:** Use the direction button in Swap to select USDC → WOTR, enter a small amount, refresh the quote, then confirm the swap in your wallet. Changing direction clears the amount and quote. Server history distinguishes both directions, including older WOTR → USDC entries. The native USDC amount uses 18 decimals; this is not the separate 6-decimal CCTP token interface. No new pool or liquidity was added.
+
 ## Current deployment and permissions
 
 The current public asset picker supports WOTR only. 币安人生 and CAT were retired on October 4; references below describe historical tests, not currently offered assets. Historical deployment JSON files must not be treated as the live route list. See [deployment identities and dated limits](config/README.md).
 
-The live WOTR bridge uses ImmediateAdmin contracts controlled by a single EOA, with no timelock. Separate timelock/governance candidate contracts in this repository are not deployed as the live WOTR bridge. The October 8 read-only snapshot found a 1,000,000 WOTR single-transfer cap on both chains and near-maximum bucket window settings; these do not represent a meaningful daily risk-control quota. The Arc Swap UI currently supports WOTR → native USDC only; reverse swaps are not offered or validated by this application.
+The live WOTR bridge uses ImmediateAdmin contracts controlled by a single EOA, with no timelock. Separate timelock/governance candidate contracts in this repository are not deployed as the live WOTR bridge. The October 8 read-only snapshot found a 1,000,000 WOTR single-transfer cap on both chains and near-maximum bucket window settings; these do not represent a meaningful daily risk-control quota. Arc Swap now supports WOTR ↔ native USDC using the existing Uniswap V4 pool. Reverse swaps pay native USDC directly and do not require token approval; keep additional native USDC for gas. Both directions passed isolated mainnet-fork tests and simulated-wallet browser checks. A real-wallet mainnet reverse trade is still awaiting user validation.
 
 **Live app:** https://bridge.tevumi.com/ · **Status checked:** October 7, 2026
 
