@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+Buy, Bridge and Swap now keep the selected view on browser refresh. The current view is saved in each tab’s URL, preserving other query parameters and fragments. Bridge USDC remains on its independent page.
+
 Wallet restoration now locks only the bridge controls it owns. Navigation, language and Swap direction remain usable while chain reads are pending; transaction submission still waits for wallet activity and required checks.
 
 Quote failures now distinguish insufficient pool liquidity from temporary quote unavailability. Failed refreshes invalidate previous quotes; completed saved swaps no longer overwrite the current form status. Pending transactions still reconcile without resubmission. Liquidity is limited: a smaller amount may quote when a larger one cannot; always check the live quote.

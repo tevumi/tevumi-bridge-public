@@ -23,6 +23,7 @@ try {
   for(let round=0;round<2;round++){
    if(round)await page.reload({waitUntil:'domcontentloaded'});else await page.goto(startUrl.href,{waitUntil:'domcontentloaded'});
    await page.locator('#header-connect.tevumi-active-wallet').waitFor({timeout:10000});
+   if(await page.locator('#nav-swap').getAttribute('aria-current')!=='page')throw Error('RESTORED_WALLET_RESET_CURRENT_TAB');
    if(!blocked)throw Error('RPC_NOT_PENDING');
    for(const tab of ['bridge','swap','buy']){
     const start=Date.now();

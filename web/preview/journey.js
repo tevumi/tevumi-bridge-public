@@ -45,7 +45,8 @@ let busy = false;
 let swapProgress = '';
 let statusEpoch = 0;
 const interactiveStatus = {buy:false,swap:false};
-let activeTab = 'buy';
+const requestedTab = new URLSearchParams(window.location.search).get('action');
+let activeTab = ['buy','bridge','swap'].includes(requestedTab) ? requestedTab : 'buy';
 let activeStep = 'buy';
 
 function key(kind,owner=account) { return `tevumi-journey-v1:${owner?.toLowerCase()}:${kind}`; }
@@ -60,6 +61,10 @@ function amount(value) {
 function setTab(tab) {
   const previousTab = activeTab;
   activeTab = tab;
+  // The URL belongs to this browser tab: refresh and copied links restore it.
+  const url = new URL(window.location.href);
+  url.searchParams.set('action',tab);
+  if (url.href !== window.location.href) window.history.replaceState(window.history.state,'',url);
   document.body.dataset.view = tab;
   window.dispatchEvent(new CustomEvent('tevumi:journey-tab',{detail:{tab}}));
   $('asset-picker').hidden = tab !== 'bridge';
@@ -484,7 +489,6 @@ $('journey-swap-action').addEventListener('click',()=>run(swap,'swap'));
 window.addEventListener('tevumi:bridge-view',()=>{const before=account;draw();if (account!==before){statusEpoch++;interactiveStatus.buy=false;interactiveStatus.swap=false;status('buy','');status('swap','');buyQuote=null;swapQuote=null;balanceData=null;balanceError=false;balanceRequest++;renderLiveText();$('journey-balances').textContent=local('Live balances appear here after connection.','连接后将在这里显示实时余额。');draw();if(account)void refreshAll();}});
 window.addEventListener('tevumi:locale-change',()=>{renderLiveText();draw();});
 setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30000);
-if (new URLSearchParams(window.location.search).get('action') === 'swap') setTab('swap');
 draw();
 setTab(activeTab);
 setStep(activeStep);
