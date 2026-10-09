@@ -232,8 +232,8 @@ function renderLiveText() {
     `路径：${buyQuote.route==='curve'?'Four.meme 联合曲线':'PancakeSwap V2'}\n预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n交易支付：${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX 交易费已包含在报价中。':`已含协议交易费：${formatEther(buyQuote.fee)} BNB`}\n预计价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`)
     : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
   $('journey-buy-card').querySelector('h3 + p').textContent=local('Four.meme curve → PancakeSwap after graduation','Four.meme 联合曲线 → 毕业后 PancakeSwap');
-  $('context-buy').querySelector('h3 + p').textContent=local('Buy the new WOTR on BNB Chain. The trading route is selected from its on-chain graduation state.','在 BNB Chain 购买新 WOTR，系统根据链上毕业状态选择交易路径。');
-  $('journey-buy-identity').textContent=local(`New WOTR: ${BUY.token}\nThis token is not yet supported by the Bridge or Arc Swap pages.`,`新 WOTR：${BUY.token}\n该代币尚未接入当前跨链和 Arc 兑换页面。`);
+  $('context-buy').querySelector('h3 + p').textContent=local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
+  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nThis WOTR does not yet support bridging or swaps on Arc.`,`WOTR 合约：${BUY.token}\n此 WOTR 暂不支持跨链或 Arc 兑换。`);
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} ${units.output}\nMinimum receive: ${formatEther(swapQuote.minOut)} ${units.output} (1% slippage)\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} ${units.output}\n最低收到：${formatEther(swapQuote.minOut)} ${units.output}（1% 滑点）\nGas 另计，报价 60 秒后失效。`);
