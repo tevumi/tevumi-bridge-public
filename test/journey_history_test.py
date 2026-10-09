@@ -35,6 +35,30 @@ def pool_event(reverse=False, amount=8, output=11):
 
 
 class JourneyHistoryTest(unittest.TestCase):
+    def test_four_curve_requires_matching_purchase_and_delivery(self):
+        new=history.buy_history
+        tx={'from':ACCOUNT,'to':new.MANAGER,'input':new.CURVE_SELECTOR+words(int(new.TOKEN,16),10,5),'value':'0xa','blockNumber':'0x2'}
+        purchase={'address':new.MANAGER,'topics':[new.PURCHASE],'data':'0x'+words(int(new.TOKEN,16),int(ACCOUNT,16),1,7,9,1,100,10)}
+        receipt={'status':'0x1','blockNumber':'0x2','logs':[transfer(new.TOKEN,new.MANAGER,ACCOUNT,7),purchase]}
+        with patch.object(history,'rpc',side_effect=[tx,receipt,{'timestamp':'0x64'}]):
+            item=history.inspect_journey('buy',HASH)
+        self.assertEqual((item['output_amount'],item['token_address'],item['buy_route']),('7',new.TOKEN,'four-curve'))
+        for bad in ([receipt['logs'][0]],[purchase],[*receipt['logs'],purchase],[transfer(new.TOKEN,history.BNB_PAIR,ACCOUNT,7),purchase]):
+            with patch.object(history,'rpc',side_effect=[tx,{**receipt,'logs':bad},{'timestamp':'0x64'}]):
+                with self.assertRaises(ValueError):history.inspect_journey('buy',HASH)
+        for bad in (tx['input']+'00'*32,new.CURVE_SELECTOR+words(int(new.TOKEN,16),10,0)):
+            with self.assertRaises(ValueError):history.journey_input('buy',{**tx,'input':bad},ACCOUNT)
+
+    def test_new_dex_uses_factory_pair_and_preserves_token_identity(self):
+        new=history.buy_history;pair='0x'+'3'*40
+        tx={'from':ACCOUNT,'to':history.JOURNEY['buy'][1],'input':'0x7ff36ab5'+words(5,128,int(ACCOUNT,16),100,2,int(history.WBNB,16),int(new.TOKEN,16)),'value':'0xa','blockNumber':'0x2'}
+        receipt={'status':'0x1','blockNumber':'0x2','logs':[transfer(new.TOKEN,pair,ACCOUNT,7)]}
+        with patch.object(history,'rpc',side_effect=[tx,receipt,{'timestamp':'0x64'},'0x'+words(int(pair,16))]):
+            item=history.inspect_journey('buy',HASH)
+        self.assertEqual((item['output_amount'],item['token_address'],item['buy_route']),('7',new.TOKEN,'pancake-v2'))
+        with patch.object(history,'rpc',side_effect=[tx,receipt,{'timestamp':'0x64'},'0x'+words(0)]):
+            with self.assertRaises(ValueError):history.inspect_journey('buy',HASH)
+
     def test_buy_requires_planned_route_and_delivered_wotr(self):
         data = '0x7ff36ab5' + words(5, 128, int(ACCOUNT, 16), 100, 2,
                                     int(history.WBNB, 16), int(history.WOTR[56], 16))

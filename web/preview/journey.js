@@ -1,5 +1,6 @@
 import {BrowserProvider, Contract, Interface, ZeroAddress, formatEther, getAddress, parseEther} from 'ethers';
 import {buildSwapPlan, verifySwapReceipt, swapAssets} from './swap-plan.js';
+import {BUY,quoteNewBuy,assertBuyRefresh,buyCall,verifyBuyReceipt} from './buy-plan.js';
 import {quoteFailure} from './quote-error.js';
 import {rpc} from '../immediate-deploy/rpc.js';
 import {classifyWalletSendError} from '../immediate-deploy/wallet-result.js';
@@ -36,6 +37,7 @@ const cleanError = error => String(error?.shortMessage || error?.message || erro
 const local = (en,zh) => currentLanguage() === 'zh-CN' ? zh : en;
 let account = null;
 let buyQuote = null;
+let buyRequest = 0;
 let swapQuote = null;
 let reverseSwap = false;
 let balanceData = null;
@@ -108,7 +110,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   const transactionAccount = account;
   const wallet=selectedWalletProvider();
   await walletOn(chainId,wallet);
-  guard();
+  await guard();
   const reader = readers[chainId];
   const nonce = await reader.getTransactionCount(account, 'pending');
   let gasEstimate;
@@ -129,7 +131,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   assert(maxGasPrice > 0n, 'Network fee quote is unavailable.');
   assert(await reader.getBalance(account) > value + gasEstimate * 13n / 10n * maxGasPrice, 'Wallet lacks native coin for the amount and maximum estimated gas.');
   const pending = {state:'unknown',nonce,chainId,to,data,value:value.toString(),createdAt:Date.now(),...extra};
-  guard();
+  await guard(true);
   save(kind,pending,transactionAccount);
   const request = {from:account,to,data,value:'0x'+value.toString(16),gas:'0x'+(gasEstimate*12n/10n+1n).toString(16),chainId:'0x'+chainId.toString(16)};
   if (chainId === 56) request.gasPrice = '0x'+gasPrice.toString(16);
@@ -143,7 +145,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   assert(hashOk(hash), 'Wallet did not return a transaction hash. Do not submit again.');
   save(kind,{...pending,state:'submitted',hash},transactionAccount);
   if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash}}));
-  guard();
+  await guard();
   return hash;
 }
 async function verify(kind) {
@@ -160,13 +162,7 @@ async function verify(kind) {
   assert(same(transaction.from,verificationAccount) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), 'Saved transaction does not match the chain transaction.');
   if (receipt.status !== 1) { save(kind,{...item,state:'failed'},verificationAccount); return {...item,state:'failed'}; }
   if (kind === 'buy') {
-    let received = 0n;
-    const iface = new Interface(tokenAbi);
-    for (const log of receipt.logs) {
-      if (!same(log.address,A.bnbWotr)) continue;
-      try { const event = iface.parseLog(log); if (event?.name === 'Transfer' && same(event.args.from,A.pair) && same(event.args.to,account)) received += event.args.value; } catch { /* ignore other logs */ }
-    }
-    assert(received >= BigInt(item.minOut) && received > 0n, 'WOTR receipt does not show the minimum tokens received.');
+    const received = verifyBuyReceipt(receipt,verificationAccount,{...item,token:item.token || A.bnbWotr,sender:item.sender || A.pair});
     item.received = received.toString();
   }
   if (kind === 'swap') {
@@ -189,7 +185,7 @@ async function balances(requestId) {
   if (!account) return;
   const requestedAccount = account;
   const [bnbWotr,arcWotr,bnb,arcUsdc] = await Promise.all([
-    new Contract(A.bnbWotr,tokenAbi,readers[56]).balanceOf(requestedAccount),
+    new Contract(BUY.token,tokenAbi,readers[56]).balanceOf(requestedAccount),
     new Contract(A.arcWotr,tokenAbi,readers[5042]).balanceOf(requestedAccount),
     readers[56].getBalance(requestedAccount),readers[5042].getBalance(requestedAccount),
   ]);
@@ -231,7 +227,13 @@ function renderLiveText() {
     const {bnb,bnbWotr,arcWotr,arcUsdc} = balanceData;
     $('journey-balances').textContent = local(`BNB Chain: ${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc: ${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC for gas`,`BNB Chain：${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc：${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC 可支付 Gas`);
   }
-  if (buyQuote) $('journey-buy-quote').textContent = local(`Estimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nEstimated pool impact: ${(buyQuote.impactBps/100).toFixed(2)}% · BNB block ${buyQuote.block}\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n预计池子价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`);
+  $('journey-buy-quote').textContent = buyQuote ? local(
+    `Route: ${buyQuote.route==='curve'?'Four.meme bonding curve':'PancakeSwap V2'}\nEstimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nTransaction payment: ${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX trading fee included in quote.':`Protocol fee included: ${formatEther(buyQuote.fee)} BNB`}\nEstimated price impact: ${(buyQuote.impactBps/100).toFixed(2)}% · BNB block ${buyQuote.block}\nGas is charged separately. Quote expires after 60 seconds.`,
+    `路径：${buyQuote.route==='curve'?'Four.meme 联合曲线':'PancakeSwap V2'}\n预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n交易支付：${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX 交易费已包含在报价中。':`已含协议交易费：${formatEther(buyQuote.fee)} BNB`}\n预计价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`)
+    : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
+  $('journey-buy-card').querySelector('h3 + p').textContent=local('Four.meme curve → PancakeSwap after graduation','Four.meme 联合曲线 → 毕业后 PancakeSwap');
+  $('context-buy').querySelector('h3 + p').textContent=local('Buy the new WOTR on BNB Chain. The trading route is selected from its on-chain graduation state.','在 BNB Chain 购买新 WOTR，系统根据链上毕业状态选择交易路径。');
+  $('journey-buy-identity').textContent=local(`New WOTR: ${BUY.token}\nThis token is not yet supported by the Bridge or Arc Swap pages.`,`新 WOTR：${BUY.token}\n该代币尚未接入当前跨链和 Arc 兑换页面。`);
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} ${units.output}\nMinimum receive: ${formatEther(swapQuote.minOut)} ${units.output} (1% slippage)\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} ${units.output}\n最低收到：${formatEther(swapQuote.minOut)} ${units.output}（1% 滑点）\nGas 另计，报价 60 秒后失效。`);
@@ -242,18 +244,12 @@ function renderLiveText() {
   $('journey-swap-out').textContent = swapQuote ? Number(formatEther(swapQuote.out)).toLocaleString(currentLanguage()==='zh-CN'?'zh-CN':'en-US',{maximumFractionDigits:6}) : '—';
 }
 async function quoteBuy() {
+  const request = ++buyRequest, owner=account;
+  buyQuote=null; renderLiveText(); draw();
   const value = amount($('journey-bnb').value.trim());
-  const reader = readers[56], pair = new Contract(A.pair,pairAbi,reader), router = new Contract(A.pancake,pancakeAbi,reader);
-  const [network,code,reserves,token0,token1,weth,output,block] = await Promise.all([
-    reader.getNetwork(),reader.getCode(A.pair),pair.getReserves(),pair.token0(),pair.token1(),router.WETH(),router.getAmountsOut(value,[A.wbnb,A.bnbWotr]),reader.getBlock('latest'),
-  ]);
-  assert(network.chainId === 56n && code !== '0x' && same(weth,A.wbnb) && [token0,token1].some(t=>same(t,A.wbnb)) && [token0,token1].some(t=>same(t,A.bnbWotr)), 'BNB pool or router identity is unexpected.');
-  const reserveBnb = same(token0,A.wbnb) ? reserves[0] : reserves[1];
-  const reserveWotr = same(token0,A.bnbWotr) ? reserves[0] : reserves[1];
-  assert(reserveBnb > 0n && reserveWotr > 0n && output[1] > 0n && output[1] < reserveWotr, 'Pool quote or reserves are unavailable.');
-  const minOut = output[1]*99n/100n;
-  const impactBps = Number((value*10000n)/(reserveBnb+value));
-  buyQuote = {value,out:output[1],minOut,impactBps,block:block.number,at:Date.now()};
+  const result = await quoteNewBuy(readers[56],value);
+  assert(request===buyRequest && same(owner,account) && amount($('journey-bnb').value.trim())===value,'Wallet or amount changed. Refresh the quote.');
+  buyQuote = {...result,account:owner};
   renderLiveText();
   draw();
 }
@@ -263,10 +259,21 @@ async function buy() {
   const quoted = buyQuote;
   assert(amount($('journey-bnb').value.trim()) === quoted.value, 'Amount changed. Refresh the quote.');
   await quoteBuy();
-  assert(buyQuote.out >= quoted.minOut, 'Price changed beyond the prior minimum. Refresh and review the quote.');
+  assertBuyRefresh(quoted,buyQuote);
+  const owner=account, provider=selectedWalletProvider();
   const deadline = BigInt((await readers[56].getBlock('latest')).timestamp + 900);
-  const data = new Interface(pancakeAbi).encodeFunctionData('swapExactETHForTokens',[quoted.minOut,[A.wbnb,A.bnbWotr],account,deadline]);
-  const hash = await tx('buy',56,A.pancake,data,quoted.value,{minOut:quoted.minOut.toString()});
+  const data = buyCall(quoted,account,deadline);
+  const guard=async(beforeSend=false)=>{
+    const check=()=>assert(same(owner,account) && selectedWalletProvider()===provider && buyQuote && same(quoted.account,account) && Date.now()-quoted.at<60000 && amount($('journey-bnb').value.trim())===quoted.value,'Wallet, amount or quote changed. Refresh before signing.');
+    check();
+    if(beforeSend){
+      let fresh;
+      try{fresh=await quoteNewBuy(readers[56],quoted.value);}catch(error){buyQuote=null;renderLiveText();throw error;}
+      check();
+      try{assertBuyRefresh(quoted,fresh);}catch(error){buyQuote={...fresh,account:owner};renderLiveText();throw error;}
+    }
+  };
+  const hash = await tx('buy',56,quoted.to,data,quoted.msgValue,{minOut:quoted.minOut.toString(),token:BUY.token,sender:quoted.sender,route:quoted.route,amountIn:quoted.value.toString()},guard);
   buyQuote = null; status('buy',`BNB transaction submitted: ${hash}. Checking the receipt…`); draw();
   await readers[56].waitForTransaction(hash,1,120000).catch(()=>null);
   await refreshAll({operation:true});
@@ -461,15 +468,28 @@ function renderSwapDirection() {
 }
 async function run(action, kind) {
   if (busy) return;
-  statusEpoch++; if (kind === 'swap') interactiveStatus.swap = true; status(kind,'');
+  statusEpoch++; if (kind === 'swap' || kind === 'buy') interactiveStatus[kind] = true; status(kind,'');
   busy = true; draw();
   try { await action(); }
-  catch (error) { status(kind,cleanError(error)); }
+  catch (error) {
+    const message=cleanError(error);
+    if(kind==='buy'){
+      const known={
+        'Liquidity migration is in progress. Refresh shortly.':'流动性正在迁移，请稍后刷新报价。',
+        'Trading route changed. Review the new quote before signing.':'交易路径已变化，请查看新报价后再次确认。',
+        'Price or fees changed. Review the new quote before signing.':'价格或费用已变化，请查看新报价后再次确认。',
+        'The curve cannot quote this full budget. Reduce the amount and refresh.':'联合曲线无法完整执行此金额，请减少金额后刷新报价。',
+        'PancakeSwap liquidity is not ready.':'PancakeSwap 流动性尚未就绪，请稍后刷新报价。',
+      };
+      status(kind,known[message]?local(message,known[message]):/missing revert data|execution reverted/i.test(message)?local('Buy quote or transaction simulation failed. Refresh the quote; no new purchase was submitted.','购买报价或交易预检失败，请刷新报价；未提交新的购买交易。'):message);
+    }else status(kind,message);
+  }
   finally {
     busy = false; swapProgress = '';
     // Submitted transactions keep reconciling after the current action ends.
     // A quote-only error remains owned by the form until the next user action.
     if (kind === 'swap' && ['approve-token','approve-permit','swap'].some(item=>record(item) && !['failed','verified'].includes(record(item).state))) interactiveStatus.swap = false;
+    if(kind==='buy' && record('buy') && !['failed','verified'].includes(record('buy').state)) interactiveStatus.buy=false;
     draw();
   }
 }
@@ -479,7 +499,7 @@ $('nav-swap').addEventListener('click',()=>setTab('swap'));
 for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventListener('click',()=>setStep(step));
 $('header-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));
-$('journey-bnb').addEventListener('input',()=>{buyQuote=null;renderLiveText();draw();});
+$('journey-bnb').addEventListener('input',()=>{buyRequest++;statusEpoch++;interactiveStatus.buy=true;status('buy','');buyQuote=null;renderLiveText();draw();});
 $('journey-wotr').addEventListener('input',()=>{statusEpoch++;interactiveStatus.swap=true;status('swap','');swapQuote=null;renderLiveText();draw();});
 $('journey-buy-refresh').addEventListener('click',()=>run(quoteBuy,'buy'));
 $('journey-buy-action').addEventListener('click',()=>run(buy,'buy'));

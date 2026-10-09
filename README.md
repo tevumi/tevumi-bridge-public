@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+**October 9, 2026 · New Buy asset:** Buy now uses WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`. Before graduation it quotes and buys through Four.meme; after graduation it discovers and validates the PancakeSwap V2 pool. During migration or without a usable pool, purchasing is blocked. Quotes expire after 60 seconds and purchases enforce a minimum receipt. New-token curve purchases passed isolated mainnet-fork tests; the graduated route passed simulated tests and still needs validation against the real migrated pool. **Bridge and Arc Swap continue to use the legacy WOTR, so the new Buy token cannot yet follow that route.** Buy history identifies each token by its contract address.
+
 Buy, Bridge and Swap now keep the selected view on browser refresh. The current view is saved in each tab’s URL, preserving other query parameters and fragments. Bridge USDC remains on its independent page.
 
 Wallet restoration now locks only the bridge controls it owns. Navigation, language and Swap direction remain usable while chain reads are pending; transaction submission still waits for wallet activity and required checks.
@@ -8,7 +10,7 @@ Quote failures now distinguish insufficient pool liquidity from temporary quote 
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge now centers on the community demonstration token **Wobble Otter (WOTR)**: buy it on BNB Chain, bridge it to Arc, and optionally swap it for native USDC. Direct WOTR transfers in either direction remain available.
+Tevumi Bridge uses the community demonstration token **Wobble Otter (WOTR)**. The historical Buy → Bridge → Arc Swap demonstrations below use the legacy contract; the new Buy contract is identified above. Direct legacy WOTR transfers in either direction remain available.
 
 
 **2026-10-08 · Bidirectional Swap:** Use the direction button in Swap to select USDC → WOTR, enter a small amount, refresh the quote, then confirm the swap in your wallet. Changing direction clears the amount and quote. Server history distinguishes both directions, including older WOTR → USDC entries. The native USDC amount uses 18 decimals; this is not the separate 6-decimal CCTP token interface. No new pool or liquidity was added. Native-input swaps settle the complete specified input; if the pool can only fill part of it, the transaction reverts atomically rather than leaving unused native USDC in the router.

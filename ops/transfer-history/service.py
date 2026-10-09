@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(__file__))
 import cctp_history
 import swap_history
+import buy_history
 
 DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', '/var/lib/tevumi/transfer-history.sqlite3')
 HOST = os.environ.get('TEVUMI_HISTORY_HOST', '127.0.0.1')
@@ -79,10 +80,11 @@ def database():
       block_number INTEGER, created_at INTEGER NOT NULL, checked_at INTEGER NOT NULL,
       PRIMARY KEY(kind, tx_hash))''')
     columns = {row[1] for row in connection.execute('PRAGMA table_info(journey_transfers)')}
-    for name in ('input_asset', 'output_asset'):
+    for name in ('input_asset', 'output_asset', 'token_address', 'buy_route'):
         if name not in columns:
             connection.execute(f'ALTER TABLE journey_transfers ADD COLUMN {name} TEXT')
     connection.execute("UPDATE journey_transfers SET input_asset=CASE WHEN kind='buy' THEN 'BNB' ELSE 'WOTR' END, output_asset=CASE WHEN kind='buy' THEN 'WOTR' ELSE 'USDC' END WHERE input_asset IS NULL OR output_asset IS NULL")
+    connection.execute("UPDATE journey_transfers SET token_address=? WHERE kind='buy' AND token_address IS NULL", (WOTR[56],))
     connection.commit()
     connection.execute('CREATE INDEX IF NOT EXISTS journey_account_time ON journey_transfers(account,kind,created_at DESC)')
     return connection
@@ -98,8 +100,10 @@ def journey_input(kind, tx, account):
     data = tx.get('input', '').lower()
     words = transaction_words(data)
     if kind == 'buy':
+        if tx.get('to','').lower()==buy_history.MANAGER and data.startswith(buy_history.CURVE_SELECTOR):
+            return buy_history.curve_input(tx,words)
         # swapExactETHForTokens(minOut, path, recipient, deadline)
-        if len(words) < 7 or words[1] != 128 or words[2] != int(account, 16) or words[4] != 2 or words[5] != int(WBNB, 16) or words[6] != int(WOTR[56], 16) or words[0] <= 0 or int(tx.get('value', '0x0'), 16) <= 0:
+        if len(words) != 7 or words[1] != 128 or words[2] != int(account, 16) or words[4] != 2 or words[5] != int(WBNB, 16) or words[6] not in (int(WOTR[56],16),int(buy_history.TOKEN,16)) or words[0] <= 0 or int(tx.get('value', '0x0'), 16) <= 0:
             raise ValueError('Buy route mismatch')
         return str(int(tx['value'], 16)), words[0]
     reverse, amount, minimum = swap_history.inspect_input(tx)
@@ -123,10 +127,14 @@ def inspect_journey(kind, tx_hash):
         raise ValueError('Invalid journey transaction')
     chain, target, selector = JOURNEY[kind]
     tx = rpc(chain, 'eth_getTransactionByHash', [tx_hash])
-    if not tx or not ADDRESS.fullmatch(tx.get('from', '')) or tx.get('to', '').lower() != target or not tx.get('input', '').lower().startswith(selector):
+    curve=kind=='buy' and tx and tx.get('to','').lower()==buy_history.MANAGER and tx.get('input','').lower().startswith(buy_history.CURVE_SELECTOR)
+    if not tx or not ADDRESS.fullmatch(tx.get('from', '')) or not (curve or tx.get('to', '').lower() == target and tx.get('input', '').lower().startswith(selector)):
         raise ValueError('Not a Tevumi journey transaction')
     account = tx['from'].lower()
     input_amount, minimum = journey_input(kind, tx, account)
+    new_dex=kind=='buy' and not curve and transaction_words(tx['input'])[6]==int(buy_history.TOKEN,16)
+    token_address=buy_history.TOKEN if curve or new_dex else WOTR[chain]
+    buy_route='four-curve' if curve else 'pancake-v2' if kind=='buy' else None
     reverse = kind == 'swap' and int(tx.get('value', '0x0'), 16) > 0
     input_asset = 'BNB' if kind == 'buy' else 'USDC' if reverse else 'WOTR'
     output_asset = 'WOTR' if kind == 'buy' or reverse else 'USDC'
@@ -142,7 +150,16 @@ def inspect_journey(kind, tx_hash):
         if int(receipt['status'], 16) == 0:
             status = 'failed'
         elif kind == 'buy':
-            received = transfer_amount(receipt, WOTR[56], BNB_PAIR, account)
+            if curve:
+                received=buy_history.curve_output(receipt,account,minimum,transfer_amount)
+            else:
+                pair=BNB_PAIR
+                if new_dex:
+                    data='0xe6a43905'+f'{int(WBNB,16):064x}'+f'{int(buy_history.TOKEN,16):064x}'
+                    encoded=rpc(56,'eth_call',[{'to':buy_history.FACTORY,'data':data},receipt['blockNumber']])
+                    if not re.fullmatch(r'0x0{24}[0-9a-fA-F]{40}',encoded) or int(encoded,16)==0: raise ValueError('Buy pair unavailable')
+                    pair='0x'+encoded[-40:].lower()
+                received = transfer_amount(receipt, token_address, pair, account)
             if received < minimum:
                 raise ValueError('Buy receipt has no matching WOTR delivery')
             status, output_amount = 'verified', str(received)
@@ -157,6 +174,7 @@ def inspect_journey(kind, tx_hash):
     return {'kind': kind, 'tx_hash': tx_hash.lower(), 'account': account,
             'input_amount': input_amount, 'output_amount': output_amount,
             'input_asset': input_asset, 'output_asset': output_asset,
+            'token_address': token_address, 'buy_route': buy_route,
             'status': status, 'block_number': block_number, 'created_at': created_at}
 
 
@@ -164,11 +182,12 @@ def upsert_journey(connection, kind, tx_hash):
     item = inspect_journey(kind, tx_hash)
     now = int(time.time())
     connection.execute('''INSERT INTO journey_transfers
-      (kind,tx_hash,account,input_amount,output_amount,input_asset,output_asset,status,block_number,created_at,checked_at)
-      VALUES(:kind,:tx_hash,:account,:input_amount,:output_amount,:input_asset,:output_asset,:status,:block_number,:created_at,:checked_at)
+      (kind,tx_hash,account,input_amount,output_amount,input_asset,output_asset,token_address,buy_route,status,block_number,created_at,checked_at)
+      VALUES(:kind,:tx_hash,:account,:input_amount,:output_amount,:input_asset,:output_asset,:token_address,:buy_route,:status,:block_number,:created_at,:checked_at)
       ON CONFLICT(kind,tx_hash) DO UPDATE SET input_amount=COALESCE(excluded.input_amount,journey_transfers.input_amount),
       output_amount=COALESCE(excluded.output_amount,journey_transfers.output_amount),
       input_asset=excluded.input_asset,output_asset=excluded.output_asset,
+      token_address=excluded.token_address,buy_route=excluded.buy_route,
       status=excluded.status,block_number=excluded.block_number,created_at=excluded.created_at,
       checked_at=excluded.checked_at''',
       {**item, 'checked_at': now})
@@ -352,7 +371,7 @@ class Handler(BaseHTTPRequestHandler):
                 kind = query.get('kind', [''])[0]
                 if kind not in JOURNEY:
                     return self.send_json(400, {'error': 'Invalid kind'})
-                rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,input_asset,output_asset,status,block_number,created_at
+                rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,input_asset,output_asset,token_address,buy_route,status,block_number,created_at
                   FROM journey_transfers WHERE account=? AND kind=? ORDER BY created_at DESC,tx_hash DESC LIMIT 11 OFFSET ?''',
                   (account, kind, page * 10)).fetchall()
             elif url.path == '/usdc-transfers':

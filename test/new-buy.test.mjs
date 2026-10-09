@@ -1,0 +1,20 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {Interface,parseEther,ZeroAddress} from 'ethers';
+import {BUY,curveQuote,assertBuyRefresh,buyCall,verifyBuyReceipt,managerAbi,dexAbi,helperAbi,quoteNewBuy} from '../web/preview/buy-plan.js';
+const user='0x'+ '1'.repeat(40),pair='0x'+'2'.repeat(40),budget=parseEther('0.005'),out=parseEther('1000000');
+const info=[2n,BUY.manager,ZeroAddress,4000000000n,100n,0n,0n,parseEther('800000000'),parseEther('800000000'),0n,parseEther('13.9'),false];
+const result=[BUY.manager,ZeroAddress,out,budget*100n/101n,budget/101n,budget,0n,budget];
+test('curve budget preserves protocol fee, payment, nonzero minimum and ABI',()=>{const q=curveQuote(info,result,budget);assert.equal(q.minOut,out*99n/100n);assert.equal(q.msgValue,budget);assert.equal(new Interface(managerAbi).parseTransaction({data:buyCall(q,user,1n)}).args[0],BUY.token);});
+test('malformed, unsupported, stopped or partial curve quote fails closed',()=>{for(const index of [0,1,2,7,11]){const bad=[...info];bad[index]=index===0?1n:index===1||index===2?user:index===11?true:0n;assert.throws(()=>curveQuote(bad,result,budget));}for(const [i,v] of [[0,user],[1,user],[2,0n],[5,budget+1n],[7,budget/2n],[6,1n]]){const bad=[...result];bad[i]=v;assert.throws(()=>curveQuote(info,bad,budget));}});
+test('route changes, fee increase and price beyond minimum require review',()=>{const q=curveQuote(info,result,budget);assertBuyRefresh(q,{...q});for(const update of [{routeId:'dex:'+pair},{msgValue:budget+1n},{out:q.minOut-1n}])assert.throws(()=>assertBuyRefresh(q,{...q,...update}));});
+const transfers=new Interface(['event Transfer(address indexed from,address indexed to,uint256 value)']);
+const transfer=(token,sender,recipient,value)=>({address:token,...transfers.encodeEventLog('Transfer',[sender,recipient,value])});
+const purchase=(amount)=>({address:BUY.manager,...new Interface(managerAbi).encodeEventLog('TokenPurchase',[BUY.token,user,1n,amount,1n,1n,1n,1n])});
+test('curve completion requires both matching purchase and wallet transfer',()=>{const q=curveQuote(info,result,budget),logs=[transfer(BUY.token,BUY.manager,user,out),purchase(out)];assert.equal(verifyBuyReceipt({logs},user,q),out);for(const bad of [[logs[0]],[logs[1]],[logs[0],purchase(out+1n)],[transfer(BUY.token,BUY.manager,pair,out),logs[1]],[...logs,logs[1]]])assert.throws(()=>verifyBuyReceipt({logs:bad},user,q));});
+test('DEX completion rejects other pool/token/recipient',()=>{const q={route:'dex',token:BUY.token,sender:pair,minOut:out};assert.equal(verifyBuyReceipt({logs:[transfer(BUY.token,pair,user,out)]},user,q),out);assert.throws(()=>verifyBuyReceipt({logs:[transfer(BUY.token,BUY.manager,user,out)]},user,q));});
+test('graduated discovery validates real factory/pair and migration absence blocks',async()=>{
+ const helper=new Interface(helperAbi),dex=new Interface(dexAbi),factory=new Interface(['function getPair(address,address) view returns(address)']),pool=new Interface(['function token0() view returns(address)','function token1() view returns(address)','function getReserves() view returns(uint112,uint112,uint32)']);let missing=false;
+ const reader={getBlock:async()=>({number:1,timestamp:10}),getNetwork:async()=>({chainId:56n}),getCode:async()=> '0x01',call:async tx=>{const to=tx.to.toLowerCase();if(to===BUY.helper.toLowerCase())return helper.encodeFunctionResult('getTokenInfo', [...info.slice(0,11),true]);if(to===BUY.factory.toLowerCase())return factory.encodeFunctionResult('getPair',[missing?ZeroAddress:pair]);const iface=to===BUY.router.toLowerCase()?dex:pool;const name=iface.parseTransaction({data:tx.data}).name;return iface.encodeFunctionResult(name,{factory:[BUY.factory],WETH:[BUY.wbnb],getAmountsOut:[[budget,out]],token0:[BUY.wbnb],token1:[BUY.token],getReserves:[parseEther('10'),parseEther('100000000'),0]}[name]);}};
+ const q=await quoteNewBuy(reader,budget);assert.equal(q.route,'dex');assert.equal(q.sender,pair);assert.equal(new Interface(dexAbi).parseTransaction({data:buyCall(q,user,100n)}).args[1][1],BUY.token);missing=true;await assert.rejects(quoteNewBuy(reader,budget),/migration/);
+});
