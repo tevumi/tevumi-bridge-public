@@ -106,7 +106,7 @@ function renderOrders(){
   $('orders').append(card);
  }
 }
-async function run(action){if(working)return;working=true;render();try{await action();}catch(e){$('message').textContent=explain(e);quote=null;}finally{working=false;render();}}
+async function run(action){if(working)return;working=true;render();try{await action();}catch(e){$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
 async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message('Original transactions verified. Refresh the next-step quote.','原交易已核验，请刷新下一步报价。');await balances();}finally{checking=false;render();}}
 async function restore(){
  const server=await api('/api/orders');server.forEach(validateOrder);

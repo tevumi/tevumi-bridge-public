@@ -11,7 +11,7 @@ import {assertJournalUpdate} from '../web/source-trade/order.js';
 const origin=process.env.TEVUMI_SOURCE_TRADE_URL||'http://127.0.0.1:5345/',user='0x'+'1'.repeat(40),pad=n=>'0x'+BigInt(n).toString(16).padStart(64,'0'),hex=n=>'0x'+BigInt(n).toString(16);
 const iface=new Interface([...helperAbi,...candidateAppAbi,'function decimals() view returns(uint8)','function allowance(address,address) view returns(uint256)']);
 const browser=await chromium.launch({headless:true});const report=[];
-try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failure','seven-decimals','large-amount','journal-corrupt']){
+try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failure','seven-decimals','large-amount','journal-corrupt','quote-gateway','quote-gateway-zh']){
  const page=await browser.newPage({viewport:mode==='mobile-zh'?{width:390,height:844}:{width:1440,height:1000}}),errors=[];let chain=5042,sends=0,orders=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.exposeFunction('testWallet',async req=>{if(req.method==='eth_accounts'||req.method==='eth_requestAccounts')return[user];if(req.method==='eth_chainId')return hex(chain);if(req.method==='wallet_switchEthereumChain'){chain=Number(BigInt(req.params[0].chainId));return null;}if(req.method==='eth_sendTransaction'){sends++;return {error:mode==='unknown-reload'?-32000:4001};}throw Error(req.method);});
@@ -22,6 +22,7 @@ try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failu
    if(route.request().method()==='GET')result=orders;
    else{const o=route.request().postDataJSON(),previous=orders.find(v=>v.id===o.id);if(mode==='save-failure'&&o.transactions.length){await route.fulfill({status:502,json:{error:'Synthetic disk failure'}});return;}assertJournalUpdate(previous,o);orders=orders.filter(v=>v.id!==o.id);orders.unshift(o);result={saved:true};}
   }else if(url.pathname==='/api/lifi/quote'){
+   if(mode.startsWith('quote-gateway')){await route.fulfill({status:502,json:{error:'Read service temporarily unavailable'}});return;}
    const from=Number(url.searchParams.get('fromChain')),to=Number(url.searchParams.get('toChain')),amount=BigInt(url.searchParams.get('fromAmount'));
    const b=[pad(1),'relaydepository','',ZeroAddress,from===5042?USDC:ZeroAddress,user,amount,to,false,false];
    result={tool:'relaydepository',action:{fromChainId:from,toChainId:to,fromAddress:user,toAddress:user,fromAmount:String(amount),fromToken:{address:from===5042?USDC:ZeroAddress,decimals:from===5042?6:18},toToken:{address:to===5042?USDC:ZeroAddress,decimals:to===5042?6:18}},estimate:{toAmount:String(parseEther('0.0013')),toAmountMin:String(parseEther('0.00129')),approvalAddress:ROUTERS[from],feeCosts:[],gasCosts:[]},transactionRequest:{to:ROUTERS[from],from:user,chainId:from,value:'0',data:'0x12345678'+AbiCoder.defaultAbiCoder().encode([bridgeType],[b]).slice(2)}};
@@ -49,10 +50,11 @@ try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failu
  if(mode==='journal-corrupt'){await page.waitForFunction(()=>document.querySelector('#message').textContent.length>0);assert(await page.locator('#send').isDisabled());assert.equal(sends,0);}
  else{
   await page.locator('#connect').click();await page.locator('.tevumi-wallet-option').first().click();await page.waitForFunction(()=>!document.querySelector('#refresh').disabled);
-  if(mode==='mobile-zh')await page.locator('#language').click();
+  if(mode==='mobile-zh'||mode==='quote-gateway-zh')await page.locator('#language').click();
   if(mode==='seven-decimals'||mode==='large-amount')await page.locator('#amount').fill(mode==='seven-decimals'?'1.0000001':'1000001');
   await page.locator('#refresh').click();
-  if(mode==='seven-decimals'){await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('Details'));assert(await page.locator('#send').isDisabled());}
+  if(mode.startsWith('quote-gateway')){await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('has not submitted')||document.querySelector('#message').textContent.includes('尚未提交交易'));assert(await page.locator('#send').isDisabled());assert.equal(sends,0);assert.equal(orders[0].transactions.length,0);}
+  else if(mode==='seven-decimals'){await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('Details'));assert(await page.locator('#send').isDisabled());}
   else{
    await page.waitForFunction(()=>!document.querySelector('#send').disabled);
    assert((await page.locator('#asset').textContent()).includes(wotrRoutes.current.arc));
