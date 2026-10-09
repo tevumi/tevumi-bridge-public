@@ -4,11 +4,13 @@ import {TradeEngine} from './engine.js';
 import {createOrder,validateOrder,legs,progress,stringify} from './order.js';
 import {wotrRoutes} from '../src/wotr-routes.js';
 import {hashValid} from './proofs.js';
+import {continueTrade,waitingForProof} from './workflow.js';
 const $=id=>document.getElementById(id);
 const production=location.pathname.startsWith('/preview/');
 const apiPath=path=>production?path.replace(/^\/api\//,'/api/source-trade/'):path;
 const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvider(location.origin+apiPath('/api/rpc/'+chain),chain,{batchMaxCount:1,cacheTimeout:-1})]));
 let lang='en',wallet,account,orders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
+let flow,previewTimer,previewing=false;
 const text=(en,zh)=>lang==='en'?en:zh;
 const tr={funding:()=>text('Move funds','资金跨链'),buy:()=>text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
 let cacheKey='tevumi:source-trade:orders:v1';
@@ -23,7 +25,7 @@ async function signIn(){
 function useWallet(choice,who){
  wallet=choice.provider;account=who;rememberWalletSession(choice,account);
  if(production)cacheKey='tevumi:source-trade:orders:v2:'+account.toLowerCase();
- wallet.on?.('accountsChanged',()=>{account=null;wallet=null;orders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
+ wallet.on?.('accountsChanged',()=>{flow?.abort();account=null;wallet=null;orders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
 }
 const message=(en,zh=en)=>{$('message').textContent=text(en,zh);};
 const explain=e=>e?.code===4001||e?.code==='ACTION_REJECTED'?text('Wallet confirmation cancelled. No transaction was submitted.','已取消钱包确认，未提交交易。'):text('Operation is not complete. Keep the original transaction and retry verification. Details: ','操作尚未完成，请保留原交易并重新核验。详细信息：')+String(e?.shortMessage||e?.message||'Unavailable').replace(/https?:\/\/\S+/g,'[service]').slice(0,280);
@@ -42,9 +44,9 @@ async function persist(o){
  render();
 }
 const engine=new TradeEngine({providers,api,persist,onChange:()=>render()});
-function clearQuote(){quote=null;quoteVersion++;render();}
+function clearQuote(){quote=null;quoteVersion++;previewing=false;render();schedulePreview();}
 function active(){return orders.find(o=>o.account.toLowerCase()===account?.toLowerCase()&&!['COMPLETED','CANCELLED'].includes(o.state));}
-function selectOrder(o){order=o;quote=null;engine.results={};if(o){engine.setOrder(o);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
+function selectOrder(o){order=o;quote=null;quoteVersion++;previewing=false;engine.results={};if(o){engine.setOrder(o);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
 async function balances(){
  if(!account)return;const who=account;
  try{
@@ -67,7 +69,7 @@ function renderQuote(){
   if(q.preview)lines.push(text('BNB retained for gas/message fee: ','钱包预留 BNB 支付 Gas / 消息费：')+formatEther(q.preview.gasReserve));
  }else if(q.kind==='bridge'){
   lines.push(text(`Bridge amount: ${formatEther(q.amount)} WOTR`,`跨链数量：${formatEther(q.amount)} WOTR`));
-  lines.push(q.key==='approve'?text('Exact WOTR approval is required before sending. Refresh after it confirms.','发送前需要精确授权 WOTR，确认后刷新报价。'):text(`Message fee: ${formatEther(q.value)} ${q.chain===56?'BNB':'USDC'}; source gas is additional.`,`消息费：${formatEther(q.value)} ${q.chain===56?'BNB':'USDC'}；来源链 Gas 另计。`));
+  lines.push(q.key==='approve'?text('Confirm the exact WOTR approval in your wallet; the transfer follows automatically.','请在钱包确认本次数量的 WOTR 授权，之后自动继续转账。'):text(`Message fee: ${formatEther(q.value)} ${q.chain===56?'BNB':'USDC'}; source gas is additional.`,`消息费：${formatEther(q.value)} ${q.chain===56?'BNB':'USDC'}；来源链 Gas 另计。`));
   if(q.preview)lines.push(text(`Estimated source sale proceeds: ${formatEther(q.preview.out)} BNB; funding return fees are additional.`,`源链预计卖出所得：${formatEther(q.preview.out)} BNB；资金返回费用另计。`));
   if(q.returnPreview)lines.push(text(`Estimated Arc receipt after the source sale and funding fees: ${formatUnits(q.returnPreview.estimate.toAmount,6)} USDC (refreshed before each step).`,`源链卖出并扣资金返回费用后，Arc 预计收到：${formatUnits(q.returnPreview.estimate.toAmount,6)} USDC（每一步前重新报价）。`));
  }else{
@@ -78,7 +80,7 @@ function renderQuote(){
   if(q.preview)lines.push(text(`Estimated Arc return: ${formatUnits(q.preview.estimate.toAmount,6)} USDC; refreshed after the actual sale.`,`预计返回 Arc：${formatUnits(q.preview.estimate.toAmount,6)} USDC；实际卖出后重新报价。`));
   if(q.reserve)lines.push(text('BNB retained in your wallet for gas/message fee: ','钱包预留 BNB 支付 Gas / 消息费：')+formatEther(q.reserve));
  }
- lines.push(text('Valid for 60 seconds. Each next step needs a fresh quote and wallet confirmation.','有效期 60 秒。每个后续步骤须重新报价并在钱包确认。'));
+ lines.push(text('Quotes last 60 seconds. Start continues this order with fresh quotes and automatic arrival checks. Confirm each transaction in your wallet. Later prices and fees may change.','报价有效期 60 秒。开始后自动更新后续报价、核验到账并继续本订单；每笔交易仍需在钱包确认。后续价格及费用可能变化。'));
  $('quote').textContent=lines.join('\n');
 }
 function render(){
@@ -94,16 +96,17 @@ function render(){
  $('account').textContent=account?text('Wallet: ','钱包：')+account:text('Connect your wallet to start.','连接钱包后开始。');
  $('asset').textContent='BNB WOTR: '+wotrRoutes.current.sourceToken+'\nArc WOTR: '+wotrRoutes.current.arc;
  $('direction-label').textContent=text('Direction','方向');$('amount-label').textContent=text('Input amount · ','输入数量 · ')+($('direction').value==='buy'?'USDC':'WOTR');
- $('refresh').textContent=text('Refresh next-step quote','刷新下一步报价');$('send').textContent=quote?text('Confirm this step','确认本步骤'):text('Review a quote first','先获取报价');
+ $('refresh').textContent=text('Refresh quote','刷新报价');$('send').textContent=flow?text('Processing · confirm in wallet','处理中 · 请在钱包确认'):quote?text(order?.transactions.length?'Continue exchange':'Start exchange',order?.transactions.length?'继续兑换':'开始兑换'):text(previewing?'Getting quote…':'Review a quote first',previewing?'正在获取报价…':'先获取报价');
+ $('pause').textContent=text('Pause after current transaction','暂停后续操作');$('pause').hidden=!flow;
  $('check').textContent=text('Verify original transactions','核验原交易');$('next').textContent=text('Start another order','开始另一笔订单');$('cancel').textContent=text('Cancel unsubmitted order','取消未提交订单');
  $('orders-heading').textContent=text('Orders','订单');$('export').textContent=text('Export records','导出记录');
- $('recovery-note').textContent=text('Refreshing resumes verification only. Uncertain, pending, partial or refunded transfers never trigger a second payment. Keep this browser and local journal for recovery.','刷新只恢复核验。结果不明、待到账、部分完成或退款都不会触发第二次付款。请保留此浏览器和本地订单文件以便恢复。');
+ $('recovery-note').textContent=text('Arrival checks resume automatically after refresh. Further wallet requests require Continue exchange. Pausing does not cancel a submitted transaction. Keep the original order and journal.','刷新后自动恢复到账核验；继续钱包操作需要点击「继续兑换」。暂停不撤销已提交交易，请保留原订单与记录。');
  $('note').textContent=text('Real mainnet transactions. LI.FI funds the BNB market; LayerZero bridges WOTR. There is no Arc WOTR pool and no guaranteed end-to-end price or time. Funding slippage is 0.5%; source trade slippage is 1%. Gas and token message fees are additional. Residual BNB and sub-6-decimal WOTR stay in your wallet.','真实主网交易。LI.FI 转移资金，LayerZero 跨链 WOTR；不使用 Arc WOTR 池，不保证全流程价格或完成时间。资金跨链滑点 0.5%，源链交易滑点 1%。Gas 和代币消息费另计；预留 BNB 和不足六位小数的 WOTR 尾数留在钱包。');
  const index=order?progress(order.kind,engine.results):0;
  $('steps').replaceChildren(...legs(order?.kind||$('direction').value).map((key,i)=>{const li=document.createElement('li');li.textContent=tr[key]()+(i<index?text(' · verified',' · 已核验'):i===index?text(' · next',' · 下一步'):'');return li;}));
  $('direction').disabled=Boolean(order)||working;$('amount').disabled=Boolean(order)||working;
  $('refresh').disabled=!account||!restored||working||order?.state==='COMPLETED';$('send').disabled=!quote||working||!restored||Date.now()-quote.at>60000;
- $('check').disabled=!order||checking;$('next').disabled=Boolean(order&&order.state!=='COMPLETED');$('cancel').disabled=!order||working||order.transactions.some(t=>t.state!=='REJECTED');
+ $('check').disabled=!order||checking||working;$('connect').disabled=working;$('next').disabled=working||Boolean(order&&order.state!=='COMPLETED');$('cancel').disabled=!order||working||order.transactions.some(t=>t.state!=='REJECTED');
  renderQuote();renderOrders();
 }
 function txLink(chain,hash){const a=document.createElement('a');a.href=(chain===56?'https://bscscan.com/tx/':'https://explorer.arc.io/tx/')+hash;a.textContent=hash;a.target='_blank';a.rel='noopener noreferrer';return a;}
@@ -124,7 +127,42 @@ function renderOrders(){
  }
 }
 async function run(action){if(working)return;working=true;render();try{await action();}catch(e){$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
-async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message('Original transactions verified. Refresh the next-step quote.','原交易已核验，请刷新下一步报价。');await balances();}finally{checking=false;render();}}
+async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message(order.state==='COMPLETED'?'Exchange completed. Arrival verified.':'Original transactions verified. Continue exchange when ready.',order.state==='COMPLETED'?'兑换完成，实际到账已核验。':'原交易已核验，可以继续兑换。');await balances();}finally{checking=false;render();}}
+function schedulePreview(){clearTimeout(previewTimer);if(account&&restored&&!order&&!working&&!previewing)previewTimer=setTimeout(()=>void preview(),600);}
+async function preview(){
+ if(!account||!restored||order||working||previewing)return;
+ const version=++quoteVersion,who=account;previewing=true;render();
+ try{
+  const candidate=createOrder($('direction').value,who,$('amount').value.trim(),crypto.randomUUID());
+  const reader=new TradeEngine({providers,api,persist:async()=>{throw Error('Preview cannot write an order.');}});reader.setOrder(candidate);
+  const result=await reader.quote();
+  if(version===quoteVersion&&account===who&&!order){quote=result;message('Review the estimate, then Start exchange. Keep this page open and confirm the wallet prompts.','核对预估后点击「开始兑换」。保持页面打开，按钱包弹窗确认即可。');}
+ }catch(e){if(version===quoteVersion&&!order)$('message').textContent=explain(e);}
+ finally{if(version===quoteVersion){previewing=false;render();}}
+}
+async function withOrderLock(action){
+ if(!navigator.locks)throw Error('This browser must support Web Locks to prevent simultaneous signing from two tabs.');
+ const id=order?.id,who=account;
+ await navigator.locks.request('tevumi-source-trade:'+who.toLowerCase(),{ifAvailable:true},async lock=>{
+  if(!lock)throw Error('Another tab is processing this order. Use the original tab.');
+  await restore();if(account!==who)throw Error('Wallet changed. Reconnect before continuing.');
+  if(id){const current=orders.find(o=>o.id===id);if(!current)throw Error('Original order unavailable. Preserve the journal.');selectOrder(current);}
+  else if(active())throw Error('An unfinished order already exists. Reload to recover it.');
+  await action();
+ });
+}
+function flowStatus(status){
+ const messages={quoting:['Updating the next quote…','正在自动更新下一步报价…'],wallet:['Confirm in your wallet. The next step follows after verification.','请在钱包确认，核验成功后会自动继续下一步。'],waiting:['Waiting for confirmation and arrival. Checking automatically; do not send again.','等待确认及到账，正在自动核验，请勿重复发送。'],completed:['Exchange completed. Actual arrival verified.','兑换完成，实际到账已核验。'],paused:['Further wallet requests paused. Submitted transactions will still be checked automatically.','后续钱包操作已暂停，已提交交易仍会自动核验。'],timeout:['Still awaiting confirmation. Automatic checks continue; no payment will be repeated.','仍在等待确认，将继续自动核验，不会重复付款。']};message(...messages[status]);
+}
+// Background recovery performs reads/proof writes only; it never requests a signature.
+async function checkInBackground(){
+ if(!account||!restored||!order||order.state!=='OPEN'||working||checking)return;
+ if(!order.transactions.some(t=>!['VERIFIED','REJECTED'].includes(t.state))&&quote&&Date.now()-quote.at<45000)return;
+ await run(async()=>withOrderLock(async()=>{
+  try{await engine.verify();if(order.state==='COMPLETED'){flowStatus('completed');void balances();}else{flowStatus('paused');quote=await engine.quote();}}
+  catch(e){if(waitingForProof(e))flowStatus('waiting');else throw e;}
+ }));
+}
 async function restore(){
  const server=await api('/api/orders'+(production?'?account='+account:''));server.forEach(validateOrder);
  const raw=localStorage.getItem(cacheKey),cached=raw?JSON.parse(raw):[];if(!Array.isArray(cached))throw Error('Local journal is invalid.');cached.forEach(validateOrder);
@@ -136,27 +174,33 @@ async function restore(){
  }
  orders=server;localStorage.setItem(cacheKey,stringify(orders));restored=true;render();
 }
-$('connect').onclick=()=>run(async()=>{if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){$('message').textContent=explain(e);}});
+$('connect').onclick=()=>run(async()=>{if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}}).then(schedulePreview);
 $('language').onclick=()=>{lang=lang==='en'?'zh-CN':'en';if(production)sessionStorage.setItem('tevumi:trade-language',lang);render();};
 $('direction').onchange=()=>{clearQuote();$('amount').value=$('direction').value==='buy'?'1':'1000';render();};$('amount').oninput=clearQuote;
 $('refresh').onclick=()=>run(async()=>{
+ quoteVersion++;previewing=false;
  if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
  const version=++quoteVersion,who=account;
- const result=await engine.quote();if(version!==quoteVersion||account!==who)return;quote=result;message('Review the quote. Confirming may request an exact approval before the transfer.','请核对报价；确认时可能先请求精确授权，再进行转账。');
+ const result=await engine.quote();if(version!==quoteVersion||account!==who)return;quote=result;message('Review the quote, then Start exchange. Approvals and transfers follow through wallet prompts.','核对报价后点击「开始兑换」，按钱包弹窗确认授权与转账即可。');
 });
 $('send').onclick=()=>run(async()=>{
- const selected=quote;quote=null;
- const execute=()=>engine.transact(wallet,selected);
- if(!navigator.locks)throw Error('This browser must support Web Locks to prevent simultaneous signing from two tabs.');
- await navigator.locks.request('tevumi-source-trade:'+account.toLowerCase(),{ifAvailable:true},async lock=>{if(!lock)throw Error('Another tab is signing. Use the original tab.');await restore();const current=orders.find(o=>o.id===order.id);selectOrder(current);await execute();});
- message('Submitted. Verify the original transaction; then refresh for the next step.','已提交，请核验原交易，随后刷新下一步报价。');
+ const selected=quote;if(!selected)return;quote=null;quoteVersion++;previewing=false;
+ flow=new AbortController();render();
+ try{await withOrderLock(async()=>{
+  if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
+  await continueTrade({engine,wallet,firstQuote:selected,signal:flow.signal,onQuote:q=>{quote=q;render();},onStatus:flowStatus});
+  void balances();
+ });}finally{flow=null;render();}
 });
+$('pause').onclick=()=>{flow?.abort();message('Pausing after the current wallet request or check finishes. This does not cancel submitted transactions.','当前钱包请求或核验结束后暂停；已提交交易不会撤销。');};
 $('check').onclick=()=>run(async()=>{const id=order?.id;await restore();if(id)selectOrder(orders.find(o=>o.id===id));await verify();});
-$('next').onclick=()=>run(async()=>{if(order)await verify();if(order&&order.state!=='COMPLETED')throw Error('Finish or recover the original order first.');selectOrder(null);$('amount').value=$('direction').value==='buy'?'1':'1000';});
+$('next').onclick=()=>run(async()=>{if(order)await verify();if(order&&order.state!=='COMPLETED')throw Error('Finish or recover the original order first.');selectOrder(null);$('amount').value=$('direction').value==='buy'?'1':'1000';}).then(schedulePreview);
 $('cancel').onclick=()=>run(async()=>{if(order.transactions.some(t=>t.state!=='REJECTED'))throw Error('Submitted or uncertain transactions cannot be cancelled here.');order.state='CANCELLED';await persist(order);selectOrder(null);});
 $('export').onclick=()=>{const a=document.createElement('a'),url=URL.createObjectURL(new Blob([stringify(orders)],{type:'application/json'}));a.href=url;a.download='tevumi-source-trade-orders-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);};
 if(production){
  lang=sessionStorage.getItem('tevumi:trade-language')==='zh-CN'?'zh-CN':'en';
- void restoreWalletSession().then(async choice=>{if(!choice)return;useWallet(choice,choice.account);render();void balances();try{await restore();selectOrder(active());if(order)await verify();}catch(e){$('message').textContent=explain(e);}}).catch(e=>{$('message').textContent=explain(e);});
+ void restoreWalletSession().then(async choice=>{if(!choice)return;useWallet(choice,choice.account);render();void balances();try{await restore();selectOrder(active());if(order)await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}schedulePreview();}).catch(e=>{$('message').textContent=explain(e);});
 }else restore().catch(e=>{$('message').textContent=explain(e);});render();
 setInterval(()=>{if(quote&&Date.now()-quote.at>60000)$('send').disabled=true;},1000);
+setInterval(()=>{if(!working&&!order&&(!quote||Date.now()-quote.at>45000))schedulePreview();},5000);
+setInterval(()=>void checkInBackground(),8000);

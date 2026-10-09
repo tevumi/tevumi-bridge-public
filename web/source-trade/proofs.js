@@ -9,6 +9,7 @@ export const oftInterface=new Interface(['event OFTSent(bytes32 indexed guid,uin
 const started=new Interface(['event LiFiTransferStarted('+bridgeType+' bridgeData)']);
 const sale=new Interface(sellManagerAbi),zero='0x'+'0'.repeat(40);
 const check=(ok,message)=>{if(!ok)throw Error(message);};
+const pending=(ok,message)=>{if(!ok)throw Object.assign(Error(message),{code:'WAITING_PROOF'});};
 // Official MetaMask Delegation Framework v1.3.0 deployment addresses:
 // https://github.com/MetaMask/delegation-framework/releases/tag/v1.3.0
 export const walletManager='0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3';
@@ -43,7 +44,7 @@ export async function nativeReceiptDelta(provider,receipt,account){
 export async function sourceProof(provider,record,account){
  check(hashValid(record.hash),'Recover the original transaction hash first.');
  const [tx,receipt]=await Promise.all([provider.getTransaction(record.hash),provider.getTransactionReceipt(record.hash)]);
- check(tx&&receipt,'Transaction is not confirmed yet. Check the original hash again later.');
+ pending(tx&&receipt,'Transaction is not confirmed yet. Check the original hash again later.');
  check(receipt.status===1,'Transaction reverted. Keep this receipt and check gas before starting a new order.');
  check(same(tx.from,account)&&tx.nonce===record.nonce,'Original sender or nonce does not match this order.');
  const direct=same(tx.to,record.to)&&tx.data===record.data&&tx.value===BigInt(record.value);
@@ -91,11 +92,13 @@ export async function sourceProof(provider,record,account){
  return result;
 }
 export async function fundingDestination(providers,record,account,status){
+ if(['PENDING','NOT_FOUND'].includes(status.status))pending(false,'Funding arrival is pending. Do not send again.');
  check(status.status==='DONE'&&status.substatus==='COMPLETED','Funding is not fully completed. Keep checking this original order.');
  check(same(status.sending?.txHash,record.hash)&&Number(status.receiving?.chainId)===record.targetChain&&same(status.receiving?.token?.address,record.targetChain===5042?USDC:ZeroAddress),'Provider destination identity mismatch.');
  const hash=status.receiving?.txHash;check(hashValid(hash),'Destination hash is unavailable.');
  const provider=providers[record.targetChain],receipt=await provider.getTransactionReceipt(hash);
- check(receipt?.status===1,'Destination has not confirmed.');
+ pending(receipt,'Destination has not confirmed.');
+ check(receipt.status===1,'Destination transaction reverted. Preserve this original order.');
  const received=BigInt(status.receiving.amount),scale=record.targetChain===5042?10n**12n:1n;
  check(received>=BigInt(record.quote.estimate.toAmountMin)&&received>0n,'Destination amount is below the quoted minimum.');
  check(await nativeReceiptDelta(provider,receipt,account)===received*scale,'Actual destination balance change does not match.');
@@ -120,9 +123,10 @@ export async function bridgeDestination(providers,record,account,proof,api){
    if(logs.length){targetHash=logs[0].transactionHash;break;}
   }
  }
- check(hashValid(targetHash),'Bridge arrival is pending. Do not send again.');
+ pending(hashValid(targetHash),'Bridge arrival is pending. Do not send again.');
  const receipt=await p.getTransactionReceipt(targetHash);
- check(receipt?.status===1,'Bridge destination is not confirmed.');
+ pending(receipt,'Bridge destination is not confirmed.');
+ check(receipt.status===1,'Bridge destination reverted. Preserve this original order.');
  const matches=events(receipt,address,oftInterface,'OFTReceived').filter(e=>same(e.args.guid,proof.guid)&&same(e.args.toAddress,account)&&Number(e.args.srcEid)===(record.chain===56?30102:30417)&&e.args.amountReceivedLD===BigInt(record.amount));
  check(matches.length===1&&transferred(receipt,chain===56?route.sourceToken:route.arc,chain===56?route.bsc:zero,account)===BigInt(record.amount),'Bridge destination mint or release does not match.');
  return {hash:targetHash,block:receipt.blockNumber,received:record.amount};
