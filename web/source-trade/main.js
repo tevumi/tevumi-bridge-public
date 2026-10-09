@@ -1,16 +1,30 @@
-import {JsonRpcProvider,Contract,parseUnits,formatUnits,formatEther} from 'ethers';
-import {pickWallet} from '../preview/wallet-picker.js';
+import {JsonRpcProvider,Contract,parseUnits,formatUnits,formatEther,hexlify,toUtf8Bytes} from 'ethers';
+import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
 import {TradeEngine} from './engine.js';
 import {createOrder,validateOrder,legs,progress,stringify} from './order.js';
 import {wotrRoutes} from '../src/wotr-routes.js';
 import {hashValid} from './proofs.js';
 const $=id=>document.getElementById(id);
-const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvider(location.origin+'/api/rpc/'+chain,chain,{batchMaxCount:1,cacheTimeout:-1})]));
+const production=location.pathname.startsWith('/preview/');
+const apiPath=path=>production?path.replace(/^\/api\//,'/api/source-trade/'):path;
+const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvider(location.origin+apiPath('/api/rpc/'+chain),chain,{batchMaxCount:1,cacheTimeout:-1})]));
 let lang='en',wallet,account,orders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
 const text=(en,zh)=>lang==='en'?en:zh;
 const tr={funding:()=>text('Move funds','资金跨链'),buy:()=>text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
-const cacheKey='tevumi:source-trade:orders:v1';
-const api=async(path,init)=>{const response=await fetch(path,{...init,signal:AbortSignal.timeout(30000)});const data=await response.json();if(!response.ok)throw Error(data.error||'Order service unavailable.');return data;};
+let cacheKey='tevumi:source-trade:orders:v1';
+const api=async(path,init)=>{const response=await fetch(apiPath(path),{...init,signal:AbortSignal.timeout(55000)});const data=await response.json();if(!response.ok)throw Error(response.status===401?text('Connect and sign in to recover your orders. The signature does not transfer funds.','请连接并签名登录以恢复订单；此签名不转移资产。'):data.error||'Order service unavailable.');return data;};
+async function signIn(){
+ if(!production)return;
+ const challenge=await api('/api/auth/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account})});
+ message('Sign in to save and recover orders. This signature does not approve or transfer tokens.','请签名登录以保存和恢复订单。此签名不授权或转移代币。');
+ const signature=await wallet.request({method:'personal_sign',params:[hexlify(toUtf8Bytes(challenge.message)),account]});
+ await api('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:challenge.id,signature})});
+}
+function useWallet(choice,who){
+ wallet=choice.provider;account=who;rememberWalletSession(choice,account);
+ if(production)cacheKey='tevumi:source-trade:orders:v2:'+account.toLowerCase();
+ wallet.on?.('accountsChanged',()=>{account=null;wallet=null;orders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
+}
 const message=(en,zh=en)=>{$('message').textContent=text(en,zh);};
 const explain=e=>e?.code===4001||e?.code==='ACTION_REJECTED'?text('Wallet confirmation cancelled. No transaction was submitted.','已取消钱包确认，未提交交易。'):text('Operation is not complete. Keep the original transaction and retry verification. Details: ','操作尚未完成，请保留原交易并重新核验。详细信息：')+String(e?.shortMessage||e?.message||'Unavailable').replace(/https?:\/\/\S+/g,'[service]').slice(0,280);
 async function persist(o){
@@ -69,11 +83,14 @@ function renderQuote(){
 }
 function render(){
  document.documentElement.lang=lang==='en'?'en':'zh-CN';
- $('subtitle').textContent=text('Source-chain trading · local mainnet rehearsal','源链成交 · 本地主网验收');
+ $('subtitle').textContent=production?text('Source-chain trading','源链成交'):text('Source-chain trading · local mainnet rehearsal','源链成交 · 本地主网验收');
+ $('trade-nav').hidden=!production;$('historical').hidden=!production;
+ $('historical').textContent=text('Historical WOTR pool and records','历史 WOTR 池与记录');
+ const nav=$('trade-nav').querySelectorAll('a');nav[0].textContent=text('Buy','购买');nav[1].textContent=text('Bridge','跨链');nav[2].textContent=text('Swap','兑换');
  $('heading').textContent=text('Trade WOTR from Arc','从 Arc 买卖 WOTR');
  $('intro').textContent=text('Trade at the BNB Chain market, then return the purchased WOTR or sale proceeds to Arc. Each transaction is confirmed separately in your wallet.','在 BNB Chain 市场成交，再把买入的 WOTR 或卖出资金转回 Arc。每笔交易分别在钱包确认。');
  $('language').textContent=lang==='en'?'简体中文':'EN';
- $('connect').textContent=account?text('Wallet connected','钱包已连接'):text('Connect wallet','连接钱包');
+ $('connect').textContent=account?(restored?text('Wallet connected','钱包已连接'):text('Sign in to recover orders','签名登录恢复订单')):text('Connect wallet','连接钱包');
  $('account').textContent=account?text('Wallet: ','钱包：')+account:text('Connect your wallet to start.','连接钱包后开始。');
  $('asset').textContent='BNB WOTR: '+wotrRoutes.current.sourceToken+'\nArc WOTR: '+wotrRoutes.current.arc;
  $('direction-label').textContent=text('Direction','方向');$('amount-label').textContent=text('Input amount · ','输入数量 · ')+($('direction').value==='buy'?'USDC':'WOTR');
@@ -109,7 +126,7 @@ function renderOrders(){
 async function run(action){if(working)return;working=true;render();try{await action();}catch(e){$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
 async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message('Original transactions verified. Refresh the next-step quote.','原交易已核验，请刷新下一步报价。');await balances();}finally{checking=false;render();}}
 async function restore(){
- const server=await api('/api/orders');server.forEach(validateOrder);
+ const server=await api('/api/orders'+(production?'?account='+account:''));server.forEach(validateOrder);
  const raw=localStorage.getItem(cacheKey),cached=raw?JSON.parse(raw):[];if(!Array.isArray(cached))throw Error('Local journal is invalid.');cached.forEach(validateOrder);
  for(const o of cached){
   const remote=server.find(v=>v.id===o.id);
@@ -119,8 +136,8 @@ async function restore(){
  }
  orders=server;localStorage.setItem(cacheKey,stringify(orders));restored=true;render();
 }
-$('connect').onclick=()=>run(async()=>{await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;wallet=choice.provider;[account]=await wallet.request({method:'eth_requestAccounts'});selectOrder(active());wallet.on?.('accountsChanged',()=>{account=null;wallet=null;selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});await balances();if(order)try{await verify();}catch(e){$('message').textContent=explain(e);}});
-$('language').onclick=()=>{lang=lang==='en'?'zh-CN':'en';render();};
+$('connect').onclick=()=>run(async()=>{if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){$('message').textContent=explain(e);}});
+$('language').onclick=()=>{lang=lang==='en'?'zh-CN':'en';if(production)sessionStorage.setItem('tevumi:trade-language',lang);render();};
 $('direction').onchange=()=>{clearQuote();$('amount').value=$('direction').value==='buy'?'1':'1000';render();};$('amount').oninput=clearQuote;
 $('refresh').onclick=()=>run(async()=>{
  if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
@@ -138,5 +155,8 @@ $('check').onclick=()=>run(async()=>{const id=order?.id;await restore();if(id)se
 $('next').onclick=()=>run(async()=>{if(order)await verify();if(order&&order.state!=='COMPLETED')throw Error('Finish or recover the original order first.');selectOrder(null);$('amount').value=$('direction').value==='buy'?'1':'1000';});
 $('cancel').onclick=()=>run(async()=>{if(order.transactions.some(t=>t.state!=='REJECTED'))throw Error('Submitted or uncertain transactions cannot be cancelled here.');order.state='CANCELLED';await persist(order);selectOrder(null);});
 $('export').onclick=()=>{const a=document.createElement('a'),url=URL.createObjectURL(new Blob([stringify(orders)],{type:'application/json'}));a.href=url;a.download='tevumi-source-trade-orders-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);};
-restore().catch(e=>{$('message').textContent=explain(e);});render();
+if(production){
+ lang=sessionStorage.getItem('tevumi:trade-language')==='zh-CN'?'zh-CN':'en';
+ void restoreWalletSession().then(async choice=>{if(!choice)return;useWallet(choice,choice.account);render();void balances();try{await restore();selectOrder(active());if(order)await verify();}catch(e){$('message').textContent=explain(e);}}).catch(e=>{$('message').textContent=explain(e);});
+}else restore().catch(e=>{$('message').textContent=explain(e);});render();
 setInterval(()=>{if(quote&&Date.now()-quote.at>60000)$('send').disabled=true;},1000);

@@ -100,7 +100,8 @@ try {
    }
    await route.fulfill({json:{jsonrpc:'2.0',id:req.id,result}});
   });
-  await page.goto(origin,{waitUntil:'domcontentloaded'});
+  const historical=new URL(origin);historical.searchParams.set('action','swap');historical.searchParams.set('market','historical');
+  await page.goto(historical.href,{waitUntil:'domcontentloaded'});
   await page.locator('#header-connect').click();
   await page.locator('.tevumi-wallet-option').first().click();
   if(mode==='reverse-zh-mobile'||mode==='quote-liquidity-zh')await page.locator('[data-language="zh-CN"]').click();

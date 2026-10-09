@@ -7,6 +7,6 @@ export default defineConfig({
   build: {
     outDir: resolve('dist-home'),
     emptyOutDir: true,
-    rollupOptions: { input: [resolve('web/preview/index.html'), resolve('web/preview/usdc/index.html')] },
+    rollupOptions: { input: [resolve('web/preview/index.html'), resolve('web/preview/usdc/index.html'), resolve('web/source-trade/index.html')] },
   },
 });

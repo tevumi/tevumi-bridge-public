@@ -11,14 +11,17 @@ import {assertJournalUpdate} from '../web/source-trade/order.js';
 const origin=process.env.TEVUMI_SOURCE_TRADE_URL||'http://127.0.0.1:5345/',user='0x'+'1'.repeat(40),pad=n=>'0x'+BigInt(n).toString(16).padStart(64,'0'),hex=n=>'0x'+BigInt(n).toString(16);
 const iface=new Interface([...helperAbi,...candidateAppAbi,'function decimals() view returns(uint8)','function allowance(address,address) view returns(uint256)']);
 const browser=await chromium.launch({headless:true});const report=[];
-try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failure','seven-decimals','large-amount','journal-corrupt','quote-gateway','quote-gateway-zh']){
+const production=new URL(origin).pathname.startsWith('/preview/');
+try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failure','seven-decimals','large-amount',...(!production?['journal-corrupt']:[]),'quote-gateway','quote-gateway-zh']){
  const page=await browser.newPage({viewport:mode==='mobile-zh'?{width:390,height:844}:{width:1440,height:1000}}),errors=[];let chain=5042,sends=0,orders=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.exposeFunction('testWallet',async req=>{if(req.method==='eth_accounts'||req.method==='eth_requestAccounts')return[user];if(req.method==='eth_chainId')return hex(chain);if(req.method==='wallet_switchEthereumChain'){chain=Number(BigInt(req.params[0].chainId));return null;}if(req.method==='eth_sendTransaction'){sends++;return {error:mode==='unknown-reload'?-32000:4001};}throw Error(req.method);});
+ await page.exposeFunction('testWallet',async req=>{if(req.method==='personal_sign')return '0x'+'1'.repeat(130);if(req.method==='eth_accounts'||req.method==='eth_requestAccounts')return[user];if(req.method==='eth_chainId')return hex(chain);if(req.method==='wallet_switchEthereumChain'){chain=Number(BigInt(req.params[0].chainId));return null;}if(req.method==='eth_sendTransaction'){sends++;return {error:mode==='unknown-reload'?-32000:4001};}throw Error(req.method);});
  await page.addInitScript(corrupt=>{if(corrupt)localStorage.setItem('tevumi:source-trade:orders:v1','{broken');const provider={isMetaMask:true,on(){},request:async req=>{const r=await window.testWallet(req);if(r?.error)throw Object.assign(Error('Synthetic wallet rejection'),{code:r.error});return r;}};window.ethereum=provider;window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider}})));},mode==='journal-corrupt');
  await page.route('**/api/**',async route=>{
-  const url=new URL(route.request().url());let result;
-  if(url.pathname==='/api/orders'){
+  const url=new URL(route.request().url());url.pathname=url.pathname.replace('/api/source-trade/','/api/');let result;
+  if(url.pathname==='/api/auth/challenge')result={id:'synthetic-challenge',message:'Synthetic wallet login only.'};
+  else if(url.pathname==='/api/auth/login')result={account:user};
+  else if(url.pathname==='/api/orders'){
    if(route.request().method()==='GET')result=orders;
    else{const o=route.request().postDataJSON(),previous=orders.find(v=>v.id===o.id);if(mode==='save-failure'&&o.transactions.length){await route.fulfill({status:502,json:{error:'Synthetic disk failure'}});return;}assertJournalUpdate(previous,o);orders=orders.filter(v=>v.id!==o.id);orders.unshift(o);result={saved:true};}
   }else if(url.pathname==='/api/lifi/quote'){

@@ -32,6 +32,7 @@ export function assertJournalUpdate(previous,next){
  validateOrder(next);
  if(!previous){if(next.revision!==0||next.transactions.length)throw Error('New order must begin empty.');return;}
  validateOrder(previous);
+ if(previous.state!=='OPEN'&&(next.state!==previous.state||next.transactions.length!==previous.transactions.length))throw Error('Closed orders cannot be reopened or extended.');
  if(next.revision!==previous.revision+1||['id','account','kind','input','createdAt'].some(k=>next[k]!==previous[k]))throw Error('Order changed in another tab. Reload the original order.');
  if(next.transactions.length<previous.transactions.length)throw Error('Transaction history cannot be removed.');
  for(let i=0;i<previous.transactions.length;i++){

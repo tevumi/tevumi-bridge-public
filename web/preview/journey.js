@@ -61,11 +61,18 @@ function amount(value) {
   return parseEther(value);
 }
 function setTab(tab) {
+  if (tab === 'swap' && new URLSearchParams(location.search).get('market') !== 'historical') {
+    const target = new URL('/preview/trade/index.html',location.origin);
+    target.search = location.search; target.searchParams.set('action','swap'); target.hash = location.hash;
+    location.assign(target.href);
+    return;
+  }
   const previousTab = activeTab;
   activeTab = tab;
   // The URL belongs to this browser tab: refresh and copied links restore it.
   const url = new URL(window.location.href);
   url.searchParams.set('action',tab);
+  if(tab!=='swap')url.searchParams.delete('market');
   if (url.href !== window.location.href) window.history.replaceState(window.history.state,'',url);
   document.body.dataset.view = tab;
   window.dispatchEvent(new CustomEvent('tevumi:journey-tab',{detail:{tab}}));

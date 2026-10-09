@@ -1,14 +1,12 @@
 # Tevumi Bridge
 
-**2026-10-09 · 源链成交往返已验收：**真实钱包小额订单完成 Arc USDC 资金跨链、Four.meme 买入、WOTR 到 Arc、赎回 BNB Chain、源链卖出和 USDC 回到 Arc。两个订单的原回执、真实到账、桥会计与钱包余额变化均独立核验，钱包留存 BNB 与费用分别记账。本次证明当前未毕业路径的该笔真实流程；实际毕业交易和生产接入仍待完成，线上 Swap 仍沿用现有池。
+**2026-10-09 · 源链成交已接入正式站：**[Swap](https://bridge.tevumi.com/preview/trade/index.html) 支持 Arc USDC → BNB Chain 买入 WOTR → Arc 到账，以及 Arc WOTR → BNB Chain 卖出 → Arc USDC 回款。资金通过 LI.FI，WOTR 通过 LayerZero；成交在源链完成，不依赖当前 WOTR 的 Arc 流动池。Buy、Bridge、Swap 使用同一当前 WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业走 Four.meme，毕业后核验 PancakeSwap V2 池；实际毕业交易仍待验收。
 
-**2026-10-09 · 源链买入已验收：**本地原型完成真实 1 USDC 从 Arc 跨资金、在 BNB Chain 市场买入，再把 WOTR 转到 Arc；原回执、目标到账和桥锁仓核验一致。BSC 跨链回执已兼容严格校验的 MetaMask 单次调用包装。反向卖出和生产接入仍待验收。
+每一步重新报价并单独在钱包确认；继续之前核验原回执和实际到账。首次连接需签名登录保存、恢复所属钱包的服务器订单，此签名不授权或转移代币。刷新和不确定结果不会自动重复付款。历史 WOTR 池与旧记录保留在单独标识的入口。不增加额外数量或次数限制，余额、共享精度、合约容量和费用仍须满足。
 
-**2026-10-09 · 源链成交原型：**独立本地页面实现 Arc USDC → BNB Chain 买入 → Arc WOTR，以及反向卖出。每一步重新报价、钱包确认，继续之前独立核验原回执和目标到账。单元、模拟钱包浏览器和实际合约分叉检查通过；完整真实钱包往返和生产接入待验收，线上 Swap 仍是历史池。使用 Node 24+，本地配置 BSC_RPC_URL / ARC_RPC_URL 后运行 `node --env-file-if-exists=.env node_modules/vite/bin/vite.js --config vite.source-trade.config.js`，打开 `http://127.0.0.1:5345/`。使用真实主网资金和费用；Gas 预留留在钱包，全流程不锁价。
+真实钱包的小额双向闭环已独立验收，包含桥会计和余额/费用对账。该验收覆盖当前未毕业路线；退款、部分完成及其他智能钱包形式不视为已完成真实验收。资金滑点 0.5%，源链交易滑点 1%，每步报价有效 60 秒；Gas 和代币消息费另计，预留 BNB 留在钱包，全流程不锁价。单元、模拟钱包界面和公网接口检查已通过，发布后新增真实交易仍由用户签署。
 
-**2026-10-09 · 当前 WOTR 桥：**Buy 与 Bridge 使用 Four.meme WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。1000 枚主网真实往返已独立核验，包括锁仓、铸造、销毁和赎回；新旧桥记录按资产身份区分。Swap 明确保留历史 WOTR 池，不能兑换当前 Buy、Bridge 页的 WOTR。通过源链成交的 Arc 交易仍在开发。不加额外前端数量或次数限制，仍须满足余额、共享精度、合约容量和费用条件。
-
-**2026-10-09 · 新 Buy 资产：**Buy 现使用新 WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业通过 Four.meme 报价和购买，毕业后动态读取并核验 PancakeSwap V2 池；迁移中或无有效池时阻止购买。报价 60 秒失效，交易设置最低到账。新币曲线购买通过隔离主网分叉；毕业分支通过模拟测试，真实迁移池仍待验证。**Bridge 已接入此 WOTR；Arc Swap 保留历史代币池，Arc 发起源链交易仍在开发。**购买历史通过合约地址区分新旧币。下文完整流程演示属于旧币历史记录。
+本地独立入口：Node 24+，配置 BSC_RPC_URL / ARC_RPC_URL 后运行 `node --env-file-if-exists=.env node_modules/vite/bin/vite.js --config vite.source-trade.config.js`，打开 `http://127.0.0.1:5345/`。恢复核验需要可读取相关历史区块的 RPC；本地订单文件须保留。
 
 Buy、Bridge、Swap 刷新后保留当前板块，通过各标签页的网址记录所在页面，保留其他查询参数和 hash；Bridge USDC 仍使用独立页面。
 
@@ -18,10 +16,10 @@ Buy、Bridge、Swap 刷新后保留当前板块，通过各标签页的网址记
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge 以 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入当前代币，并在 BNB Chain 与 Arc 双向跨链。Swap 是独立的历史代币池。
+Tevumi Bridge 以 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入当前代币，并在 BNB Chain 与 Arc 双向跨链。Swap 通过源链完成当前代币的买卖；旧池作为历史入口保留。
 
 
-**2026-10-08 · 双向兑换：**在 Swap 点击方向按钮选择 USDC → WOTR，输入小额数量并刷新报价，再在钱包确认兑换。切换方向会清空数量和报价；服务器历史区分两种方向并保留旧 WOTR → USDC 记录。这里使用 18 位原生 USDC 精度，与 CCTP 的 6 位 ERC20 接口不同。本次未新建池或增加流动性。 原生 USDC 输入必须完整结算；若池子只能部分成交，交易会整体回退，不把未使用的付款留在 Router 中。
+**历史记录 · 2026-10-08 双向池兑换：**在 Swap 点击方向按钮选择 USDC → WOTR，输入小额数量并刷新报价，再在钱包确认兑换。切换方向会清空数量和报价；服务器历史区分两种方向并保留旧 WOTR → USDC 记录。这里使用 18 位原生 USDC 精度，与 CCTP 的 6 位 ERC20 接口不同。本次未新建池或增加流动性。 原生 USDC 输入必须完整结算；若池子只能部分成交，交易会整体回退，不把未使用的付款留在 Router 中。
 
 ## 当前部署与权限
 
