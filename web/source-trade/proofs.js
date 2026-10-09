@@ -9,6 +9,24 @@ export const oftInterface=new Interface(['event OFTSent(bytes32 indexed guid,uin
 const started=new Interface(['event LiFiTransferStarted('+bridgeType+' bridgeData)']);
 const sale=new Interface(sellManagerAbi),zero='0x'+'0'.repeat(40);
 const check=(ok,message)=>{if(!ok)throw Error(message);};
+// Official MetaMask Delegation Framework v1.3.0 deployment addresses:
+// https://github.com/MetaMask/delegation-framework/releases/tag/v1.3.0
+export const walletManager='0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3';
+export const walletDelegator='0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B';
+export const walletInterface=new Interface(['function redeemDelegations(bytes[] permissionContexts,bytes32[] modes,bytes[] executionCallDatas)']);
+async function matchesWalletBridge(provider,tx,receipt,record,account){
+ if(record.kind!=='bridge'||record.chain!==56||!same(tx.to,walletManager)||tx.value!==0n)return false;
+ let decoded;try{decoded=walletInterface.parseTransaction({data:tx.data});}catch{return false;}
+ if(!decoded||decoded.args.permissionContexts.length!==1||decoded.args.modes.length!==1||decoded.args.executionCallDatas.length!==1||decoded.args.modes[0]!=='0x'+'0'.repeat(64))return false;
+ // A single packed CALL only; do not accept batches, arbitrary wrappers or changed intents.
+ const packed=decoded.args.executionCallDatas[0];
+ if(packed.length<106||!same('0x'+packed.slice(2,42),record.to)||BigInt('0x'+packed.slice(42,106))!==BigInt(record.value)||'0x'+packed.slice(106)!==record.data)return false;
+ if(walletInterface.encodeFunctionData('redeemDelegations',decoded.args)!==tx.data)return false;
+ if(!same(await provider.getCode(account,receipt.blockNumber),'0xef0100'+walletDelegator.slice(2)))return false;
+ // The entire wallet native debit, excluding its actual gas, must equal this message fee.
+ check(await nativeReceiptDelta(provider,receipt,account)===-BigInt(record.value),'Wrapped bridge payment differs from its intended message fee.');
+ return true;
+}
 export const hashValid=v=>/^0x[0-9a-f]{64}$/i.test(v||'');
 function events(receipt,address,iface,name){return receipt.logs.filter(l=>same(l.address,address)).flatMap(l=>{try{const e=iface.parseLog(l);return e?.name===name?[e]:[]}catch{return []}});}
 export function transferred(receipt,token,from,to){return events(receipt,token,tokenInterface,'Transfer').filter(e=>same(e.args.from,from)&&same(e.args.to,to)).reduce((n,e)=>n+e.args.value,0n);}
@@ -27,8 +45,11 @@ export async function sourceProof(provider,record,account){
  const [tx,receipt]=await Promise.all([provider.getTransaction(record.hash),provider.getTransactionReceipt(record.hash)]);
  check(tx&&receipt,'Transaction is not confirmed yet. Check the original hash again later.');
  check(receipt.status===1,'Transaction reverted. Keep this receipt and check gas before starting a new order.');
- check(same(tx.from,account)&&same(tx.to,record.to)&&tx.data===record.data&&tx.value===BigInt(record.value)&&tx.nonce===record.nonce,'Original transaction does not match this order.');
+ check(same(tx.from,account)&&tx.nonce===record.nonce,'Original sender or nonce does not match this order.');
+ const direct=same(tx.to,record.to)&&tx.data===record.data&&tx.value===BigInt(record.value);
+ check(direct||await matchesWalletBridge(provider,tx,receipt,record,account),'Original transaction does not match this order.');
  let result={hash:record.hash,block:receipt.blockNumber,gas:String(receipt.gasUsed*receipt.gasPrice)};
+ if(!direct)result.walletWrapper=walletManager;
  if(record.kind==='approval'){
   const call=tokenInterface.parseTransaction({data:record.data});
   check(call?.name==='approve'&&same(record.to,record.token)&&same(call.args[0],record.spender)&&call.args[1]===BigInt(record.amount),'Unexpected approval.');

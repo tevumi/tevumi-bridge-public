@@ -6,7 +6,7 @@ import {TradeEngine,networks} from '../web/source-trade/engine.js';
 import {BUY,helperAbi,managerAbi,dexAbi} from '../web/preview/buy-plan.js';
 import {sellHelperAbi,sellManagerAbi,sellDexAbi,sellCall,quoteSell} from '../web/source-trade/sell-plan.js';
 import {candidateAppAbi} from '../web/src/production-transfer.js';
-import {tokenInterface,oftInterface} from '../web/source-trade/proofs.js';
+import {tokenInterface,oftInterface,sourceProof,walletManager,walletDelegator,walletInterface} from '../web/source-trade/proofs.js';
 import {wotrRoutes} from '../web/src/wotr-routes.js';
 import {USDC,ROUTERS,bridgeType} from '../web/src/funding-validation.js';
 const user='0x'+'1'.repeat(40),pair='0x'+'2'.repeat(40),out=parseEther('10000'),guid='0x'+'a'.repeat(64);
@@ -108,3 +108,24 @@ test('curve sale encodes a gross minimum with zero router fee, and its estimated
 
 
 test('graduated source routes complete using the validated PancakeSwap pair in both directions',async()=>{for(const kind of ['buy','sell']){const r=rig({graduate:true});await complete(r,kind);assert.equal(r.engine.order.transactions.find(t=>t.kind===(kind==='buy'?'buy':'sell')).quote.route,'dex');assert.equal(r.engine.order.state,'COMPLETED');}});
+
+
+test('MetaMask single-call bridge wrapper matches the original intent and actual wallet payment; mutations fail',async()=>{
+ const r=rig();await complete(r,'buy');
+ const record=r.engine.order.transactions.at(-1),tx=r.txs.get(record.hash),receipt=r.receipts.get(record.hash),p=r.providers[56];
+ const original={...tx},balance=p.getBalance;
+ const packed=record.to.toLowerCase()+BigInt(record.value).toString(16).padStart(64,'0')+record.data.slice(2);
+ const args=[['0x1234'],['0x'+'0'.repeat(64)],[packed]];
+ tx.to=walletManager;tx.value=0n;tx.data=walletInterface.encodeFunctionData('redeemDelegations',args);
+ p.getCode=async()=> '0xef0100'+walletDelegator.slice(2);
+ p.getBalance=async(a,b)=>b===receipt.blockNumber?parseEther('1')-BigInt(record.value)-receipt.gasUsed*receipt.gasPrice:b===receipt.blockNumber-1?parseEther('1'):balance(a,b);
+ assert.equal((await sourceProof(p,record,user)).walletWrapper,walletManager);
+ await r.engine.verify();assert.equal(Object.keys(r.engine.results).length,3);
+ const valid={...tx};
+ for(const changed of [{to:ZeroAddress},{from:ZeroAddress},{nonce:tx.nonce+1},{value:1n},{data:walletInterface.encodeFunctionData('redeemDelegations',[args[0],args[1],[packed.slice(0,-2)+'01']])},{data:walletInterface.encodeFunctionData('redeemDelegations',[args[0],['0x01'+'0'.repeat(62)],args[2]])},{data:walletInterface.encodeFunctionData('redeemDelegations',[['0x1234','0x1234'],[args[1][0],args[1][0]],[packed,packed]])}]){
+  Object.assign(tx,valid,changed);await assert.rejects(sourceProof(p,record,user));
+ }
+ Object.assign(tx,valid);p.getCode=async()=> '0x6000';await assert.rejects(sourceProof(p,record,user));
+ p.getCode=async()=> '0xef0100'+walletDelegator.slice(2);p.getBalance=async(a,b)=>b===receipt.blockNumber?parseEther('1')-BigInt(record.value)*2n-receipt.gasUsed*receipt.gasPrice:b===receipt.blockNumber-1?parseEther('1'):balance(a,b);await assert.rejects(sourceProof(p,record,user),/payment differs/);
+ Object.assign(tx,original);
+});
