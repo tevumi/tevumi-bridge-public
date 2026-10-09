@@ -4,23 +4,25 @@ import {arcFeeParams} from './arc-fees.js';
 import {classifyWalletSendError} from './wallet-result.js';
 import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/production-transfer.js';
 import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
+import {wotrRoutes} from '../src/wotr-routes.js';
 
 const $=id=>document.getElementById(id);
 const owner='0x489594537CB76aC256079D710B6E18498E1a5402';
 let assetId=document.body.dataset.asset==='wotr'?'wotr':document.body.dataset.asset==='cat'?'cat':'binancelife';
-const assetNames={binancelife:'币安人生',cat:'CAT',wotr:'WOTR'};
+const assetNames={binancelife:'币安人生',cat:'CAT',wotr:'WOTR',wotrLegacy:'WOTR（历史合约）'};
 let assetName=assetNames[assetId];
 const pairs={
  binancelife:{sourceToken:'0x924fa68a0fc644485b8df8abfa0a41c2e7744444',bsc:'0x89F3A44786C97618cc4b45721D433c9a83921ec4',arc:'0x9aF52E914DCC692Af046A136AC1c59f98F7347E7'},
  cat:{sourceToken:'0x6894cde390a3f51155ea41ed24a33a4827d3063d',bsc:'0x561750f93BAC5BC237De7FE092b9A40e1cC20b06',arc:'0x503200C60aaA078899B31268833c5F090693E30B'},
- wotr:{sourceToken:'0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5',bsc:'0xAC93aA5DFD4dFF9FC57C470FC6C9172F7a9bfbcf',arc:'0x70Cedd901366ad932203BBB08B22DcD4d4510028'},
+ wotr:wotrRoutes.current,
+ wotrLegacy:wotrRoutes.historical,
 };
 let pair=pairs[assetId];
 const admins={
  legacy:{bsc:'0xB2039D774574d9171E143cA30aAb48bB25b3F8e8',arc:'0x01dba01e9E6f40669d8D3036316967221Bc0081C'},
  wotr:{bsc:'0xD43448999ce7fA1FFE4783aB9D2D623FC9AC32db',arc:'0x95A128fbdc89f20b16b735b06bFBe0DF92AA68Df'},
 };
-const activeAdmin=()=>admins[assetId==='wotr'?'wotr':'legacy'];
+const activeAdmin=()=>admins[assetId==='wotr'||assetId==='wotrLegacy'?'wotr':'legacy'];
 const networks={bsc:{chainId:56,eid:30102,endpoint:'0x1a44076050125825900e736c501f859c50fe728c'},arc:{chainId:5042,eid:30417,endpoint:'0x6f475642a6e85809b1c36fa62763669b1b48dd5b'}};
 const options='0x00030100110100000000000000000000000000030d40';
 const legacyAmountLD=parseEther('0.000001');
@@ -30,7 +32,8 @@ const appAbi=[...candidateAppAbi,'function owner() view returns(address)','funct
  'event OFTSent(bytes32 indexed guid,uint32 dstEid,address indexed fromAddress,uint256 amountSentLD,uint256 amountReceivedLD)',
  'event OFTReceived(bytes32 indexed guid,uint32 srcEid,address indexed toAddress,uint256 amountReceivedLD)'];
 const adminIface=new Interface(adminAbi),appIface=new Interface(appAbi),tokenIface=new Interface(candidateTokenAbi);
-const storageKey=()=>`tevumi-immediate-${assetId}-live-v1`;
+// Never interpret historical WOTR browser records as current-asset sends.
+const storageKey=()=>assetId==='wotr'?'tevumi-immediate-wotr-four-live-v1':`tevumi-immediate-${assetId==='wotrLegacy'?'wotr':assetId}-live-v1`;
 const providers=Object.fromEntries(Object.entries(networks).map(([side,network])=>[side,new BrowserProvider({request:({method,params=[]})=>rpc(network.chainId,method,params)})]));
 let account=null,busy=false,records={};
 let selectedWallet=null, walletEventHandlers=null;

@@ -1,6 +1,8 @@
 # Tevumi Bridge
 
-**2026-10-09 · 新 Buy 资产：**Buy 现使用新 WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业通过 Four.meme 报价和购买，毕业后动态读取并核验 PancakeSwap V2 池；迁移中或无有效池时阻止购买。报价 60 秒失效，交易设置最低到账。新币曲线购买通过隔离主网分叉；毕业分支通过模拟测试，真实迁移池仍待验证。**Bridge 和 Arc Swap 仍使用旧 WOTR，新 Buy 代币尚不能接入该通道。**购买历史通过合约地址区分新旧币。下文完整流程演示属于旧币历史记录。
+**2026-10-09 · 当前 WOTR 桥：**Buy 与 Bridge 使用 Four.meme WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。1000 枚主网真实往返已独立核验，包括锁仓、铸造、销毁和赎回；新旧桥记录按资产身份区分。Swap 明确保留历史 WOTR 池，不能兑换当前 Buy、Bridge 页的 WOTR。通过源链成交的 Arc 交易仍在开发。不加额外前端数量或次数限制，仍须满足余额、共享精度、合约容量和费用条件。
+
+**2026-10-09 · 新 Buy 资产：**Buy 现使用新 WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业通过 Four.meme 报价和购买，毕业后动态读取并核验 PancakeSwap V2 池；迁移中或无有效池时阻止购买。报价 60 秒失效，交易设置最低到账。新币曲线购买通过隔离主网分叉；毕业分支通过模拟测试，真实迁移池仍待验证。**Bridge 已接入此 WOTR；Arc Swap 保留历史代币池，Arc 发起源链交易仍在开发。**购买历史通过合约地址区分新旧币。下文完整流程演示属于旧币历史记录。
 
 Buy、Bridge、Swap 刷新后保留当前板块，通过各标签页的网址记录所在页面，保留其他查询参数和 hash；Bridge USDC 仍使用独立页面。
 
@@ -10,7 +12,7 @@ Buy、Bridge、Swap 刷新后保留当前板块，通过各标签页的网址记
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Tevumi Bridge 现在以自己的社区演示代币 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入、跨链到 Arc，并可选择兑换为原生 USDC；WOTR 双向独立跨链仍保留。
+Tevumi Bridge 以 **Wobble Otter（WOTR）** 为主线：在 BNB Chain 买入当前代币，并在 BNB Chain 与 Arc 双向跨链。Swap 是独立的历史代币池。
 
 
 **2026-10-08 · 双向兑换：**在 Swap 点击方向按钮选择 USDC → WOTR，输入小额数量并刷新报价，再在钱包确认兑换。切换方向会清空数量和报价；服务器历史区分两种方向并保留旧 WOTR → USDC 记录。这里使用 18 位原生 USDC 精度，与 CCTP 的 6 位 ERC20 接口不同。本次未新建池或增加流动性。 原生 USDC 输入必须完整结算；若池子只能部分成交，交易会整体回退，不把未使用的付款留在 Router 中。

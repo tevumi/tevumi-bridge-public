@@ -50,6 +50,45 @@ class AmountHistoryTest(unittest.TestCase):
         self.assertEqual(history.ASSETS['wotr'][56], '0xac93aa5dfd4dff9fc57c470fc6c9172f7a9bfbcf')
         self.assertEqual(history.ASSETS['wotr'][5042], '0x70cedd901366ad932203bbb08b22dcd4d4510028')
 
+    def test_new_bridge_requires_real_collateral_and_burn_and_arrival(self):
+        account = '0x' + '1' * 40
+        guid = '0x' + '3' * 64
+        amount = 1000 * 10**18
+        zero = '0x' + '0' * 40
+        words = lambda *values: '0x' + ''.join(f'{value:064x}' for value in values)
+        topic = lambda address: words(int(address, 16))
+        for chain, target_chain in ((56, 5042), (5042, 56)):
+            bridge = history.ASSETS['wotr-four'][chain]
+            target = history.ASSETS['wotr-four'][target_chain]
+            token = history.SOURCE_TOKENS['wotr-four'] if chain == 56 else bridge
+            debit_to = bridge if chain == 56 else zero
+            sent = {'address': bridge, 'topics': [history.OFT_SENT, guid, topic(account)],
+                    'data': words(history.EIDS[target_chain], amount, amount)}
+            debit = {'address': token, 'topics': [history.TRANSFER, topic(account), topic(debit_to)], 'data': words(amount)}
+            tx = {'from': account, 'to': bridge, 'input': '0xc7c7f5b3', 'blockNumber': '0x1'}
+            receipt = {'status': '0x1', 'logs': [sent, debit]}
+            with patch.object(history, 'rpc', side_effect=[tx, receipt]):
+                row = history.inspect_source(chain, '0x' + '2' * 64)
+            self.assertEqual(row['asset'], 'wotr-four')
+            self.assertEqual(row['amount_ld'], str(amount))
+            for bad in ([sent], [sent, {**debit, 'address': history.WOTR[chain]}],
+                        [sent, {**debit, 'data': words(amount - 1)}]):
+                with patch.object(history, 'rpc', side_effect=[tx, {**receipt, 'logs': bad}]):
+                    with self.assertRaises(ValueError):
+                        history.inspect_source(chain, '0x' + '2' * 64)
+            arrival = {'address': target, 'topics': [history.OFT_RECEIVED, guid, topic(account)],
+                       'data': words(history.EIDS[chain], amount)}
+            credit = {'address': target if target_chain == 5042 else history.SOURCE_TOKENS['wotr-four'],
+                      'topics': [history.TRANSFER, topic(zero if target_chain == 5042 else target), topic(account)],
+                      'data': words(amount)}
+            with patch.object(history, 'rpc', return_value={'status': '0x1', 'logs': [arrival, credit]}):
+                self.assertTrue(history.inspect_target(row, '0x' + '4' * 64))
+            for bad in ([arrival], [arrival, {**credit, 'address': history.WOTR[target_chain]}],
+                        [arrival, {**credit, 'data': words(amount - 1)}],
+                        [{**arrival, 'address': history.ASSETS['wotr'][target_chain]}, credit]):
+                with patch.object(history, 'rpc', return_value={'status': '0x1', 'logs': bad}):
+                    self.assertFalse(history.inspect_target(row, '0x' + '4' * 64))
+
     def test_existing_verified_rows_gain_legacy_amount(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'history.sqlite3')

@@ -4,10 +4,11 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import * as ethers from 'ethers';
 import {candidateAppAbi,candidateTokenAbi} from '../web/src/production-transfer.js';
+import {wotrRoutes} from '../web/src/wotr-routes.js';
 
 const account='0x67bfb3BeF4f4A3Cb25Bc529E948d40bcfc0874CD';
-const source='0xAC93aA5DFD4dFF9FC57C470FC6C9172F7a9bfbcf';
-const target='0x70Cedd901366ad932203BBB08B22DcD4d4510028';
+const source=wotrRoutes.current.bsc;
+const target=wotrRoutes.current.arc;
 const hash='0x'+'1'.repeat(64),targetHash='0x'+'2'.repeat(64),guid='0x'+'3'.repeat(64);
 const amount=ethers.parseEther('1000'),data='0x1234';
 const iface=new ethers.Interface([
@@ -22,7 +23,7 @@ function setup({targetStart=100,targetAmount=amount,badCall=false,unconfirmed=fa
  let ctx;
  const providers={bsc:{getTransaction:async()=>({from:badCall?'0x0000000000000000000000000000000000000001':account,to:source,data}),getTransactionReceipt:async()=>receipt},arc:{getBlockNumber:async()=>101,getLogs:async()=>[arrival.logs[0]],getTransactionReceipt:async()=>{if(changeAccount)ctx.changeAccount();return arrival;}}};
  const nodes=new Map();
- const context={...ethers,candidateAppAbi,candidateTokenAbi,console,
+ const context={...ethers,candidateAppAbi,candidateTokenAbi,wotrRoutes,console,
   BrowserProvider:class{constructor(){return Object.values(providers)[context.providerIndex++];}},providerIndex:0,
   rpc:()=>{},arcFeeParams:()=>{},classifyWalletSendError:()=>{},planCandidateTransfer:()=>{},
   pickWallet:()=>{},rememberWalletSession:()=>{},restoreWalletSession:()=>{},clearWalletSession:()=>{},

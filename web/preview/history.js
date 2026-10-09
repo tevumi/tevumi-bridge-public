@@ -35,7 +35,8 @@ function card(item) {
   const top = document.createElement('div');
   top.className = 'history-card-top';
   const route = document.createElement('strong');
-  route.textContent = `${({cat:'CAT',binancelife:'币安人生',wotr:'WOTR'})[item.asset] ?? '未知资产'} · ${chainNames[item.chain]} → ${chainNames[item.target_chain]}`;
+  const historical=currentLanguage()==='zh-CN'?'WOTR（历史合约）':'WOTR (historical contract)';
+  route.textContent = `${({cat:'CAT',binancelife:'币安人生',wotr:historical,'wotr-four':'WOTR'})[item.asset] ?? 'Unknown asset'} · ${chainNames[item.chain]} → ${chainNames[item.target_chain]}`;
   const state = document.createElement('span');
   state.className = `history-status history-${item.status}`;
   state.textContent = text[item.status] || text.unknown;
@@ -45,6 +46,9 @@ function card(item) {
   meta.textContent = `${quantity} · ${new Date(item.created_at * 1000).toLocaleString(currentLanguage(), { hour12: false })}`;
   const actions = document.createElement('div');
   actions.className = 'history-links';
+  if(item.source_token && /^0x[0-9a-f]{40}$/i.test(item.source_token)){
+    const identity=document.createElement('a');identity.href='https://bscscan.com/token/'+item.source_token;identity.target='_blank';identity.rel='noopener noreferrer';identity.textContent=item.source_token;identity.style.overflowWrap='anywhere';meta.append(document.createElement('br'),identity);
+  }
   if (validHash(item.source_hash)) actions.append(link(text.source, item.chain, item.source_hash));
   if (validHash(item.target_hash)) actions.append(link(text.target, item.target_chain, item.target_hash));
   node.append(top, meta, actions);

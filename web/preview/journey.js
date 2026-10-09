@@ -233,7 +233,7 @@ function renderLiveText() {
     : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
   $('journey-buy-card').querySelector('h3 + p').textContent=local('Four.meme curve → PancakeSwap after graduation','Four.meme 联合曲线 → 毕业后 PancakeSwap');
   $('context-buy').querySelector('h3 + p').textContent=local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
-  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nThis WOTR does not yet support bridging or swaps on Arc.`,`WOTR 合约：${BUY.token}\n此 WOTR 暂不支持跨链或 Arc 兑换。`);
+  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nBridge this WOTR between BNB Chain and Arc. Arc trading through the source chain is being developed.`,`WOTR 合约：${BUY.token}\n此 WOTR 支持 BNB Chain 与 Arc 双向跨链；通过源链成交的 Arc 交易功能正在开发。`);
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} ${units.output}\nMinimum receive: ${formatEther(swapQuote.minOut)} ${units.output} (1% slippage)\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} ${units.output}\n最低收到：${formatEther(swapQuote.minOut)} ${units.output}（1% 滑点）\nGas 另计，报价 60 秒后失效。`);
@@ -456,7 +456,8 @@ function renderSwapDirection() {
   const {input,output} = swapAssets(reverseSwap);
   $('journey-swap-direction').textContent = local(`⇄ ${input} → ${output}`,`⇄ ${input} → ${output}`);
   $('journey-swap-direction').setAttribute('aria-label',local('Reverse swap direction','反转兑换方向'));
-  $('journey-swap-card').querySelector('h3').textContent = local(`Swap ${input} for ${output} on Arc`,`在 Arc 将 ${input} 兑换为 ${output}`);
+  $('journey-swap-card').querySelector('h3').textContent = local(`Swap ${input} for ${output} on Arc · historical WOTR`,`在 Arc 将 ${input} 兑换为 ${output} · 历史 WOTR`);
+  $('journey-swap-identity').textContent=local(`This pool uses the historical WOTR contract: ${A.arcWotr}. WOTR from the current Buy and Bridge pages cannot be traded in this pool.`,`此池使用历史 WOTR 合约：${A.arcWotr}。当前 Buy 和 Bridge 页的 WOTR 不能在此池兑换。`);
   $('journey-swap-card').querySelector('label[for="journey-wotr"]').textContent = local(`You sell · ${input}`,`卖出 · ${input}`);
   $('journey-swap-card').querySelector('.journey-input strong').textContent = input;
   $('journey-swap-card').querySelector('.journey-output span').textContent = output;

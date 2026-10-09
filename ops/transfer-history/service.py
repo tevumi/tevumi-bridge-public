@@ -26,6 +26,7 @@ ASSETS = {
     'binancelife': {56: '0x89f3a44786c97618cc4b45721d433c9a83921ec4', 5042: '0x9af52e914dcc692af046a136ac1c59f98f7347e7'},
     'cat': {56: '0x561750f93bac5bc237de7fe092b9a40e1cc20b06', 5042: '0x503200c60aaa078899b31268833c5f090693e30b'},
     'wotr': {56: '0xac93aa5dfd4dff9fc57c470fc6c9172f7a9bfbcf', 5042: '0x70cedd901366ad932203bbb08b22dcd4d4510028'},
+    'wotr-four': {56: '0x7b0036fec706761864cfbfa72e6da09da6e61e6b', 5042: '0x0fc104231002e1da57ec5af516f9caca6c4f7bfb'},
 }
 EIDS = {56: 30102, 5042: 30417}
 ADDRESS = re.compile(r'^0x[0-9a-f]{40}$', re.I)
@@ -33,6 +34,9 @@ HASH = re.compile(r'^0x[0-9a-f]{64}$', re.I)
 JOURNEY = {'buy': (56, '0x10ed43c718714eb63d5aa57b78b54704e256024e', '0x7ff36ab5'),
            'swap': (5042, '0x4fca4a51ab4f23a7447b3284fbd7d73289a89fb1', '0x3593564c')}
 WOTR = {56: '0xb97b99cb6dc0edbb89512e14100b2e9c23132ee5', 5042: ASSETS['wotr'][5042]}
+SOURCE_TOKENS = {'wotr': WOTR[56], 'wotr-four': '0xe2a0ce4be658ee9b09e461f5283c718a20984444',
+                 'cat': '0x6894cde390a3f51155ea41ed24a33a4827d3063d',
+                 'binancelife': '0x924fa68a0fc644485b8df8abfa0a41c2e7744444'}
 WBNB = '0xbb4cdb9cbd36b01bD1cBaEBF2De08d9173bc095c'.lower()
 BNB_PAIR = '0x36092bcf2b17808469ac92ee0f1a9a2cb71dba87'
 ARC_POOL_MANAGER = '0x8366a39cc670b4001a1121b8f6a443a643e40951'
@@ -248,11 +252,13 @@ def inspect_source(chain, tx_hash):
             words = [log['data'][2+i:2+i+64] for i in range(0, len(log['data'])-2, 64)]
             if len(words) < 3 or int(words[0], 16) != EIDS[target_chain] or int(words[1], 16) < 10**12 or int(words[1], 16) % 10**12 or int(words[1], 16) != int(words[2], 16):
                 raise ValueError('Transfer parameters mismatch')
-            if not direct and chain == 56:
-                token = {'wotr': WOTR[56], 'cat': '0x6894cde390a3f51155ea41ed24a33a4827d3063d',
-                         'binancelife': '0x924fa68a0fc644485b8df8abfa0a41c2e7744444'}[asset]
+            if (not direct or asset == 'wotr-four') and chain == 56:
+                token = SOURCE_TOKENS[asset]
                 if transfer_amount(receipt, token, tx['from'], ASSETS[asset][chain]) != int(words[1], 16):
                     raise ValueError('Wrapped bridge token debit mismatch')
+            if asset == 'wotr-four' and chain == 5042:
+                if transfer_amount(receipt, ASSETS[asset][chain], tx['from'], '0x' + '0' * 40) != int(words[1], 16):
+                    raise ValueError('Arc bridge burn mismatch')
             status, guid, amount_ld = 'in_transit', log['topics'][1].lower(), str(int(words[1], 16))
     return {'chain': chain, 'source_hash': tx_hash.lower(), 'account': tx['from'].lower(),
             'asset': asset, 'target_chain': target_chain, 'guid': guid, 'status': status, 'amount_ld': amount_ld}
@@ -269,7 +275,12 @@ def inspect_target(row, target_hash):
     if not log or log['topics'][1].lower() != row['guid'] or int(log['topics'][2][-40:], 16) != int(row['account'], 16):
         return False
     words = [log['data'][2+i:2+i+64] for i in range(0, len(log['data'])-2, 64)]
-    return len(words) >= 2 and row['amount_ld'] is not None and int(words[0], 16) == EIDS[row['chain']] and int(words[1], 16) == int(row['amount_ld'])
+    matched = len(words) >= 2 and row['amount_ld'] is not None and int(words[0], 16) == EIDS[row['chain']] and int(words[1], 16) == int(row['amount_ld'])
+    if matched and row['asset'] == 'wotr-four':
+        token = ASSETS['wotr-four'][5042] if chain == 5042 else SOURCE_TOKENS['wotr-four']
+        sender = '0x' + '0' * 40 if chain == 5042 else ASSETS['wotr-four'][56]
+        return transfer_amount(receipt, token, sender, row['account']) == int(row['amount_ld'])
+    return matched
 
 
 def destination_hash(guid, source_chain, target_chain):
@@ -382,7 +393,13 @@ class Handler(BaseHTTPRequestHandler):
                 rows = connection.execute('''SELECT chain,source_hash,asset,target_chain,target_hash,status,amount_ld,created_at
                   FROM transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
                   (account, page * 10)).fetchall()
-        return self.send_json(200, {'items': [dict(row) for row in rows[:10]], 'more': len(rows) > 10})
+        items = [dict(row) for row in rows[:10]]
+        if url.path == '/transfers':
+            for item in items:
+                item['source_token'] = SOURCE_TOKENS.get(item['asset'])
+                item['source_bridge'] = ASSETS.get(item['asset'], {}).get(item['chain'])
+                item['target_bridge'] = ASSETS.get(item['asset'], {}).get(item['target_chain'])
+        return self.send_json(200, {'items': items, 'more': len(rows) > 10})
 
     def do_POST(self):
         if self.path not in ('/transfers', '/usdc-transfers', '/journey-transfers'):

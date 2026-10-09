@@ -4,6 +4,7 @@ let connected = false;
 let language = 'en';
 
 const exact = new Map(Object.entries({
+  '数量最多 6 位小数；发送前复核余额和消息费。': 'Use up to 6 decimal places. Balance and message fees are checked before sending.',
   '主导航': 'Main navigation',
   '自由流转价值': 'MOVE VALUE FREELY',
   '在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。': 'Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.',
@@ -298,8 +299,8 @@ function apply() {
   visit(document.body);
   const description = document.querySelector('meta[name="description"]');
   if (description) description.content = language === 'en'
-    ? 'Buy WOTR on BNB Chain, bridge to Arc, and swap for native USDC with Tevumi Bridge.'
-    : 'Tevumi Bridge：在 BNB Chain 购买 WOTR，跨链到 Arc，再兑换为原生 USDC。';
+    ? 'Buy WOTR on BNB Chain and bridge between BNB Chain and Arc with Tevumi Bridge.'
+    : 'Tevumi Bridge：在 BNB Chain 购买 WOTR，在 BNB Chain 与 Arc 间双向跨链。';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
