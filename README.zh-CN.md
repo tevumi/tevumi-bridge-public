@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+**2026-10-09 · 源链成交往返已验收：**真实钱包小额订单完成 Arc USDC 资金跨链、Four.meme 买入、WOTR 到 Arc、赎回 BNB Chain、源链卖出和 USDC 回到 Arc。两个订单的原回执、真实到账、桥会计与钱包余额变化均独立核验，钱包留存 BNB 与费用分别记账。本次证明当前未毕业路径的该笔真实流程；实际毕业交易和生产接入仍待完成，线上 Swap 仍沿用现有池。
+
 **2026-10-09 · 源链买入已验收：**本地原型完成真实 1 USDC 从 Arc 跨资金、在 BNB Chain 市场买入，再把 WOTR 转到 Arc；原回执、目标到账和桥锁仓核验一致。BSC 跨链回执已兼容严格校验的 MetaMask 单次调用包装。反向卖出和生产接入仍待验收。
 
 **2026-10-09 · 源链成交原型：**独立本地页面实现 Arc USDC → BNB Chain 买入 → Arc WOTR，以及反向卖出。每一步重新报价、钱包确认，继续之前独立核验原回执和目标到账。单元、模拟钱包浏览器和实际合约分叉检查通过；完整真实钱包往返和生产接入待验收，线上 Swap 仍是历史池。使用 Node 24+，本地配置 BSC_RPC_URL / ARC_RPC_URL 后运行 `node --env-file-if-exists=.env node_modules/vite/bin/vite.js --config vite.source-trade.config.js`，打开 `http://127.0.0.1:5345/`。使用真实主网资金和费用；Gas 预留留在钱包，全流程不锁价。
