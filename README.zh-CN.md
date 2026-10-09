@@ -1,5 +1,7 @@
 # Tevumi Bridge
 
+**2026-10-09 · 源链成交原型：**独立本地页面实现 Arc USDC → BNB Chain 买入 → Arc WOTR，以及反向卖出。每一步重新报价、钱包确认，继续之前独立核验原回执和目标到账。单元、模拟钱包浏览器和实际合约分叉检查通过；完整真实钱包往返和生产接入待验收，线上 Swap 仍是历史池。使用 Node 24+，本地配置 BSC_RPC_URL / ARC_RPC_URL 后运行 `node --env-file-if-exists=.env node_modules/vite/bin/vite.js --config vite.source-trade.config.js`，打开 `http://127.0.0.1:5345/`。使用真实主网资金和费用；Gas 预留留在钱包，全流程不锁价。
+
 **2026-10-09 · 当前 WOTR 桥：**Buy 与 Bridge 使用 Four.meme WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。1000 枚主网真实往返已独立核验，包括锁仓、铸造、销毁和赎回；新旧桥记录按资产身份区分。Swap 明确保留历史 WOTR 池，不能兑换当前 Buy、Bridge 页的 WOTR。通过源链成交的 Arc 交易仍在开发。不加额外前端数量或次数限制，仍须满足余额、共享精度、合约容量和费用条件。
 
 **2026-10-09 · 新 Buy 资产：**Buy 现使用新 WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业通过 Four.meme 报价和购买，毕业后动态读取并核验 PancakeSwap V2 池；迁移中或无有效池时阻止购买。报价 60 秒失效，交易设置最低到账。新币曲线购买通过隔离主网分叉；毕业分支通过模拟测试，真实迁移池仍待验证。**Bridge 已接入此 WOTR；Arc Swap 保留历史代币池，Arc 发起源链交易仍在开发。**购买历史通过合约地址区分新旧币。下文完整流程演示属于旧币历史记录。

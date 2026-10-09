@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tevumi · Arc trading through BNB Chain</title><link rel="stylesheet" href="./style.css"></head>
+<body><main><header><div class="brand">tevumi <small id="subtitle"></small></div><div class="actions"><button id="language">简体中文</button><button id="connect">Connect wallet</button></div></header>
+<h1 id="heading"></h1><p id="intro"></p>
+<section><label for="direction" id="direction-label"></label><select id="direction"><option value="buy">Arc USDC → WOTR</option><option value="sell">Arc WOTR → USDC</option></select>
+<label for="amount" id="amount-label"></label><input id="amount" inputmode="decimal" value="1" autocomplete="off"><p id="account"></p><p id="balance"></p><p id="asset" class="note"></p>
+<ol id="steps"></ol><div id="quote"></div><div class="actions"><button id="refresh"></button><button id="send" class="primary" disabled></button><button id="check"></button></div><p id="message" role="status" aria-live="polite"></p>
+<p id="note" class="note"></p></section>
+<section><div class="history-title"><h2 id="orders-heading"></h2><button id="export"></button></div><p id="recovery-note"></p><div id="orders"></div><div class="actions"><button id="next"></button><button id="cancel"></button></div></section>
+</main><script type="module" src="./main.js"></script></body></html>
