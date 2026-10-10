@@ -98,9 +98,8 @@ export async function pickWallet(language='en') {
   await new Promise(resolve => setTimeout(resolve,200));
   const discovered=[...announced,...choices];
   const available=discovered.filter((item,index,list) => list.findIndex(other => other.provider === item.provider) === index);
-  const blockedProviders=new Set(discovered.filter(item => brand(item)==='okx').map(item=>item.provider));
   const ordered=['metamask','okx'].map(kind => discovered.find(item => brand(item) === kind));
-  const other=available.filter(item => !brand(item) && !blockedProviders.has(item.provider));
+  const other=available.filter(item => !brand(item));
   const modal = walletDialog();
   modal.replaceChildren();
   const head = document.createElement('div'); head.className='tevumi-wallet-head';
@@ -119,14 +118,13 @@ export async function pickWallet(language='en') {
   for (const [index,kind] of ['metamask','okx'].entries()) {
     const item=ordered[index];
     const row=document.createElement('div'); row.className='tevumi-wallet-row';
-    if (kind==='okx') row.classList.add('is-paused');
-    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item || kind==='okx';
+    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item;
     const emblem=document.createElement('span'); emblem.className=`tevumi-wallet-emblem ${kind}`; emblem.setAttribute('aria-hidden','true'); emblem.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:WalletBrandedOkx.default;
     const copy=document.createElement('span'); copy.className='tevumi-wallet-copy';
     const name=document.createElement('strong'); name.textContent=kind==='metamask'?'MetaMask':'OKX Wallet';
-    const state=document.createElement('small'); state.textContent=kind==='okx' ? (zh?'暂时不可用':'Temporarily unavailable') : item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
+    const state=document.createElement('small'); state.textContent=item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
     copy.append(name,state); option.append(emblem,copy);
-    if (item && kind!=='okx') option.onclick=()=>finish({provider:item.provider,name:name.textContent,rdns:item.rdns});
+    if (item) option.onclick=()=>finish({provider:item.provider,name:name.textContent,rdns:item.rdns});
     const install=document.createElement('a'); install.href=STORES[kind]; install.target='_blank'; install.rel='noopener noreferrer'; install.textContent=zh?'Chrome 商店 ↗':'Chrome Web Store ↗'; install.setAttribute('aria-label',`${name.textContent} · Chrome Web Store`);
     row.append(option,install); rows.append(row);
   }
