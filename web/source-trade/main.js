@@ -182,7 +182,7 @@ async function preview(){
   const candidate=createOrder($('direction').value,who,$('amount').value.trim(),crypto.randomUUID());
   const reader=new TradeEngine({providers,api,persist:async()=>{throw Error('Preview cannot write an order.');}});reader.setOrder(candidate);
   const result=await reader.quote();
-  if(version===quoteVersion&&account===who&&!order){quote=result;message('Review the estimate, then Start exchange. Keep this page open and confirm the wallet prompts.','核对预估后点击「开始兑换」。保持页面打开，按钱包弹窗确认即可。');}
+  if(version===quoteVersion&&account===who&&!order){quote=result;message('','');}
  }catch(e){if(version===quoteVersion&&!order)$('message').textContent=explain(e);}
  finally{if(version===quoteVersion){previewing=false;render();}}
 }
@@ -227,7 +227,7 @@ $('refresh').onclick=()=>run(async()=>{
  quoteVersion++;previewing=false;
  if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
  const version=++quoteVersion,who=account;
- const result=await engine.quote();if(version!==quoteVersion||account!==who)return;quote=result;message('Review the quote, then Start exchange. Approvals and transfers follow through wallet prompts.','核对报价后点击「开始兑换」，按钱包弹窗确认授权与转账即可。');
+ const result=await engine.quote();if(version!==quoteVersion||account!==who)return;quote=result;message('','');
 });
 $('send').onclick=()=>run(async()=>{
  const selected=quote;if(!selected)return;quote=null;quoteVersion++;previewing=false;
