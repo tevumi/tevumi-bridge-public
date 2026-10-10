@@ -1,7 +1,7 @@
-// The public bridge opens in English. Language controls become available after
-// wallet connection; a connection never restores an older language choice.
+import {readLanguagePreference,saveLanguagePreference} from './language-preference.js';
+// Remember the explicit language independently of the wallet connection.
 let connected = false;
-let language = 'en';
+let language = readLanguagePreference();
 
 const exact = new Map(Object.entries({
   '钱包已连接': 'Wallet connected',
@@ -311,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-language]').forEach(button => button.addEventListener('click', () => {
     if (!connected) return;
     language = button.dataset.language;
+    saveLanguagePreference(language);
     apply();
     window.dispatchEvent(new Event('tevumi:locale-change'));
   }));
@@ -318,11 +319,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextConnected = Boolean(event.detail?.account);
     if (connected === nextConnected) return;
     connected = nextConnected;
-    if (!connected) language = 'en';
     apply();
     window.dispatchEvent(new Event('tevumi:locale-change'));
   });
   apply();
+  window.dispatchEvent(new Event('tevumi:locale-change'));
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
       if (mutation.type === 'characterData') updateText(mutation.target);

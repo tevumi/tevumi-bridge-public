@@ -1,3 +1,4 @@
+import {readLanguagePreference,saveLanguagePreference} from '../language-preference.js';
 import {BridgeKit} from '@circle-fin/bridge-kit';
 import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
 import {getAddress, parseEther, parseUnits, formatUnits} from 'ethers';
@@ -45,7 +46,7 @@ let serverUnavailable = false;
 const syncedBurns = new Set();
 const syncingBurns = new Set();
 let walletAccountsChanged = null;
-let language = 'en';
+let language = readLanguagePreference();
 const t = (en,zh) => language === 'zh-CN' ? zh : en;
 const labels = {
   'back-link':['← Back to Swap','← 返回兑换'],
@@ -466,7 +467,7 @@ async function useWallet(selectedProvider,address,choice) {
     balance=null; tokenBalance=null; currentRecord=null; historyRecords=[]; serverRecords=[]; serverMore=false; serverPage=0; serverLoading=false;
     $('balance').textContent=account ? 'Loading Arc balance…' : 'Connect to see Arc USDC balance';
     if (account) { loadRecord(); void loadServerHistory(true); await readBalance(); }
-    if (!account) { language='en'; clearWalletSession(); }
+    if (!account) { clearWalletSession(); }
     else rememberWalletSession(choice,account);
     if (!account) { renderRecord(); renderHistory(); }
     renderLanguage(); renderRecipient(); scheduleQuote(); updateButton();
@@ -583,7 +584,7 @@ $('retry-button').addEventListener('click',()=>void retryBridge());
 $('new-transfer-button').addEventListener('click',startNewTransfer);
 $('history-more').addEventListener('click',()=>void loadServerHistory());
 $('transfer-history').addEventListener('toggle',()=>{if ($('transfer-history').open && account && !serverRecords.length) void loadServerHistory(true);});
-for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;renderLanguage();scheduleQuote();renderRecord();});
+for (const [id,value] of [['lang-en','en'],['lang-zh','zh-CN']]) $(id).addEventListener('click',()=>{if (!account) return; language=value;saveLanguagePreference(language);renderLanguage();scheduleQuote();renderRecord();});
 renderLanguage();
 updateButton();
 void restoreWalletSession().then(choice=>{if (choice && !account) void useWallet(choice.provider,choice.account,choice).catch(()=>{});}).catch(()=>{});
