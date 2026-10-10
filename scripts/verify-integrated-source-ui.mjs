@@ -59,18 +59,18 @@ try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failu
   if(mode==='seven-decimals'||mode==='large-amount')await page.locator(control("amount")).fill(mode==='seven-decimals'?'1.0000001':'1000001');
   await refreshQuote(page);
   if(mode.startsWith('quote-gateway')){await page.waitForFunction(()=>window.testControl("message").textContent.includes('has not submitted')||window.testControl("message").textContent.includes('尚未提交交易'));assert(await page.locator(control("send")).isDisabled());assert.equal(sends,0);assert.equal(orders[0].transactions.length,0);}
-  else if(mode==='seven-decimals'){await page.waitForFunction(()=>window.testControl("message").textContent.includes('Details'));assert(await page.locator(control("send")).isDisabled());}
+  else if(mode==='seven-decimals'){await page.waitForFunction(()=>window.testControl("message").textContent.includes('not complete')||window.testControl('message').textContent.includes('尚未完成'));assert(await page.locator(control("send")).isDisabled());}
   else{
    await page.waitForFunction(()=>!window.testControl("send").disabled);
    assert((await page.locator(control("asset")).textContent()).includes(wotrRoutes.current.arc));
-   assert((await page.locator(control("quote")).textContent()).includes('BNB'));
+   if(embedded)assert(await page.locator(control('quote')).isHidden());else assert((await page.locator(control('quote')).textContent()).includes('BNB'));
    if(['reject','unknown-reload','save-failure'].includes(mode)){
-    await page.locator(control("send")).click();await page.waitForFunction(()=>window.testControl("message").textContent.includes('cancelled')||window.testControl("message").textContent.includes('Details'));
+    await page.locator(control("send")).click();await page.waitForFunction(()=>window.testControl("message").textContent.includes('cancelled')||window.testControl("message").textContent.includes('not complete')||window.testControl('message').textContent.includes('尚未完成'));
     assert.equal(sends,mode==='save-failure'?0:1);
     if(mode==='unknown-reload'){await page.reload({waitUntil:'networkidle'});if(embedded){await page.locator('#header-connect').click();await page.locator('.tevumi-wallet-option').first().click();await page.waitForFunction(()=>!window.testControl('connect').hidden||!window.testControl('refresh').disabled);if(await page.locator('#source-connect').isVisible())await page.locator('#source-connect').click();}else{await page.locator(control('connect')).click();await page.locator('.tevumi-wallet-option').first().click();}await page.waitForFunction(()=>window.testControl("message").textContent.includes('original transaction hash'));await refreshQuote(page);await page.waitForTimeout(400);assert(await page.locator(control("send")).isDisabled());assert.equal(sends,1);}
     if(mode==='reject'){await refreshQuote(page);await page.waitForFunction(()=>!window.testControl("send").disabled);assert.equal(sends,1);}
    }
-   if(mode==='mobile-zh'){assert((await page.locator(control("intro")).textContent()).includes('成交'));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);mkdirSync('.local/source-trade-ui',{recursive:true});await page.screenshot({path:'.local/source-trade-ui/mobile-zh.png',fullPage:true});}
+   if(mode==='mobile-zh'){if(embedded)assert(await page.locator(control('intro')).isHidden());else assert((await page.locator(control('intro')).textContent()).includes('成交'));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);mkdirSync('.local/source-trade-ui',{recursive:true});await page.screenshot({path:'.local/source-trade-ui/mobile-zh.png',fullPage:true});}
   }
  }
  assert.deepEqual(errors,[]);report.push({mode,passed:true,walletRequests:sends});console.log(JSON.stringify(report.at(-1)));await page.close();

@@ -46,9 +46,6 @@ function card(item) {
   meta.textContent = `${quantity} · ${new Date(item.created_at * 1000).toLocaleString(currentLanguage(), { hour12: false })}`;
   const actions = document.createElement('div');
   actions.className = 'history-links';
-  if(item.source_token && /^0x[0-9a-f]{40}$/i.test(item.source_token)){
-    const identity=document.createElement('a');identity.href='https://bscscan.com/token/'+item.source_token;identity.target='_blank';identity.rel='noopener noreferrer';identity.textContent=item.source_token;identity.style.overflowWrap='anywhere';meta.append(document.createElement('br'),identity);
-  }
   if (validHash(item.source_hash)) actions.append(link(text.source, item.chain, item.source_hash));
   if (validHash(item.target_hash)) actions.append(link(text.target, item.target_chain, item.target_hash));
   node.append(top, meta, actions);

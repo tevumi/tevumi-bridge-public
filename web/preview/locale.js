@@ -4,6 +4,8 @@ let connected = false;
 let language = 'en';
 
 const exact = new Map(Object.entries({
+  '钱包已连接': 'Wallet connected',
+  '暂时无法完成操作，请核验已提交的交易后重试。': 'Unable to complete this operation. Verify any submitted transaction before retrying.',
   '数量最多 6 位小数；发送前复核余额和消息费。': 'Use up to 6 decimal places. Balance and message fees are checked before sending.',
   '主导航': 'Main navigation',
   '自由流转价值': 'MOVE VALUE FREELY',

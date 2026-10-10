@@ -14,7 +14,7 @@ const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvid
 let lang='en',wallet,account,orders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
 let flow,previewTimer,previewing=false;
 const text=(en,zh)=>lang==='en'?en:zh;
-const tr={funding:()=>text('Move funds','资金跨链'),buy:()=>text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
+const tr={funding:()=>embedded?text('Payment','付款'):text('Move funds','资金跨链'),buy:()=>embedded?text('Exchange','兑换'):text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>embedded?text('Exchange','兑换'):text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>embedded?text('Arrival','到账'):text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
 let cacheKey='tevumi:source-trade:orders:v1';
 const api=async(path,init)=>{const response=await fetch(apiPath(path),{...init,signal:AbortSignal.timeout(55000)});const data=await response.json();if(!response.ok)throw Error(response.status===401?text('Connect and sign in to recover your orders. The signature does not transfer funds.','请连接并签名登录以恢复订单；此签名不转移资产。'):data.error||'Order service unavailable.');return data;};
 async function signIn(){
@@ -30,7 +30,7 @@ function useWallet(choice,who){
  wallet.on?.('accountsChanged',()=>{flow?.abort();account=null;wallet=null;orders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
 }
 const message=(en,zh=en)=>{$('message').textContent=text(en,zh);};
-const explain=e=>e?.code===4001||e?.code==='ACTION_REJECTED'?text('Wallet confirmation cancelled. No transaction was submitted.','已取消钱包确认，未提交交易。'):text('Operation is not complete. Keep the original transaction and retry verification. Details: ','操作尚未完成，请保留原交易并重新核验。详细信息：')+String(e?.shortMessage||e?.message||'Unavailable').replace(/https?:\/\/\S+/g,'[service]').slice(0,280);
+const explain=e=>e?.code===4001||e?.code==='ACTION_REJECTED'?text('Wallet confirmation cancelled. No transaction was submitted.','已取消钱包确认，未提交交易。'):embedded&&/original transaction hash/i.test(e?.message||'')?text('Recover the original transaction hash before continuing.','请先找回原交易哈希并核验，再继续操作。'):embedded?text('Operation is not complete. Retry later; verify any submitted transaction before continuing.','操作尚未完成，请稍后重试；已提交的交易请先核验状态。'):text('Operation is not complete. Keep the original transaction and retry verification. Details: ','操作尚未完成，请保留原交易并重新核验。详细信息：')+String(e?.shortMessage||e?.message||'Unavailable').replace(/https?:\/\/\S+/g,'[service]').slice(0,280);
 async function persist(o){
  const oldRevision=o.revision;
  const exists=orders.some(v=>v.id===o.id);
@@ -54,10 +54,11 @@ async function balances(){
  try{
   const token=new Contract(wotrRoutes.current.arc,['function balanceOf(address) view returns(uint256)'],providers[5042]);
   const [arc,bnb,wotr]=await Promise.all([providers[5042].getBalance(who),providers[56].getBalance(who),token.balanceOf(who)]);
-  if(account===who)$('balance').textContent=text(`Arc: ${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR | BNB Chain: ${formatEther(bnb)} BNB`,`Arc：${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR | BNB Chain：${formatEther(bnb)} BNB`);
+  if(account===who)$('balance').textContent=embedded?text(`Arc balance: ${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR`,`Arc 余额：${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR`):text(`Arc: ${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR | BNB Chain: ${formatEther(bnb)} BNB`,`Arc：${formatEther(arc)} USDC · ${formatEther(wotr)} WOTR | BNB Chain：${formatEther(bnb)} BNB`);
  }catch{if(account===who)$('balance').textContent=text('Balances unavailable. Refresh to retry; they are checked again before sending.','余额暂不可读，刷新可重试；发送前会重新核验。');}
 }
 function renderQuote(){
+ if(embedded){$('quote').textContent='';return;}
  if(!quote){$('quote').textContent=text('Refresh the quote for the next step.','刷新下一步的报价。');return;}
  const q=quote;let lines=[text(`Step ${q.leg+1}: ${tr[q.kind]()}`,`第 ${q.leg+1} 步：${tr[q.kind]()}`)];
  if(q.kind==='funding'){
@@ -115,17 +116,19 @@ function render(){
 function renderEmbedded(){
  const buy=$('direction').value==='buy',input=buy?'USDC':'WOTR',output=buy?'WOTR':'USDC';
  $('heading').textContent=text(`Swap ${input} for ${output} on Arc`,`在 Arc 将 ${input} 兑换为 ${output}`);
- $('intro').textContent=text('Source market · automatic cross-chain settlement','源链市场成交 · 自动跨链结算');
+ $('intro').hidden=true;$('account').hidden=true;$('steps').hidden=true;$('quote').hidden=true;
  $('amount-label').textContent=text(`You sell · ${input}`,`卖出 · ${input}`);
  $('connect').hidden=!account||restored;$('next').hidden=!order||order.state!=='COMPLETED';$('cancel').hidden=!order||order.transactions.some(t=>t.state!=='REJECTED');
  host.querySelector('#source-input-token').textContent=input;host.querySelector('#source-input-symbol').textContent='Arc';host.querySelector('#source-output-token').textContent=output;
  host.querySelector('#source-output-label').textContent=text('Estimated receive','预计收到');
  $('orders-heading').textContent=text('Transaction history','交易记录');
+ $('connect').textContent=text('Sign in','签名登录');
+ $('recovery-note').textContent=text('View transactions and arrival status. Check any pending transaction before trying again.','查看交易与到账状态；再次操作前请核对未完成的交易。');
  host.querySelector('#source-portal-title').textContent=text('Explore USDC on Arc','探索 Arc 上的 USDC');
  host.querySelector('#source-portal-copy').textContent=text('Explore USDC options on Arc Portal. It opens separately and transfers nothing automatically.','前往 Arc Portal 了解 USDC 的用途。它会在新页面打开，不会自动转移资产。');
  host.querySelector('#source-portal-link').textContent=text('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
  host.querySelector('#source-usdc-title').textContent=text('Bridge USDC to another chain','将 USDC 跨往其他链');
- host.querySelector('#source-usdc-copy').textContent=text('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');
+ host.querySelector('#source-usdc-copy').textContent=text('Choose a destination and review a live quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 实时报价。只有在钱包确认后才会转移资产。');
  host.querySelector('#source-usdc-link').textContent=text('Bridge USDC ↗','跨链 USDC ↗');
  $('refresh').hidden=!account||!restored||working||previewing||Boolean(quote)||order?.state==='COMPLETED';
  const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order)||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
@@ -136,7 +139,7 @@ function renderEmbedded(){
  host.querySelector('#source-output').textContent=amount?Number(formatUnits(amount,decimals)).toLocaleString(lang==='en'?'en-US':'zh-CN',{maximumFractionDigits:6}):'—';
  if(document.body.dataset.view==='swap'&&new URLSearchParams(location.search).get('market')!=='historical'){
   document.getElementById('journey-intro').textContent=text(`Swap ${input} for ${output} from Arc. Review the live quote before confirming.`,`从 Arc 将 ${input} 兑换为 ${output}，确认前请核对实时报价。`);
-  const context=document.getElementById('context-swap');context.querySelector('h3').textContent=text(`From ${input} to ${output}.`,`从 ${input} 到 ${output}。`);context.querySelector('h3 + p').textContent=text('Trades execute at the BNB Chain market, then assets return to Arc.','交易在 BNB Chain 市场成交，随后资产返回 Arc。');context.querySelector('.context-route strong').textContent=`${input} → ${output}`;
+  const context=document.getElementById('context-swap');context.querySelector('h3').textContent=text(`From ${input} to ${output}.`,`从 ${input} 到 ${output}。`);context.querySelector('h3 + p').textContent=text('Exchange WOTR and USDC on Arc. Review the estimated receive before confirming.','在 Arc 兑换 WOTR 和 USDC。确认前请核对预计收到的数量。');context.querySelector('.context-route strong').textContent=`${input} → ${output}`;
   context.querySelector('.context-note').textContent=text('Quotes and arrivals update automatically. Confirm each transaction in your wallet.','报价与到账自动更新，请逐笔在钱包确认。');
  }
 }
@@ -152,7 +155,7 @@ export async function syncHostWallet(provider,who){
  catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}
  render();schedulePreview();
 }
-function txLink(chain,hash){const a=document.createElement('a');a.href=(chain===56?'https://bscscan.com/tx/':'https://explorer.arc.io/tx/')+hash;a.textContent=hash;a.target='_blank';a.rel='noopener noreferrer';return a;}
+function txLink(chain,hash){const a=document.createElement('a');a.href=(chain===56?'https://bscscan.com/tx/':'https://explorer.arc.io/tx/')+hash;a.textContent=embedded?text('View transaction ↗','查看交易 ↗'):hash;a.target='_blank';a.rel='noopener noreferrer';return a;}
 function renderOrders(){
  $('orders').replaceChildren();const shown=orders.filter(o=>o.account.toLowerCase()===account?.toLowerCase());
  if(!shown.length){$('orders').textContent=text('No orders for this wallet.','此钱包暂无订单。');return;}
@@ -160,8 +163,8 @@ function renderOrders(){
   const card=document.createElement('div');card.className='order';const title=document.createElement('h3');title.textContent=(o.kind==='buy'?'USDC → WOTR':'WOTR → USDC')+' · '+text(o.state==='COMPLETED'?'Completed':o.state==='CANCELLED'?'Cancelled':'In progress',o.state==='COMPLETED'?'已完成':o.state==='CANCELLED'?'已取消':'进行中');card.append(title);
   for(const t of o.transactions){
    const p=document.createElement('p');p.textContent=tr[t.kind]()+' · '+text(t.state==='REJECTED'?'Wallet declined':t.state==='VERIFIED'?'Receipt verified':t.hash?'Submitted; inspect receipt':'Unknown wallet result',t.state==='REJECTED'?'已拒签':t.state==='VERIFIED'?'回执已核验':t.hash?'已提交，请核对回执':'钱包结果待核验');if(t.hash)p.append(document.createElement('br'),txLink(t.chain,t.hash));card.append(p);
-   if(t.proof?.gas){const fee=document.createElement('p');fee.textContent=text('Actual source gas: ','实际来源链 Gas：')+formatEther(t.proof.gas)+(t.chain===56?' BNB':' USDC');card.append(fee);}
-   if(t.proof?.destination){const d=t.proof.destination,p=document.createElement('p');p.textContent=text('Verified arrival: ','已核验到账：')+formatUnits(d.received,t.kind==='funding'&&t.targetChain===5042?6:18)+(t.kind==='bridge'?' WOTR':t.targetChain===5042?' USDC':' BNB');p.append(document.createElement('br'),txLink(t.targetChain,d.hash));card.append(p);}
+   if(t.proof?.gas&&!embedded){const fee=document.createElement('p');fee.textContent=text('Actual source gas: ','实际来源链 Gas：')+formatEther(t.proof.gas)+(t.chain===56?' BNB':' USDC');card.append(fee);}
+   if(t.proof?.destination&&!embedded){const d=t.proof.destination,p=document.createElement('p');p.textContent=text('Verified arrival: ','已核验到账：')+formatUnits(d.received,t.kind==='funding'&&t.targetChain===5042?6:18)+(t.kind==='bridge'?' WOTR':t.targetChain===5042?' USDC':' BNB');p.append(document.createElement('br'),txLink(t.targetChain,d.hash));card.append(p);}
    if(o.id===order?.id&&t.state!=='REJECTED'&&!t.hash){const input=document.createElement('input');input.placeholder=text('Original transaction hash from wallet activity','从钱包活动获取原交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Recover original hash','恢复原哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter the full original transaction hash.');t.hash=input.value.trim();t.state='SUBMITTED';await persist(o);await verify();});card.append(input,button);}
    if(o.id===order?.id&&t.kind==='bridge'&&t.hash&&!t.proof?.destination){const input=document.createElement('input');input.placeholder=text('Destination hash if arrival indexing is unavailable','若到账索引不可用，填写目标交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Verify destination hash','核验目标哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter a full destination hash.');t.destinationHash=input.value.trim();await persist(o);await verify();});card.append(input,button);}
   }

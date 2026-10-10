@@ -40,7 +40,7 @@ try {
     if (await page.locator('#activity').isVisible()) throw Error(`DECLINED_APPROVAL_DUPLICATES_HISTORY_${label}`);
     if (await page.locator('#activity-title').count()) throw Error(`STANDALONE_CURRENT_CARD_${label}`);
     if (!(await page.locator('.history-card').first().innerText()).includes('No transaction hash saved')) throw Error(`REJECTION_COPY_${label}`);
-    if (!(await page.locator('.history-card').nth(1).innerText()).includes('SDK completed')) throw Error(`SUCCESS_NOT_VERIFIED_${label}`);
+    if (!(await page.locator('.history-card').nth(1).innerText()).includes('Submitted')) throw Error(`SUCCESS_NOT_VERIFIED_${label}`);
     if (!(await page.locator('.history-card').nth(1).locator('a').getAttribute('href')).endsWith(`/tx/0x${'a'.repeat(64)}`)) throw Error(`SOURCE_LINK_${label}`);
     const saved = await page.evaluate(address => ({
       current: JSON.parse(localStorage.getItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`)),
@@ -77,7 +77,7 @@ try {
   await recovery.locator('#transfer-history summary').click();
   if (!(await recovery.locator('#history-list #retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
   if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
-  if (!(await recovery.locator('#activity-body').innerText()).includes('The SDK stopped before completion')) throw Error('SOURCE_HASH_MISCLASSIFIED');
+  if (!(await recovery.locator('#activity-body').innerText()).includes('The transfer is not complete')) throw Error('SOURCE_HASH_MISCLASSIFIED');
   await recovery.close();
   const walletWait = await browser.newPage();
   await walletWait.addInitScript(address => {
@@ -118,7 +118,7 @@ try {
     await pending.locator('.tevumi-wallet-other').click();
     await pending.locator('#wallet-button.tevumi-active-wallet').waitFor({timeout:30000});
     await pending.locator('#transfer-history summary').click();
-    await pending.locator('.history-card').getByText('Arc burn verified').waitFor();
+    await pending.locator('.history-card').getByText('Transfer confirmed').waitFor();
     if (await pending.locator('.history-card').count()!==1) throw Error('PROCESSING_DUPLICATE');
     if (!(await pending.locator('#history-list .history-card #activity-body').innerText()).includes('Do not send again')) throw Error('PROCESSING_PROGRESS_MISSING');
     if (await pending.locator('#activity-title').count()) throw Error('PROCESSING_STANDALONE_CARD');
@@ -159,7 +159,7 @@ try {
   await indexed.locator('.history-card').first().getByText('Destination verified').waitFor();
   if (await indexed.locator('.history-card').count() !== 2) throw Error(`SERVER_DEDUPLICATION_${await indexed.locator('.history-card').count()}_${await indexed.locator('#history-list').innerText()}`);
   await indexed.locator('#history-more').click();
-  await indexed.locator('.history-card').nth(2).getByText('Arc burn verified').waitFor();
+  await indexed.locator('.history-card').nth(2).getByText('Transfer confirmed').waitFor();
   await indexed.locator('#lang-zh').click();
   if (!(await indexed.locator('.history-card').first().innerText()).includes('目标链已核验')) throw Error('VERIFIED_CHINESE_STATUS');
   await indexed.screenshot({ path: '.local/usdc-server-history-desktop.png', fullPage: true });

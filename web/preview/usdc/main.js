@@ -15,7 +15,7 @@ const HISTORY_PREFIX = 'tevumi:circle-usdc:history:v1:';
 const validHash = value => /^0x[0-9a-f]{64}$/i.test(value || '');
 const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
 const short = address => address ? `${address.slice(0,6)}…${address.slice(-4)}` : '';
-const cleanError = error => String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,250);
+const cleanError = error => /SDK|CCTP|RPC|Circle|TokenMessenger|0x[a-f0-9]{40}/i.test(String(error?.shortMessage||error?.message||error))?t('Unable to complete this operation. Check any submitted transaction before retrying.','暂时无法完成操作，重试前请核对已提交的交易。'):String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,250);
 const safeJson = value => JSON.stringify(value, (key,item) => key === 'error' ? undefined : typeof item === 'bigint' ? {__tevumi_bigint:item.toString()} : item);
 const readJson = value => JSON.parse(value, (key,item) => item && typeof item === 'object' && Object.keys(item).length === 1 && /^\d+$/.test(item.__tevumi_bigint || '') ? BigInt(item.__tevumi_bigint) : item);
 const amountValue = () => $('amount').value.trim();
@@ -49,30 +49,30 @@ let language = 'en';
 const t = (en,zh) => language === 'zh-CN' ? zh : en;
 const labels = {
   'back-link':['← Back to Swap','← 返回兑换'],
-  eyebrow:['USDC · CIRCLE APP KIT','USDC · CIRCLE APP KIT'],
+  eyebrow:['USDC TRANSFER','USDC 跨链'],
   title:['Bridge USDC.','跨链 USDC。'],
-  lead:['Move Arc USDC to a destination supported by Circle Bridge Kit. Choose a chain and amount; the live quote appears automatically.','将 Arc 上的 USDC 转到 Circle Bridge Kit 支持的目标链。选择链和金额后会自动显示实时报价。'],
+  lead:['Send USDC from Arc. Choose a destination and amount to see the estimated receive.','从 Arc 转出 USDC。选择目标链和数量，即可查看预计到账。'],
   'source-label':['From','来源'],
   'destination-label':['To','目标链'],
   'amount-label':['Amount to send','跨链数量'],
   'amount-help':['Leave enough Arc USDC to pay network gas.','请在 Arc 钱包中留足 USDC 支付网络 Gas。'],
   'recipient-label':['Destination recipient address','目标链收款地址'],
   'recipient-help':['Check this address carefully. It may differ from your Arc wallet address.','请仔细核对目标链地址，它可能与 Arc 钱包地址不同。'],
-  'speed-note':['Standard transfer · no CCTP Fast Transfer fee. Completion time varies by route.','标准速度 · 无 CCTP 快速转账费。完成时间因路线而异。'],
+  'speed-note':['Completion time varies by destination.','到账时间因目标链而异。'],
   'bridge-button':['Review and bridge USDC','确认报价并跨链 USDC'],
   'aside-label':['WHAT HAPPENS NEXT','后续流程'],
   'stage-one':['Approve and send','授权并发送'],
-  'stage-one-help':["Circle's SDK requests any needed approval and starts the Arc transfer.",'Circle SDK 会请求必要的授权并在 Arc 发起转账。'],
+  'stage-one-help':['Confirm the requests in your wallet.','在钱包中确认操作。'],
   'stage-two':['Bridge confirmation','跨链确认'],
-  'stage-two-help':['The SDK follows the burn, attestation, and destination mint.','SDK 跟踪销毁、证明和目标链铸造。'],
+  'stage-two-help':['Wait for the transfer to be confirmed.','等待交易确认。'],
   'stage-three':['USDC arrives','USDC 到账'],
-  'stage-three-help':['Destination confirmation is shown only after the SDK reports success.','只有 SDK 报告成功后才显示目标链到账。'],
+  'stage-three-help':['Check the arrival status here.','在这里查看到账状态。'],
   'aside-note':['Uses real USDC and network fees. A quote is checked again before signing. Wallet confirmations are still required.','本操作使用真实 USDC 并产生网络费。签名前会再次检查报价，仍需在钱包确认。'],
   'retry-button':['Resume transfer','继续原跨链'],
   'history-title':['Transfer history','跨链记录'],
-  'history-note':['Verified transfers load from our server; unfinished SDK attempts remain in this browser.','已核验的跨链从服务器读取；未完成的 SDK 尝试仍保存在当前浏览器。'],
+  'history-note':['View recent transfers and their arrival status.','查看近期跨链及到账状态。'],
   'history-more':['Load more verified transfers','加载更多已核验跨链'],
-  'footer-note':['Arc USDC → Circle-supported chains','Arc USDC → Circle 支持的链'],
+  'footer-note':['Arc USDC → Your destination','Arc USDC → 目标链'],
 };
 function renderLanguage() {
   document.documentElement.lang=language;
@@ -272,7 +272,7 @@ function recordLabel(record) {
   if (record.state === 'success' && serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(record)))) return t('Destination verified','目标链已核验');
   if (record.approvalRejected) return t('Approval declined','授权已拒绝');
   if (record.state==='pending' && !hasRecordedHash(record)) return t('Awaiting wallet','等待钱包');
-  return ({success:t('SDK completed','SDK 已完成'),pending:t('Processing','处理中'),error:t('Action needed','需要处理'),cancelled:t('Cancelled','已取消'),unknown:t('Check status','待核查')})[record.state] || t('Check status','待核查');
+  return ({success:t('Submitted','已提交'),pending:t('Processing','处理中'),error:t('Action needed','需要处理'),cancelled:t('Cancelled','已取消'),unknown:t('Check status','待核查')})[record.state] || t('Check status','待核查');
 }
 function transactionLinks(container,record) {
   const seen=new Set();
@@ -282,7 +282,7 @@ function transactionLinks(container,record) {
     const link=typeof step.explorerUrl==='string' && step.explorerUrl.startsWith('https://') ? step.explorerUrl : ['approve','burn'].includes(step.name) ? `https://explorer.arc.io/tx/${step.txHash}` : null;
     const node=document.createElement(link ? 'a' : 'span');
     if (link) { node.href=link; node.target='_blank'; node.rel='noopener noreferrer'; }
-    node.textContent=`${step.name || 'Transaction'} ${short(step.txHash)}${link ? ' ↗' : ''}`;
+    node.textContent=`${t('View transaction','查看交易')} ${short(step.txHash)}${link ? ' ↗' : ''}`;
     container.append(node);
   }
 }
@@ -305,9 +305,9 @@ function renderHistory() {
     const route=document.createElement('strong'); route.textContent=`${formatUnits(BigInt(item.amount),6)} USDC · Arc → ${item.target_chain}`;
     const arrived=item.status==='arrived';
     const status=document.createElement('span'); status.className=`history-status history-${arrived?'success':'pending'}`;
-    status.textContent=arrived ? t('Destination verified','目标链已核验') : t('Arc burn verified','Arc 销毁已核验');
+    status.textContent=arrived ? t('Destination verified','目标链已核验') : t('Transfer confirmed','转账已确认');
     top.append(route,status);
-    const meta=document.createElement('p'); meta.textContent=`${new Date(Number(item.created_at)*1000).toLocaleString(language,{hour12:false})} · ${arrived ? t('Destination CCTP nonce used on-chain','目标链 CCTP nonce 已在链上使用') : t('Destination arrival not yet verified','目标链到账尚未核验')}`;
+    const meta=document.createElement('p'); meta.textContent=`${new Date(Number(item.created_at)*1000).toLocaleString(language,{hour12:false})} · ${arrived ? t('Destination arrival verified','目标链到账已核验') : t('Destination arrival not yet verified','目标链到账尚未核验')}`;
     const links=document.createElement('div'); links.className='history-links';
     const link=document.createElement('a'); link.href=`https://explorer.arc.io/tx/${item.source_hash}`; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent=t('Arc source transaction ↗','Arc 来源交易 ↗'); links.append(link);
     card.append(top,meta,links); list.append(card);
@@ -326,7 +326,7 @@ function renderHistory() {
     top.append(route,status);
     const meta=document.createElement('p');
     const date=Number(item.createdAt) ? new Date(Number(item.createdAt)).toLocaleString(language,{hour12:false}) : t('Date unavailable','日期不可用');
-    meta.textContent=`${date} · ${item.state==='success' ? t('SDK result; verify destination independently','SDK 结果；目标链仍需独立核验') : item.approvalRejected ? t('No transaction hash saved; check wallet activity','未保存交易哈希；请核对钱包记录') : t('Saved browser status','浏览器保存的状态')}`;
+    meta.textContent=`${date} · ${item.state==='success' ? t('Submitted; arrival verification pending','已提交；目标链到账待核验') : item.approvalRejected ? t('No transaction hash saved; check wallet activity','未保存交易哈希；请核对钱包记录') : t('Saved browser status','浏览器保存的状态')}`;
     const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,item);
     card.append(top,meta,links); list.append(card);
     if (currentRecord && item.id===historyEntry(currentRecord).id) activeCard=card;
@@ -342,10 +342,10 @@ function renderRecord() {
   const append = message => { const p=document.createElement('p'); p.textContent=message; body.append(p); };
   if (currentRecord.approvalRejected) append(t('Wallet approval was declined. No transaction hash was saved here; check wallet activity before trying again.','钱包授权已拒绝。这里未保存交易哈希；再次尝试前请核对钱包记录。'));
   else if (currentRecord.state === 'pending' && !hasRecordedHash(currentRecord)) append(t('Waiting for the wallet. No source transaction hash is saved. If the wallet blocks this request, check wallet activity before another attempt.','正在等待钱包确认，尚未保存源链交易哈希。如果钱包拦截了请求，再次尝试前请核对钱包活动。'));
-  else if (currentRecord.state === 'pending') append(t('The SDK is processing this transfer. Do not send again.','SDK 正在处理这笔跨链，请勿重复发送。'));
+  else if (currentRecord.state === 'pending') append(t('This transfer is processing. Do not send again.','正在处理这笔跨链，请勿重复发送。'));
   else if (currentRecord.state === 'unknown') append(t('The result is unclear. Check the saved transaction before another attempt.','结果暂不明确，再次尝试前请核对已保存的交易。'));
-  else if (currentRecord.state === 'error') append(t('The SDK stopped before completion. Review any source transaction before resuming; your wallet may request another signature.','SDK 未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
-  else if (currentRecord.state === 'success') append(serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord))) ? t('The destination CCTP message has been used on-chain. To send again, start a separate transfer below.','目标链 CCTP 消息已在链上执行。如需再次跨链，请在下方发起新的一笔。') : t('The SDK reported completion. Destination verification is still pending; review the history before starting a separate transfer.','SDK 已报告完成，目标链核验仍在进行；再次跨链前请核对历史记录。'));
+  else if (currentRecord.state === 'error') append(t('The transfer is not complete. Review any source transaction before resuming; your wallet may request another signature.','跨链尚未完成。继续之前先核对源链交易；钱包可能再次请求签名。'));
+  else if (currentRecord.state === 'success') append(serverRecords.some(item=>item.status==='arrived' && same(item.source_hash,burnHash(currentRecord))) ? t('Destination arrival has been verified. To send again, start a separate transfer below.','目标链到账已核验。如需再次跨链，请在下方发起新的一笔。') : t('The transfer was submitted. Destination verification is still pending; review the history before starting a separate transfer.','交易已提交，目标链核验仍在进行；再次跨链前请核对历史记录。'));
   if (!currentRecord.approvalRejected && currentRecord.errorMessage) append(cleanError(currentRecord.errorMessage));
   updateButton();
 }
@@ -427,7 +427,7 @@ function acceptQuote(result) {
     const arcGas=result.gasFees.filter(item=>item.blockchain==='Arc').reduce((sum,item)=>sum+parseEther(item.fees.fee),0n);
     if (balance < parseEther(amountValue())+arcGas) throw Error('Arc USDC balance does not cover the amount and estimated network gas.');
     const feeLines=result.fees.map(item=>`${item.type}: ${item.amount} ${item.token}`);
-    const gasLines=result.gasFees.map(item=>`${item.blockchain} ${item.name}: ${item.fees.fee} ${item.token}`);
+    const gasLines=result.gasFees.map(item=>`${item.blockchain}: ${item.fees.fee} ${item.token}`);
     estimate=result; estimatedAt=Date.now();
     const highFee=usdcFees*5n>=sendAmount;
     const feePercent=(Number(usdcFees*10000n/sendAmount)/100).toFixed(2);
@@ -436,11 +436,9 @@ function acceptQuote(result) {
       ...(highFee ? [t(`High cost: quoted fees are ${feePercent}% of the amount. Consider another destination or a larger transfer.`,`费用较高：报价费用占转出数量的 ${feePercent}%。可比较其他目标链或增大金额。`)] : []),
       t(`Send ${result.amount} USDC from Arc to ${result.destination.chain}.`,`从 Arc 向 ${result.destination.chain} 跨链 ${result.amount} USDC。`),
       t(`Estimated destination amount based on reported fees: ${formatUnits(received,6)} USDC`,`按已报告费用估算目标链到账：${formatUnits(received,6)} USDC`),
-      t(`Reported fees: ${feeLines.length ? feeLines.join(' · ') : 'none reported'}`,`已报告费用：${feeLines.length ? feeLines.join(' · ') : '未报告'}`),
+      t(`Estimated transfer fee: ${formatUnits(usdcFees,6)} USDC`,`预计跨链费用：${formatUnits(usdcFees,6)} USDC`),
       t(`Network gas estimates: ${gasLines.length ? gasLines.join(' · ') : 'none reported'}`,`网络 Gas 估算：${gasLines.length ? gasLines.join(' · ') : '未报告'}`),
-      ...(bridgeSpender ? [t(`First wallet request: increase Arc USDC allowance by ${result.amount} USDC for Circle CCTP TokenMessenger ${bridgeSpender}.`,`钱包首笔请求：向 Circle CCTP TokenMessenger ${bridgeSpender} 增加 ${result.amount} USDC 的 Arc USDC 授权额度。`)] : []),
-      destinationIsForwarded(selectedChain()) ? t('Circle Forwarder handles destination mint; its quoted fee is included above.','Circle 转发服务负责目标链铸造；其报价费用已计入上方数据。') : t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。'),
-      ...(result.warnings || []).map(item=>item.message || item.code),
+      ...(!destinationIsForwarded(selectedChain()) ? [t('A destination wallet transaction and gas may also be needed.','目标链钱包可能还需签署交易并支付 Gas。')] : []),
       t('Final fees may change before signing.','签名前最终费用可能变化。'),
     ].join('\n'),false,highFee);
     updateButton();
@@ -528,10 +526,10 @@ async function startBridge() {
     }
     estimate=refreshed;
     saveRecord({id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,state:'pending',account,amount:chosen.amount,destination:chain.name,recipient:destinationAddress(chain),forwarded:destinationIsForwarded(chain),createdAt:Date.now(),events:[]});
-    setStatus('Follow the wallet prompts. The SDK continues through approval, source transfer, attestation, and mint.');
+    setStatus('Confirm the requests in your wallet and wait for arrival.');
     const result=await kit.bridge({...chosen,quote:estimate.quote});
     saveRecord({...currentRecord,state:result.state,result});
-    setStatus(!currentRecord ? t('Approval declined. No transaction hash was saved; review the attempt in transfer history.','授权已拒绝，未保存交易哈希；可在跨链记录中查看本次尝试。') : result.state==='success' ? t('Circle Bridge Kit reports completion. Verify destination arrival independently.','Circle Bridge Kit 报告完成；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
+    setStatus(!currentRecord ? t('Approval declined. No transaction hash was saved; review the attempt in transfer history.','授权已拒绝，未保存交易哈希；可在跨链记录中查看本次尝试。') : result.state==='success' ? t('The transfer was submitted. Verify destination arrival independently.','交易已提交；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
     await readBalance();
   } catch (error) {
     // Once the SDK has been called, an ambiguous wallet/network failure must not
@@ -545,7 +543,7 @@ async function startBridge() {
 }
 async function retryBridge() {
   if (working || currentRecord?.state!=='error' || !currentRecord.result || !account || !same(currentRecord.account,account)) return;
-  working=true; updateButton(); setStatus('Resuming the saved Circle transfer. No new bridge is being created.');
+  working=true; updateButton(); setStatus('Resuming your transfer. No new payment is being created.');
   try {
     const result=await kit.retry(currentRecord.result,{from:adapter,...(!currentRecord.forwarded ? {to:adapter} : {})});
     saveRecord({...currentRecord,state:result.state,result});

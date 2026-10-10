@@ -3,7 +3,6 @@ import { formatEther } from 'ethers';
 import bnbIcon from '@web3icons/core/svgs/networks/branded/binance-smart-chain.svg.js';
 import arcIcon from '@web3icons/core/svgs/networks/branded/arc.svg.js';
 import './history.js';
-import {wotrRoutes} from '../src/wotr-routes.js';
 
 const chainIcon = {
   bsc: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(bnbIcon)}`,
@@ -19,11 +18,6 @@ const list = document.querySelector('#asset-options');
 const empty = document.querySelector('#asset-empty');
 const selectedName = document.querySelector('#selected-name');
 const amountInput = document.querySelector('#send-amount');
-const identity=document.createElement('p');identity.className='balance-detail';identity.style.overflowWrap='anywhere';
-for(const [chain,address,url] of [['BNB WOTR',wotrRoutes.current.sourceToken,'https://bscscan.com/token/'],['Arc WOTR',wotrRoutes.current.arc,'https://explorer.arc.io/address/']]){
- const link=document.createElement('a');link.href=url+address;link.target='_blank';link.rel='noopener noreferrer';link.textContent=`${chain}: ${address}`;identity.append(link,document.createElement('br'));
-}
-document.querySelector('#amount-note').after(identity);
 amountInput.addEventListener('input', () => {
   try { selectAmount(amountInput.value); }
   catch (error) { document.querySelector('#message').textContent = String(error?.message ?? error); }

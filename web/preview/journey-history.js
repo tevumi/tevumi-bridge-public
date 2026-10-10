@@ -57,7 +57,6 @@ function render(kind) {
     if(kind==='buy'){
       const token=item.token_address || '0xb97b99cb6dc0edbb89512e14100b2e9c23132ee5';
       meta.textContent+=` · ${token.toLowerCase()==='0xe2a0ce4be658ee9b09e461f5283c718a20984444'?'WOTR':text('Historical contract','历史合约')}`;
-      const identity=document.createElement('a');identity.href=`https://bscscan.com/token/${token}`;identity.target='_blank';identity.rel='noopener noreferrer';identity.textContent=token;identity.style.overflowWrap='anywhere';meta.append(document.createElement('br'),identity);
     }
     const actions = document.createElement('div');
     actions.className = 'history-links';

@@ -33,7 +33,7 @@ const readers = {56:new BrowserProvider({request:({method,params=[]})=>rpc(56,me
 const hashOk = value => /^0x[0-9a-f]{64}$/i.test(value || '');
 const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
 const assert = (condition, message) => { if (!condition) throw Error(message); };
-const cleanError = error => String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[RPC]').slice(0,230);
+const cleanError = error => /Four\.meme|PancakeSwap|Uniswap|LayerZero|RPC|0x[a-f0-9]{40}/i.test(String(error?.shortMessage||error?.message||error))?local('Unable to complete this operation. Refresh the quote or verify your submitted transaction.','暂时无法完成操作，请刷新报价或核验已提交的交易。'):String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,230);
 const local = (en,zh) => currentLanguage() === 'zh-CN' ? zh : en;
 let account = null;
 let buyQuote = null;
@@ -231,12 +231,12 @@ function renderLiveText() {
     $('journey-balances').textContent = local(`BNB Chain: ${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc: ${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC for gas`,`BNB Chain：${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc：${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC 可支付 Gas`);
   }
   $('journey-buy-quote').textContent = buyQuote ? local(
-    `Route: ${buyQuote.route==='curve'?'Four.meme bonding curve':'PancakeSwap V2'}\nEstimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nTransaction payment: ${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX trading fee included in quote.':`Protocol fee included: ${formatEther(buyQuote.fee)} BNB`}\nEstimated price impact: ${(buyQuote.impactBps/100).toFixed(2)}% · BNB block ${buyQuote.block}\nGas is charged separately. Quote expires after 60 seconds.`,
-    `路径：${buyQuote.route==='curve'?'Four.meme 联合曲线':'PancakeSwap V2'}\n预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n交易支付：${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX 交易费已包含在报价中。':`已含协议交易费：${formatEther(buyQuote.fee)} BNB`}\n预计价格影响：${(buyQuote.impactBps/100).toFixed(2)}% · BNB 区块 ${buyQuote.block}\nGas 另计，报价 60 秒后失效。`)
+    `Estimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nTransaction payment: ${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX trading fee included in quote.':`Protocol fee included: ${formatEther(buyQuote.fee)} BNB`}\nEstimated price impact: ${(buyQuote.impactBps/100).toFixed(2)}%\nGas is charged separately. Quote expires after 60 seconds.`,
+    `预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n交易支付：${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX 交易费已包含在报价中。':`已含协议交易费：${formatEther(buyQuote.fee)} BNB`}\n预计价格影响：${(buyQuote.impactBps/100).toFixed(2)}%\nGas 另计，报价 60 秒后失效。`)
     : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
-  $('journey-buy-card').querySelector('h3 + p').textContent=local('Four.meme curve → PancakeSwap after graduation','Four.meme 联合曲线 → 毕业后 PancakeSwap');
+  $('journey-buy-card').querySelector('h3 + p').hidden=true;
   $('context-buy').querySelector('h3 + p').textContent=local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
-  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nBridge this WOTR between BNB Chain and Arc, or trade from Arc through the BNB Chain market on Swap.`,`WOTR 合约：${BUY.token}\n此 WOTR 支持 BNB Chain 与 Arc 双向跨链；也可在 Swap 从 Arc 发起交易，通过 BNB Chain 市场成交。`);
+  $('journey-buy-identity').hidden=true;
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} ${units.output}\nMinimum receive: ${formatEther(swapQuote.minOut)} ${units.output} (1% slippage)\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} ${units.output}\n最低收到：${formatEther(swapQuote.minOut)} ${units.output}（1% 滑点）\nGas 另计，报价 60 秒后失效。`);
@@ -417,7 +417,7 @@ function draw() {
   $('header-connect').hidden = false;
   $('header-connect').disabled = busy || view.busy;
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
-  $('journey-wallet').textContent = account ? local(`Connected: ${account}`,`已连接：${account}`) : local('Connect your wallet to get started.','连接钱包即可开始。');
+  $('journey-wallet').textContent = account ? local('Wallet connected','钱包已连接') : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
   $('journey-buy-action').disabled = busy || view.busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || view.busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
@@ -447,7 +447,7 @@ function draw() {
   $('journey-portal-copy').textContent = portalReady ? local('This saved result is separate from a new swap. Arc Portal opens separately and transfers nothing automatically.','这条历史结果与新兑换相互独立。Arc Portal 会在新页面打开，不会自动转移资产。') : local('Explore USDC options on Arc Portal. It opens separately and transfers nothing automatically.','前往 Arc Portal 了解 USDC 的用途。它会在新页面打开，不会自动转移资产。');
   $('journey-portal-link').textContent = local('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
   $('journey-usdc-title').textContent = local('Bridge USDC to another chain','将 USDC 跨往其他链');
-  $('journey-usdc-copy').textContent = local('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');
+  $('journey-usdc-copy').textContent = local('Choose a destination and review a live quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 实时报价。只有在钱包确认后才会转移资产。');
   $('journey-usdc-link').textContent = local('Bridge USDC ↗','跨链 USDC ↗');
   for (const [step,done] of [['buy',record('buy')?.state==='verified'],['bridge',bridgeDone],['swap',record('swap')?.state==='verified']]) {
     $('journey-progress-'+step)?.classList.toggle('done',Boolean(done));
@@ -461,7 +461,7 @@ function renderSwapDirection() {
   $('journey-swap-direction').textContent = local(`⇄ ${input} → ${output}`,`⇄ ${input} → ${output}`);
   $('journey-swap-direction').setAttribute('aria-label',local('Reverse swap direction','反转兑换方向'));
   $('journey-swap-card').querySelector('h3').textContent = local(`Swap ${input} for ${output} on Arc · historical WOTR`,`在 Arc 将 ${input} 兑换为 ${output} · 历史 WOTR`);
-  $('journey-swap-identity').textContent=local(`This pool uses the historical WOTR contract: ${A.arcWotr}. WOTR from the current Buy and Bridge pages cannot be traded in this pool.`,`此池使用历史 WOTR 合约：${A.arcWotr}。当前 Buy 和 Bridge 页的 WOTR 不能在此池兑换。`);
+  $('journey-swap-identity').textContent=local('Historical WOTR only. WOTR from the current Buy and Bridge pages cannot be exchanged here.','仅适用于历史 WOTR，当前购买和跨链页的 WOTR 不能在此兑换。');
   $('journey-swap-card').querySelector('label[for="journey-wotr"]').textContent = local(`You sell · ${input}`,`卖出 · ${input}`);
   $('journey-swap-card').querySelector('.journey-input strong').textContent = input;
   $('journey-swap-card').querySelector('.journey-output span').textContent = output;

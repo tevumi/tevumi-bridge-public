@@ -84,7 +84,7 @@ const note=value=>{$('message').textContent=value;};
 const same=(a,b)=>String(a).toLowerCase()===String(b).toLowerCase();
 const ensure=(ok,message)=>{if(!ok)throw Error(message);};
 const sideFor=kind=>kind.endsWith('arc')?'arc':'bsc';
-const errorText=error=>String(error?.shortMessage??error?.message??'操作失败').replace(/https?:\/\/\S+/g,'[RPC]').slice(0,220);
+const errorText=error=>/RPC|LayerZero|GUID|Endpoint|0x[a-f0-9]{40}/i.test(String(error?.shortMessage??error?.message??''))?'暂时无法完成操作，请核验已提交的交易后重试。':String(error?.shortMessage??error?.message??'操作失败').replace(/https?:\/\/\S+/g,'[network]').slice(0,220);
 async function publishTransfer(side,hash){
  if(document.body.dataset.historyApi!=='true'||!/^0x[0-9a-f]{64}$/i.test(hash))return;
  try{
@@ -115,7 +115,7 @@ async function connect(savedChoice=null){
  account=getAddress(list[0]);rememberWalletSession(choice,account);load();await clearVerifiedLegacyArcAttempt();
  for(const side of ['bsc','arc']){const item=records[`send-${side}`];if(item?.hash&&!item.deliveredHash)trackDelivery(side==='bsc'?'arc':'bsc',item.hash);}
  for(const kind of ['approve-bsc','send-bsc','send-arc'])if(records[kind]?.unknown)trackUnknown(kind);
- $('wallet-state').textContent=`已连接 ${account}`;await refresh(true);
+ $('wallet-state').textContent='钱包已连接';await refresh(true);
 }
 async function switchTo(side){
  ensure(account&&selectedWallet,'请先连接钱包。');
