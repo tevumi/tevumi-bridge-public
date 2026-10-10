@@ -1,3 +1,4 @@
+import {saveOutcome,historyWrite} from '../preview/server-history.js';
 import {BrowserProvider,Contract,Interface,formatEther,getAddress,id,keccak256,parseEther,zeroPadValue} from 'ethers';
 import {rpc} from './rpc.js';
 import {arcFeeParams} from './arc-fees.js';
@@ -64,7 +65,11 @@ function setBridgeBusy(value) {
 }
 const accountKey=()=>storageKey()+':'+account.toLowerCase();
 const load=()=>{records={};try{const loaded=JSON.parse(localStorage.getItem(accountKey())||'{}');if(loaded&&typeof loaded==='object'&&!Array.isArray(loaded))records=loaded;}catch{/* keep empty */}renderRecords();};
-const save=()=>{localStorage.setItem(accountKey(),JSON.stringify(records));renderRecords();};
+function reportBridge(kind,item,state){
+ if(!account||!item)return;
+ void saveOutcome('bridge',item.account||account,item.operationId||`${kind}:${item.nonceBefore}:${item.sourceStart}`,{state:state||(item.deliveredHash?'verified':item.hash?'submitted':'unknown'),operation:kind,hash:item.hash,target_hash:item.deliveredHash,chain:networks[item.side||sideFor(kind)].chainId,asset:assetId==='wotr'?'wotr-four':assetId,amount_ld:item.amountLD});
+}
+const save=()=>{localStorage.setItem(accountKey(),JSON.stringify(records));for(const [kind,item]of Object.entries(records))if(kind.startsWith('send-')||kind.startsWith('approve-'))reportBridge(kind,item);renderRecords();};
 async function clearVerifiedLegacyArcAttempt(){
  // One pre-fix attempt from the designated wallet was stored as unknown despite
  // no Arc transaction. Only clear that exact legacy shape if its next nonce is
@@ -88,8 +93,7 @@ const errorText=error=>/RPC|LayerZero|GUID|Endpoint|0x[a-f0-9]{40}/i.test(String
 async function publishTransfer(side,hash){
  if(document.body.dataset.historyApi!=='true'||!/^0x[0-9a-f]{64}$/i.test(hash))return;
  try{
-  const response=await fetch('/api/transfers',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chain:networks[side].chainId,hash}),signal:AbortSignal.timeout(8000)});
-  if(response.ok)window.dispatchEvent(new Event('tevumi:history-changed'));
+  if(await historyWrite('/api/transfers',{chain:networks[side].chainId,hash}))window.dispatchEvent(new Event('tevumi:history-changed'));
  }catch{/* Browser records retain the original hash; history service may be retried later. */}
 }
 function renderRecords(){
@@ -225,14 +229,14 @@ async function submit(kind,side,to,data,value=0n,amountLD){
  const tx=await request(side,to,data,value);
  const [sourceStart,targetStart]=await Promise.all([providers[side].getBlockNumber(),kind.startsWith('send-')?providers[side==='bsc'?'arc':'bsc'].getBlockNumber():undefined]);
  const nonceBefore=await rpc(networks[side].chainId,'eth_getTransactionCount',[account,'pending']);
- records[kind]={unknown:true,to,dataHash:keccak256(data),account,side,sourceStart,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
+ records[kind]={operationId:crypto.randomUUID(),unknown:true,to,dataHash:keccak256(data),account,side,sourceStart,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
  note(`${kind} 正在请求钱包确认；请核对网络、合约和费用。`);
  let hash;
  try{hash=await selectedWallet.request({method:'eth_sendTransaction',params:[tx]});}
  catch(error){
   const outcome=classifyWalletSendError(error);
-  if(outcome==='rejected'){delete records[kind];save();throw Error('已在钱包拒绝，未提交交易。');}
-  if(outcome==='not_submitted'){delete records[kind];save();throw Error(`钱包未提交交易：${errorText(error)}`);}
+  if(outcome==='rejected'){reportBridge(kind,records[kind],'cancelled');delete records[kind];save();throw Error('已在钱包拒绝，未提交交易。');}
+  if(outcome==='not_submitted'){reportBridge(kind,records[kind],'error');delete records[kind];save();throw Error(`钱包未提交交易：${errorText(error)}`);}
   trackUnknown(kind);throw Error('正在核对上一笔交易，请勿重复发起。');
  }
  if(!/^0x[0-9a-f]{64}$/i.test(hash)){trackUnknown(kind);throw Error('正在核对上一笔交易，请勿重复发起。');}
@@ -487,7 +491,7 @@ export async function selectAsset(id){
 }
 // Navigation remains usable while wallet restoration and chain reads are pending.
 // Transaction controls still use the existing busy and verification guards.
-async function run(action){if(busy)return;setBridgeBusy(true);try{await action();}catch(error){note(errorText(error));}finally{setBridgeBusy(false);}}
+async function run(action){if(busy)return;setBridgeBusy(true);try{await action();}catch(error){if(account)void saveOutcome('bridge',account,crypto.randomUUID(),{state:Object.values(records).some(item=>item.hash||item.unknown)?'unknown':'error',operation:'transfer',chain:networks[selectedSide].chainId,asset:assetId==='wotr'?'wotr-four':assetId});note(errorText(error));}finally{setBridgeBusy(false);}}
 for(const side of ['bsc','arc']){
  if($(`open-${side}`))$(`open-${side}`).onclick=()=>run(()=>open(side));
  if($(`pause-${side}`))$(`pause-${side}`).onclick=()=>run(()=>pause(side));

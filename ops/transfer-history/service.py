@@ -14,6 +14,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 import cctp_history
 import swap_history
 import buy_history
+import operation_results
+import sell_history
+from types import SimpleNamespace
 
 DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', '/var/lib/tevumi/transfer-history.sqlite3')
 HOST = os.environ.get('TEVUMI_HISTORY_HOST', '127.0.0.1')
@@ -89,6 +92,7 @@ def database():
             connection.execute(f'ALTER TABLE journey_transfers ADD COLUMN {name} TEXT')
     connection.execute("UPDATE journey_transfers SET input_asset=CASE WHEN kind='buy' THEN 'BNB' ELSE 'WOTR' END, output_asset=CASE WHEN kind='buy' THEN 'WOTR' ELSE 'USDC' END WHERE input_asset IS NULL OR output_asset IS NULL")
     connection.execute("UPDATE journey_transfers SET token_address=? WHERE kind='buy' AND token_address IS NULL", (WOTR[56],))
+    operation_results.initialize(connection)
     connection.commit()
     connection.execute('CREATE INDEX IF NOT EXISTS journey_account_time ON journey_transfers(account,kind,created_at DESC)')
     return connection
@@ -131,6 +135,8 @@ def inspect_journey(kind, tx_hash):
         raise ValueError('Invalid journey transaction')
     chain, target, selector = JOURNEY[kind]
     tx = rpc(chain, 'eth_getTransactionByHash', [tx_hash])
+    if kind=='buy' and tx and tx.get('input','').lower().startswith((sell_history.CURVE,sell_history.DEX)) and ADDRESS.fullmatch(tx.get('from','')):
+        return sell_history.inspect(tx,tx_hash,SimpleNamespace(**globals()))
     curve=kind=='buy' and tx and tx.get('to','').lower()==buy_history.MANAGER and tx.get('input','').lower().startswith(buy_history.CURVE_SELECTOR)
     if not tx or not ADDRESS.fullmatch(tx.get('from', '')) or not (curve or tx.get('to', '').lower() == target and tx.get('input', '').lower().startswith(selector)):
         raise ValueError('Not a Tevumi journey transaction')
@@ -367,6 +373,14 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == '/healthz':
             return self.send_json(200, {'ok': True})
+        if url.path == '/operation-results':
+            query=parse_qs(url.query)
+            account=query.get('account',[''])[0].lower();category=query.get('page',[''])[0]
+            if not ADDRESS.fullmatch(account) or category not in operation_results.PAGES:
+                return self.send_json(400,{'error':'Invalid operation query'})
+            with closing(database()) as connection:
+                items=operation_results.merged(connection,account,category,[])
+            return self.send_json(200,{'items':items})
         if url.path not in ('/transfers', '/usdc-transfers', '/journey-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         query = parse_qs(url.query)
@@ -383,16 +397,18 @@ class Handler(BaseHTTPRequestHandler):
                 if kind not in JOURNEY:
                     return self.send_json(400, {'error': 'Invalid kind'})
                 rows = connection.execute('''SELECT kind,tx_hash,input_amount,output_amount,input_asset,output_asset,token_address,buy_route,status,block_number,created_at
-                  FROM journey_transfers WHERE account=? AND kind=? ORDER BY created_at DESC,tx_hash DESC LIMIT 11 OFFSET ?''',
-                  (account, kind, page * 10)).fetchall()
+                  FROM journey_transfers WHERE account=? AND kind=? ORDER BY created_at DESC,tx_hash DESC''',
+                  (account, kind)).fetchall()
             elif url.path == '/usdc-transfers':
                 rows = connection.execute('''SELECT source_hash,amount,target_chain,mint_recipient,nonce,status,created_at
-                  FROM usdc_transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
-                  (account, page * 10)).fetchall()
+                  FROM usdc_transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC''',
+                  (account,)).fetchall()
             else:
                 rows = connection.execute('''SELECT chain,source_hash,asset,target_chain,target_hash,status,amount_ld,created_at
-                  FROM transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC LIMIT 11 OFFSET ?''',
-                  (account, page * 10)).fetchall()
+                  FROM transfers WHERE account=? ORDER BY created_at DESC,source_hash DESC''',
+                  (account,)).fetchall()
+            category=kind if url.path=='/journey-transfers' else 'usdc' if url.path=='/usdc-transfers' else 'bridge'
+            rows=operation_results.merged(connection,account,category,rows)[page*10:page*10+11]
         items = [dict(row) for row in rows[:10]]
         if url.path == '/transfers':
             for item in items:
@@ -402,6 +418,17 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(200, {'items': items, 'more': len(rows) > 10})
 
     def do_POST(self):
+        if self.path == '/operation-results':
+            try:
+                origin=self.headers.get('Origin')
+                if origin and origin!='https://bridge.tevumi.com': raise ValueError('Invalid origin')
+                size=int(self.headers.get('Content-Length','0'))
+                if size<1 or size>4096: raise ValueError('Invalid body')
+                with closing(database()) as connection:
+                    result=operation_results.save(connection,json.loads(self.rfile.read(size)))
+                return self.send_json(200,result)
+            except (ValueError,TypeError,KeyError,sqlite3.Error) as error:
+                return self.send_json(400,{'error':str(error)[:120]})
         if self.path not in ('/transfers', '/usdc-transfers', '/journey-transfers'):
             return self.send_json(404, {'error': 'Not found'})
         try:
@@ -432,6 +459,7 @@ def worker():
                 update_pending(connection)
                 update_usdc_pending(connection)
                 update_journey_pending(connection)
+                operation_results.index_pending(connection,SimpleNamespace(**globals()))
         except (sqlite3.Error, OSError):
             pass
         time.sleep(20)

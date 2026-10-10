@@ -1,3 +1,4 @@
+import {historyWrite,saveOutcome} from '../preview/server-history.js';
 import {JsonRpcProvider,Contract,parseUnits,formatUnits,formatEther,hexlify,toUtf8Bytes} from 'ethers';
 import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
 import {TradeEngine} from './engine.js';
@@ -11,7 +12,7 @@ const $=id=>embedded?host.querySelector(`[data-trade-id="${id}"]`):document.getE
 const production=embedded||location.pathname.startsWith('/preview/');
 const apiPath=path=>production?path.replace(/^\/api\//,'/api/source-trade/'):path;
 const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvider(location.origin+apiPath('/api/rpc/'+chain),chain,{batchMaxCount:1,cacheTimeout:-1})]));
-let lang='en',wallet,account,orders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
+let lang='en',wallet,account,orders=[],reportedOrders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
 let flow,previewTimer,previewing=false;
 const text=(en,zh)=>lang==='en'?en:zh;
 const tr={funding:()=>embedded?text('Payment','付款'):text('Move funds','资金跨链'),buy:()=>embedded?text('Exchange','兑换'):text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>embedded?text('Exchange','兑换'):text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>embedded?text('Arrival','到账'):text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
@@ -27,12 +28,13 @@ async function signIn(){
 function useWallet(choice,who){
  wallet=choice.provider;account=who;rememberWalletSession(choice,account);
  if(production)cacheKey='tevumi:source-trade:orders:v2:'+account.toLowerCase();
- wallet.on?.('accountsChanged',()=>{flow?.abort();account=null;wallet=null;orders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
+ wallet.on?.('accountsChanged',()=>{flow?.abort();account=null;wallet=null;orders=[];reportedOrders=[];restored=false;clearWalletSession();selectOrder(null);message('Wallet changed. Reconnect before continuing.','钱包已变化，请重新连接后继续。');});
 }
 const message=(en,zh=en)=>{$('message').textContent=text(en,zh);};
 const explain=e=>e?.code===4001||e?.code==='ACTION_REJECTED'?text('Wallet confirmation cancelled. No transaction was submitted.','已取消钱包确认，未提交交易。'):embedded&&/original transaction hash/i.test(e?.message||'')?text('Recover the original transaction hash before continuing.','请先找回原交易哈希并核验，再继续操作。'):embedded?text('Operation is not complete. Retry later; verify any submitted transaction before continuing.','操作尚未完成，请稍后重试；已提交的交易请先核验状态。'):text('Operation is not complete. Keep the original transaction and retry verification. Details: ','操作尚未完成，请保留原交易并重新核验。详细信息：')+String(e?.shortMessage||e?.message||'Unavailable').replace(/https?:\/\/\S+/g,'[service]').slice(0,280);
 async function persist(o){
  const oldRevision=o.revision;
+ const last=o.transactions.at(-1);void saveOutcome('swap',o.account,`order:${o.id}`,{state:o.state==='COMPLETED'?'verified':o.state==='CANCELLED'?'cancelled':last?.state==='REJECTED'?'cancelled':last?.hash?'submitted':'pending',operation:'exchange',input_asset:o.kind==='buy'?'USDC':'WOTR',output_asset:o.kind==='buy'?'WOTR':'USDC',input_amount:o.input});
  const exists=orders.some(v=>v.id===o.id);
  if(exists)o.revision++;
  const index=orders.findIndex(v=>v.id===o.id);
@@ -40,15 +42,15 @@ async function persist(o){
  try{
   // Save before requesting any signature. Failure leaves the operation locked.
   localStorage.setItem(cacheKey,stringify(next));
-  await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(o)});
-  orders=next;
+  if(!await historyWrite(apiPath('/api/orders'),JSON.parse(stringify(o)),{timeout:20000}))throw Error('Order storage temporarily unavailable.');
+  orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);
  }catch(e){o.revision=oldRevision;restored=false;throw e;}
  render();
 }
 const engine=new TradeEngine({providers,api,persist,onChange:()=>render()});
 function clearQuote(){quote=null;quoteVersion++;previewing=false;render();schedulePreview();}
 function active(){return orders.find(o=>o.account.toLowerCase()===account?.toLowerCase()&&!['COMPLETED','CANCELLED'].includes(o.state));}
-function selectOrder(o){order=o;quote=null;quoteVersion++;previewing=false;engine.results={};if(o){engine.setOrder(o);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
+function selectOrder(o){order=o?JSON.parse(stringify(o)):o;quote=null;quoteVersion++;previewing=false;engine.results={};if(o){engine.setOrder(order);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
 async function balances(){
  if(!account)return;const who=account;
  try{
@@ -147,7 +149,7 @@ export function syncHostLanguage(){if(embedded){lang=document.documentElement.la
 export async function syncHostWallet(provider,who){
  if(!embedded)return;
  syncHostLanguage();
- if(!who||!provider){if(account){flow?.abort();wallet=null;account=null;orders=[];restored=false;selectOrder(null);}return;}
+ if(!who||!provider){if(account){flow?.abort();wallet=null;account=null;orders=[];reportedOrders=[];restored=false;selectOrder(null);}return;}
  if(host.hidden||account?.toLowerCase()===who.toLowerCase())return;
  const choice=await restoreWalletSession();
  useWallet(choice?.provider===provider?choice:{provider,info:{rdns:'shared-wallet',name:'Wallet'}},who);
@@ -156,9 +158,15 @@ export async function syncHostWallet(provider,who){
  render();schedulePreview();
 }
 function txLink(chain,hash){const a=document.createElement('a');a.href=(chain===56?'https://bscscan.com/tx/':'https://explorer.arc.io/tx/')+hash;a.textContent=embedded?text('View transaction ↗','查看交易 ↗'):hash;a.target='_blank';a.rel='noopener noreferrer';return a;}
+async function loadReported(){
+ const owner=account;if(!owner)return;
+ try{const r=await fetch(`/api/operation-results?account=${encodeURIComponent(owner)}&page=swap`,{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error();const data=await r.json();if(owner!==account)return;reportedOrders=data.items.filter(item=>item.id?.startsWith('order:'));}catch{if(owner===account)reportedOrders=[];}
+ renderOrders();
+}
 function renderOrders(){
  $('orders').replaceChildren();const shown=orders.filter(o=>o.account.toLowerCase()===account?.toLowerCase());
- if(!shown.length){$('orders').textContent=text('No orders for this wallet.','此钱包暂无订单。');return;}
+ const unmatched=reportedOrders.filter(item=>!shown.some(o=>`order:${o.id}`===item.id));
+ if(!shown.length&&!unmatched.length){$('orders').textContent=text('No orders for this wallet.','此钱包暂无订单。');return;}
  for(const o of shown){
   const card=document.createElement('div');card.className='order';const title=document.createElement('h3');title.textContent=(o.kind==='buy'?'USDC → WOTR':'WOTR → USDC')+' · '+text(o.state==='COMPLETED'?'Completed':o.state==='CANCELLED'?'Cancelled':'In progress',o.state==='COMPLETED'?'已完成':o.state==='CANCELLED'?'已取消':'进行中');card.append(title);
   for(const t of o.transactions){
@@ -168,11 +176,11 @@ function renderOrders(){
    if(o.id===order?.id&&t.state!=='REJECTED'&&!t.hash){const input=document.createElement('input');input.placeholder=text('Original transaction hash from wallet activity','从钱包活动获取原交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Recover original hash','恢复原哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter the full original transaction hash.');t.hash=input.value.trim();t.state='SUBMITTED';await persist(o);await verify();});card.append(input,button);}
    if(o.id===order?.id&&t.kind==='bridge'&&t.hash&&!t.proof?.destination){const input=document.createElement('input');input.placeholder=text('Destination hash if arrival indexing is unavailable','若到账索引不可用，填写目标交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Verify destination hash','核验目标哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter a full destination hash.');t.destinationHash=input.value.trim();await persist(o);await verify();});card.append(input,button);}
   }
-  if(o.id===order?.id&&o.state==='COMPLETED'){const final=engine.results[2],p=document.createElement('p');p.textContent=text('Verified receipt: ','已核验到账：')+(o.kind==='buy'?formatEther(final?.destination.received||0)+' WOTR':formatUnits(final?.destination.received||0,6)+' USDC');card.append(p);}
   $('orders').append(card);
  }
+ for(const item of unmatched){const card=document.createElement('div');card.className='order';card.textContent=`${item.input_asset||'?'} → ${item.output_asset||'?'} · `+text(item.status==='cancelled'?'Cancelled':item.status==='error'?'Operation failed':'Pending verification',item.status==='cancelled'?'已取消':item.status==='error'?'操作失败':'待核验');$('orders').append(card);}
 }
-async function run(action){if(working)return;working=true;render();try{await action();}catch(e){$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
+async function run(action){if(working)return;working=true;render();try{await action();}catch(e){if(order)void saveOutcome('swap',order.account,`order:${order.id}`,{state:e?.code===4001||e?.code==='ACTION_REJECTED'?'cancelled':'error',operation:'exchange',input_asset:order.kind==='buy'?'USDC':'WOTR',output_asset:order.kind==='buy'?'WOTR':'USDC',input_amount:order.input});$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
 async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message(order.state==='COMPLETED'?'Exchange completed. Arrival verified.':'Original transactions verified. Continue exchange when ready.',order.state==='COMPLETED'?'兑换完成，实际到账已核验。':'原交易已核验，可以继续兑换。');await balances();}finally{checking=false;render();}}
 function schedulePreview(){clearTimeout(previewTimer);if(account&&restored&&!order&&!working&&!previewing)previewTimer=setTimeout(()=>void preview(),600);}
 async function preview(){
@@ -215,12 +223,12 @@ async function restore(){
  for(const o of cached){
   const remote=server.find(v=>v.id===o.id);
   if(!remote){if(o.transactions.length)throw Error('Local order is missing from the server. Preserve the journal for recovery.');continue;}
-  if(o.revision===remote.revision+1){await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(o)});server[server.indexOf(remote)]=o;}
+  if(o.revision===remote.revision+1){await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(o)});}
   else if(o.revision>remote.revision)throw Error('Journal revisions disagree. Preserve both copies for recovery.');
  }
- orders=server;localStorage.setItem(cacheKey,stringify(orders));restored=true;render();
+ orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);localStorage.setItem(cacheKey,stringify(orders));restored=true;void loadReported();render();
 }
-$('connect').onclick=()=>run(async()=>{if(embedded){if(!account){document.getElementById('header-connect').click();return;}await signIn();await restore();selectOrder(active());void balances();if(order)await verify();return;}if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}}).then(schedulePreview);
+$('connect').onclick=()=>run(async()=>{if(embedded){if(!account){document.getElementById('header-connect').click();return;}await signIn();await restore();selectOrder(active());void balances();if(order)await verify();return;}if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];reportedOrders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}}).then(schedulePreview);
 $('language').onclick=()=>{lang=lang==='en'?'zh-CN':'en';if(production)sessionStorage.setItem('tevumi:trade-language',lang);render();};
 $('direction').onchange=()=>{clearQuote();$('amount').value=$('direction').value==='buy'?'1':'1000';render();};$('amount').oninput=clearQuote;
 $('refresh').onclick=()=>run(async()=>{
@@ -252,3 +260,5 @@ if(embedded){
 setInterval(()=>{if(quote&&Date.now()-quote.at>60000)$('send').disabled=true;},1000);
 setInterval(()=>{if(!working&&!order&&(!quote||Date.now()-quote.at>45000))schedulePreview();},5000);
 setInterval(()=>void checkInBackground(),8000);
+
+window.addEventListener('tevumi:server-history-saved',event=>{if(event.detail?.page==='swap'&&event.detail.account?.toLowerCase()===account?.toLowerCase())void loadReported();});

@@ -1,3 +1,4 @@
+import {saveOutcome} from './server-history.js';
 import {BrowserProvider, Contract, Interface, ZeroAddress, formatEther, getAddress, parseEther} from 'ethers';
 import {buildSwapPlan, verifySwapReceipt, swapAssets} from './swap-plan.js';
 import {BUY,quoteNewBuy,assertBuyRefresh,buyCall,verifyBuyReceipt} from './buy-plan.js';
@@ -57,7 +58,12 @@ let activeStep = 'buy';
 
 function key(kind,owner=account) { return `tevumi-journey-v1:${owner?.toLowerCase()}:${kind}`; }
 function record(kind) { try { return JSON.parse(localStorage.getItem(key(kind)) || 'null'); } catch { return {state:'unknown'}; } }
-function save(kind, value,owner=account) { localStorage.setItem(key(kind,owner), JSON.stringify(value)); }
+function outcome(kind,value,owner){
+  const page=kind==='swap'||kind==='approve-token'||kind==='approve-permit'?'swap':'buy';
+  const sale=value.direction==='sell'||kind==='approve-sale';
+  void saveOutcome(page,owner,value.operationId||`${kind}:${value.createdAt}`,{state:value.state,hash:value.hash,operation:kind,chain:value.chainId,input_asset:sale?'WOTR':page==='buy'?'BNB':'WOTR',output_asset:sale?'BNB':page==='buy'?'WOTR':'USDC',input_amount:value.amountIn||value.amount||value.value,output_amount:value.received});
+}
+function save(kind, value,owner=account) { localStorage.setItem(key(kind,owner), JSON.stringify(value));outcome(kind,value,owner); }
 function clear(kind,owner=account) { localStorage.removeItem(key(kind,owner)); }
 function status(kind, message) { $(`journey-${kind}-status`).textContent = message; }
 function amount(value) {
@@ -147,7 +153,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   let hash;
   try { hash = await wallet.request({method:'eth_sendTransaction',params:[request]}); }
   catch (error) {
-    if (['rejected','not_submitted'].includes(classifyWalletSendError(error))) { clear(kind,transactionAccount); throw Error(local('Wallet did not submit the transaction.','钱包未提交交易。')); }
+    if (['rejected','not_submitted'].includes(classifyWalletSendError(error))) { outcome(kind,{...pending,state:'cancelled'},transactionAccount);clear(kind,transactionAccount); throw Error(local('Wallet did not submit the transaction.','钱包未提交交易。')); }
     throw Error('Wallet result is still being checked. Do not submit again.');
   }
   assert(hashOk(hash), 'Wallet did not return a transaction hash. Do not submit again.');
@@ -514,11 +520,8 @@ function renderBuyDirection(){
   if(activeTab==='buy')$('journey-intro').textContent=description;
   const context=$('context-buy');context.querySelector('.eyebrow').textContent=local('TRADE ON BNB CHAIN','在 BNB CHAIN 交易');context.querySelector('h3').textContent=local(`From ${input} to ${output}.`,`从 ${input} 到 ${output}。`);context.querySelector('h3 + p').textContent=description;context.querySelector('.context-route strong').textContent=`${input} → ${output}`;
 }
-function saveSaleHistory(item,owner){
-  const historyKey=`tevumi:sale-history:v1:${owner.toLowerCase()}`;
-  const items=JSON.parse(localStorage.getItem(historyKey)||'[]');
-  localStorage.setItem(historyKey,JSON.stringify([...items.filter(v=>v.hash!==item.hash),item]));
-}
+function saveSaleHistory(item,owner){ outcome('buy',item,owner);if(item.hash)window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind:'buy',hash:item.hash}})); }
+
 async function sell(){
   assert(buyQuote&&Date.now()-buyQuote.at<60000,'Refresh the quote before signing.');
   assert(!record('buy')||['failed','verified'].includes(record('buy').state),'A trade is still being checked.');
@@ -550,6 +553,7 @@ async function run(action, kind) {
   busy = true; draw();
   try { await action(); }
   catch (error) {
+    if(account)void saveOutcome(kind==='swap'?'swap':'buy',account,crypto.randomUUID(),{state:'error',operation:kind});
     const message=cleanError(error);
     if(kind==='buy'){
       const known={
@@ -603,3 +607,6 @@ setInterval(()=>{if(account && !busy && !document.hidden) void refreshAll();},30
 draw();
 setTab(activeTab);
 setStep(activeStep);
+
+const migratedSales=new Set();
+window.addEventListener('tevumi:bridge-view',()=>{const owner=bridgeView().account;if(!owner||migratedSales.has(owner.toLowerCase()))return;migratedSales.add(owner.toLowerCase());let old=[];try{old=JSON.parse(localStorage.getItem(`tevumi:sale-history:v1:${owner.toLowerCase()}`)||'[]');}catch{}for(const item of old.slice(-100))if(hashOk(item.hash))saveSaleHistory(item,owner);});

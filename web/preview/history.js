@@ -14,8 +14,8 @@ const explorers = { 56: 'https://bscscan.com/tx/', 5042: 'https://explorer.arc.i
 const chainNames = { 56: 'BNB Chain', 5042: 'Arc' };
 const validHash = hash => /^0x[0-9a-f]{64}$/i.test(hash || '');
 const labels = {
-  en: { arrived: 'Arrived', in_transit: 'In transit', pending: 'Confirming', failed: 'Send failed', unknown: 'Status pending verification', amountFailed: 'Amount unverified', amountPending: 'Amount pending confirmation', amountUnknown: 'Amount pending verification', source: 'View source transaction', target: 'View destination transaction', unit: 'tokens', empty: 'No transfer history for this wallet yet.' },
-  'zh-CN': { arrived: '已到账', in_transit: '跨链中', pending: '确认中', failed: '发送失败', unknown: '状态待核验', amountFailed: '数量未核验', amountPending: '数量待确认', amountUnknown: '数量待核验', source: '查看发送交易', target: '查看到账交易', unit: '枚', empty: '这个钱包暂无跨链记录。' },
+  en: { arrived: 'Arrived', in_transit: 'In transit', pending: 'Confirming', failed: 'Send failed', unknown: 'Status pending verification', cancelled:'Cancelled',error:'Operation failed', amountFailed: 'Amount unverified', amountPending: 'Amount pending confirmation', amountUnknown: 'Amount pending verification', source: 'View source transaction', target: 'View destination transaction', unit: 'tokens', empty: 'No transfer history for this wallet yet.' },
+  'zh-CN': { arrived: '已到账', in_transit: '跨链中', pending: '确认中', failed: '发送失败', unknown: '状态待核验',cancelled:'已取消',error:'操作失败', amountFailed: '数量未核验', amountPending: '数量待确认', amountUnknown: '数量待核验', source: '查看发送交易', target: '查看到账交易', unit: '枚', empty: '这个钱包暂无跨链记录。' },
 };
 const copy = () => labels[currentLanguage()];
 
@@ -106,3 +106,5 @@ window.addEventListener('tevumi:history-changed', () => { if (panel.open) void l
 window.addEventListener('tevumi:locale-change', () => { if (panel.open && shownAccount && !loading) renderCards(); });
 setInterval(() => { if (panel.open && shownAccount && page === 1) void load(true); }, 20000);
 panel.hidden = !activeAccount;
+
+window.addEventListener('tevumi:server-history-saved',event=>{if(event.detail?.page==='bridge'&&event.detail.account?.toLowerCase()===bridgeView().account?.toLowerCase()&&panel.open)void load(true);});

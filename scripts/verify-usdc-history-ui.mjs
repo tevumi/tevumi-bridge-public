@@ -1,168 +1,27 @@
-import { chromium } from '@playwright/test';
-
-const origin = process.env.TEVUMI_BASE_URL || 'http://127.0.0.1:5190/preview/web/preview/usdc/';
-const wallet = '0x67bfb3BeF4f4A3Cb25Bc529E948d40bcfc0874CD';
-const browser = await chromium.launch({ headless: true });
-try {
-  for (const [label, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
-    const page = await browser.newPage({ viewport });
-    await page.addInitScript(address => {
-      const listeners = {};
-      window.ethereum = { on: (name, callback) => { listeners[name] = callback; }, __emit: (name, value) => listeners[name]?.(value), request: async ({ method }) => {
-        if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
-        if (method === 'eth_chainId') return '0x13b2';
-        throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
-      } };
-      const suffix = address.toLowerCase();
-      localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${suffix}`, JSON.stringify({
-        state: 'error', amount: '2', destination: 'Ethereum', createdAt: 1791190000000,
-        result: { state: 'error', steps: [{ name: 'approve', state: 'error', errorMessage: 'User rejected the request.' }] },
-        events: [],
-      }));
-      localStorage.setItem(`tevumi:circle-usdc:history:v1:${suffix}`, JSON.stringify([{
-        id: 'prior', state: 'success', amount: '1', destination: 'Base', createdAt: 1791180000000,
-        steps: [{ name: 'burn', txHash: `0x${'a'.repeat(64)}` }], events: [],
-      }]));
-    }, wallet);
-    await page.route('**/api/usdc-transfers**', route => route.request().method() === 'GET'
-      ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [], more: false }) })
-      : route.fulfill({ status: 404, body: '{}' }));
-    await page.goto(origin, { waitUntil: 'domcontentloaded' });
-    if (await page.locator('#transfer-history').isVisible()) throw Error(`GUEST_USDC_HISTORY_VISIBLE_${label}`);
-    await page.locator('#wallet-button').click();
-    await page.locator('.tevumi-wallet-other').click();
-    await page.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
-    if (!(await page.locator('#transfer-history').isVisible())) throw Error(`CONNECTED_USDC_HISTORY_HIDDEN_${label}`);
-    await page.locator('#transfer-history summary').click();
-    await page.locator('.history-card').first().getByText('Approval declined').waitFor();
-    if (await page.locator('.history-card').count() !== 2) throw Error(`HISTORY_COUNT_${label}`);
-    if (await page.locator('#retry-button').isVisible()) throw Error(`RETRY_REJECTED_APPROVAL_${label}`);
-    if (await page.locator('#activity').isVisible()) throw Error(`DECLINED_APPROVAL_DUPLICATES_HISTORY_${label}`);
-    if (await page.locator('#activity-title').count()) throw Error(`STANDALONE_CURRENT_CARD_${label}`);
-    if (!(await page.locator('.history-card').first().innerText()).includes('No transaction hash saved')) throw Error(`REJECTION_COPY_${label}`);
-    if (!(await page.locator('.history-card').nth(1).innerText()).includes('Submitted')) throw Error(`SUCCESS_NOT_VERIFIED_${label}`);
-    if (!(await page.locator('.history-card').nth(1).locator('a').getAttribute('href')).endsWith(`/tx/0x${'a'.repeat(64)}`)) throw Error(`SOURCE_LINK_${label}`);
-    const saved = await page.evaluate(address => ({
-      current: JSON.parse(localStorage.getItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`)),
-      history: JSON.parse(localStorage.getItem(`tevumi:circle-usdc:history:v1:${address.toLowerCase()}`)),
-    }), wallet);
-    if (saved.current !== null || saved.history.length !== 2) throw Error(`LEGACY_MIGRATION_${label}`);
-    await page.locator('#lang-zh').click();
-    if (!(await page.locator('.history-card').first().innerText()).includes('授权已拒绝')) throw Error(`CHINESE_STATUS_${label}`);
-    await page.screenshot({ path: `.local/usdc-history-${label}.png`, fullPage: true });
-    await page.evaluate(() => window.ethereum.__emit('accountsChanged', []));
-    await page.locator('#transfer-history').waitFor({ state: 'hidden' });
-    await page.close();
-  }
-  const recovery = await browser.newPage();
-  await recovery.addInitScript(address => {
-    window.ethereum = { request: async ({ method }) => {
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
-      if (method === 'eth_chainId') return '0x13b2';
-      throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
-    } };
-    localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`, JSON.stringify({
-      state: 'error', account: address, amount: '2', destination: 'Ethereum', createdAt: 1791190000000,
-      result: { state: 'error', steps: [
-        { name: 'approve', state: 'success', txHash: `0x${'b'.repeat(64)}` },
-        { name: 'burn', state: 'error', errorMessage: 'User rejected the request.' },
-      ] },
-      events: [],
-    }));
-  }, wallet);
-  await recovery.goto(origin, { waitUntil: 'domcontentloaded' });
-  await recovery.locator('#wallet-button').click();
-  await recovery.locator('.tevumi-wallet-other').click();
-  await recovery.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
-  await recovery.locator('#transfer-history summary').click();
-  if (!(await recovery.locator('#history-list #retry-button').isVisible())) throw Error('RECOVERY_HIDDEN_AFTER_SOURCE_HASH');
-  if (!(await recovery.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_AFTER_SOURCE_HASH');
-  if (!(await recovery.locator('#activity-body').innerText()).includes('The transfer is not complete')) throw Error('SOURCE_HASH_MISCLASSIFIED');
-  await recovery.close();
-  const walletWait = await browser.newPage();
-  await walletWait.addInitScript(address => {
-    window.ethereum = { request: async ({ method }) => {
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
-      if (method === 'eth_chainId') return '0x13b2';
-      throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
-    } };
-    localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`, JSON.stringify({
-      state: 'pending', account: address, amount: '2', destination: 'Ethereum', createdAt: Date.now(), events: [],
-    }));
-  }, wallet);
-  await walletWait.goto(origin, { waitUntil: 'domcontentloaded' });
-  await walletWait.locator('#wallet-button').click();
-  await walletWait.locator('.tevumi-wallet-other').click();
-  await walletWait.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
-  await walletWait.locator('#transfer-history summary').click();
-  if (!(await walletWait.locator('#history-list #activity-body').innerText()).includes('No source transaction hash is saved')) throw Error('WALLET_WAIT_COPY');
-  if (!(await walletWait.locator('.history-card').first().innerText()).includes('Awaiting wallet')) throw Error('WALLET_WAIT_LABEL');
-  if (!(await walletWait.locator('#bridge-button').isDisabled())) throw Error('NEW_SEND_ENABLED_DURING_WALLET_WAIT');
-  await walletWait.locator('#lang-zh').click();
-  if (!(await walletWait.locator('#activity-body').innerText()).includes('正在等待钱包确认')) throw Error('WALLET_WAIT_CHINESE');
-  await walletWait.close();
-  for (const viewport of [{width:1440,height:900},{width:390,height:844}]) {
-    const pending=await browser.newPage({viewport});
-    const source=`0x${'f'.repeat(64)}`;
-    await pending.route('**/api/usdc-transfers**',route=>route.fulfill({json:{items:[{source_hash:source,amount:'500000',target_chain:'Base',status:'source_confirmed',created_at:1791190000}],more:false}}));
-    await pending.addInitScript(({address,source})=>{
-      window.ethereum={request:async({method})=>{
-        if (method==='eth_accounts'||method==='eth_requestAccounts') return [address];
-        if (method==='eth_chainId') return '0x13b2';
-        throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
-      }};
-      localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${address.toLowerCase()}`,JSON.stringify({id:'processing',state:'pending',account:address,amount:'0.5',destination:'Base',createdAt:1791190000000,events:[{name:'burn',txHash:source}]}));
-    },{address:wallet,source});
-    await pending.goto(origin,{waitUntil:'domcontentloaded'});
-    await pending.locator('#wallet-button').click();
-    await pending.locator('.tevumi-wallet-other').click();
-    await pending.locator('#wallet-button.tevumi-active-wallet').waitFor({timeout:30000});
-    await pending.locator('#transfer-history summary').click();
-    await pending.locator('.history-card').getByText('Transfer confirmed').waitFor();
-    if (await pending.locator('.history-card').count()!==1) throw Error('PROCESSING_DUPLICATE');
-    if (!(await pending.locator('#history-list .history-card #activity-body').innerText()).includes('Do not send again')) throw Error('PROCESSING_PROGRESS_MISSING');
-    if (await pending.locator('#activity-title').count()) throw Error('PROCESSING_STANDALONE_CARD');
-    if (!(await pending.locator('#bridge-button').isDisabled())) throw Error('PROCESSING_NEW_SEND_ENABLED');
-    await pending.locator('#lang-zh').click();
-    if (!(await pending.locator('#history-list').innerText()).includes('请勿重复发送')) throw Error('PROCESSING_CHINESE');
-    if (await pending.evaluate(()=>document.documentElement.scrollWidth>innerWidth)) throw Error('PROCESSING_OVERFLOW');
-    await pending.screenshot({path:`.local/usdc-processing-history-${viewport.width}.png`,fullPage:true});
-    await pending.close();
-  }
-  const indexed = await browser.newPage();
-  const hash = `0x${'c'.repeat(64)}`;
-  await indexed.route('**/api/usdc-transfers**', async route => {
-    if (route.request().method() === 'POST') return route.fulfill({ json: { status: 'arrived' } });
-    const page = Number(new URL(route.request().url()).searchParams.get('page') || 0);
-    const items = page ? [{ source_hash: `0x${'d'.repeat(64)}`, amount: '3000000', target_chain: 'Ethereum', status: 'source_confirmed', created_at: 1791190001 }] : [
-      { source_hash: hash, amount: '2000000', target_chain: 'Base', status: 'arrived', created_at: 1791190000 },
-      { source_hash: `0x${'e'.repeat(64)}`, amount: '1000000', target_chain: 'Arbitrum', status: 'source_confirmed', created_at: 1791190000 },
-    ];
-    await route.fulfill({ json: { items, more: page === 0 } });
-  });
-  await indexed.addInitScript(({ address, source }) => {
-    window.ethereum = { request: async ({ method }) => {
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [address];
-      if (method === 'eth_chainId') return '0x13b2';
-      throw Error(`UNEXPECTED_WALLET_METHOD_${method}`);
-    } };
-    localStorage.setItem(`tevumi:circle-usdc:history:v1:${address.toLowerCase()}`, JSON.stringify([{
-      id: 'same-burn', state: 'success', amount: '2', destination: 'Base', createdAt: 1791190000000,
-      steps: [{ name: 'burn', txHash: source }], events: [],
-    }]));
-  }, { address: wallet, source: hash });
-  await indexed.goto(origin, { waitUntil: 'domcontentloaded' });
-  await indexed.locator('#wallet-button').click();
-  await indexed.locator('.tevumi-wallet-other').click();
-  await indexed.locator('#wallet-button.tevumi-active-wallet').waitFor({ timeout: 30000 });
-  await indexed.locator('#transfer-history summary').click();
-  await indexed.locator('.history-card').first().getByText('Destination verified').waitFor();
-  if (await indexed.locator('.history-card').count() !== 2) throw Error(`SERVER_DEDUPLICATION_${await indexed.locator('.history-card').count()}_${await indexed.locator('#history-list').innerText()}`);
-  await indexed.locator('#history-more').click();
-  await indexed.locator('.history-card').nth(2).getByText('Transfer confirmed').waitFor();
-  await indexed.locator('#lang-zh').click();
-  if (!(await indexed.locator('.history-card').first().innerText()).includes('目标链已核验')) throw Error('VERIFIED_CHINESE_STATUS');
-  await indexed.screenshot({ path: '.local/usdc-server-history-desktop.png', fullPage: true });
-  await indexed.close();
-  console.log(JSON.stringify({ status: 'USDC_HISTORY_UI_OK', origin }));
-} finally { await browser.close(); }
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+const base=process.env.TEVUMI_BASE_URL||'http://127.0.0.1:5351/preview/web/preview/usdc/';
+const account='0x'+'1'.repeat(40),hash='0x'+'2'.repeat(64),browser=await chromium.launch({headless:true});
+try{for(const mobile of [false,true])for(const state of ['pending','error','success','cancelled']){
+ const page=await browser.newPage({viewport:mobile?{width:390,height:844}:{width:1440,height:900}}),errors=[],stored=new Map();page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(({account,hash,state})=>{
+  localStorage.setItem(`tevumi:circle-usdc:mainnet:v1:${account}`,JSON.stringify({id:'test-current',state,account,amount:'2',destination:'Base',createdAt:Date.now(),events:state==='pending'||state==='cancelled'?[]:[{name:'burn',txHash:hash}],result:state==='error'?{state:'error',steps:[{name:'burn',txHash:hash,state:'error'}]}:undefined}));
+  const provider={isMetaMask:true,on(){},request:async r=>{if(['eth_accounts','eth_requestAccounts'].includes(r.method))return[account];if(r.method==='eth_chainId')return '0x13b2';throw Error('No signing allowed');}};window.ethereum=provider;
+  window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider}})));
+ },{account,hash,state});
+ await page.route('**/api/**',async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname;
+  if(path==='/api/operation-results'&&req.method()==='POST'){const record=req.postDataJSON();stored.set(record.id,{...record,reported:true,created_at:Math.floor(Date.now()/1000),source_hash:record.hash,status:'unknown'});return route.fulfill({json:{saved:true}});}
+  if(path==='/api/usdc-transfers')return route.fulfill({json:req.method()==='GET'?{items:[...stored.values()],more:false}:{status:'in_transit'}});
+  return route.abort();
+ });
+ await page.goto(base+'index.html');await page.locator('#wallet-button').click();await page.locator('.tevumi-wallet-option').filter({hasText:'MetaMask'}).click();
+ await page.locator('#transfer-history summary').click();
+ await page.locator('#history-list .history-card').first().waitFor();assert.equal(await page.locator('#history-list .history-card').count(),1);
+ assert.equal(await page.locator('#history-list #activity').count(),0);assert.equal(await page.locator('#activity').isVisible(),state!=='cancelled');
+ if(state==='pending'||state==='error')assert.equal(await page.locator('#bridge-button').isDisabled(),true);
+ if(state==='error')assert.equal(await page.locator('#retry-button').isVisible(),true);
+ await page.locator('#lang-zh').click();assert(!(await page.locator('#history-list').textContent()).includes('浏览器'));
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({mobile,state,serverHistory:true,separateRecovery:true,passed:true}));await page.close();
+}}finally{await browser.close();}

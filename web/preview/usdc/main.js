@@ -1,3 +1,4 @@
+import {saveOutcome,historyWrite} from '../server-history.js';
 import {readLanguagePreference,saveLanguagePreference} from '../language-preference.js';
 import {BridgeKit} from '@circle-fin/bridge-kit';
 import {createViemAdapterFromProvider} from '@circle-fin/adapter-viem-v2';
@@ -138,8 +139,7 @@ async function syncBurn(record) {
   if (!hash || syncedBurns.has(hash) || syncingBurns.has(hash)) return;
   syncingBurns.add(hash);
   try {
-    const response=await fetch('/api/usdc-transfers',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({hash}),signal:AbortSignal.timeout(20000)});
-    if (!response.ok) return;
+    if (!await historyWrite('/api/usdc-transfers',{hash},{timeout:20000})) return;
     syncedBurns.add(hash);
     if (same(account,record.account)) await loadServerHistory(true);
   } catch { /* browser recovery record remains available for a later sync */ }
@@ -160,12 +160,13 @@ function normalizeRecord(record) {
 function historyEntry(record) {
   const steps=(record.result?.steps || []).filter(step => validHash(step.txHash)).map(step => ({name:step.name,txHash:step.txHash,explorerUrl:step.explorerUrl}));
   const events=(record.events || []).filter(event => validHash(event.txHash)).map(event => ({name:event.name,txHash:event.txHash}));
-  return {id:record.id || `legacy:${record.createdAt || 0}:${record.destination || ''}:${record.amount || ''}`,state:record.state,approvalRejected:Boolean(record.approvalRejected),amount:record.amount,destination:record.destination,createdAt:record.createdAt || 0,steps,events};
+  return {id:record.id || `legacy:${record.createdAt || 0}:${String(record.destination || '').replace(/[^a-zA-Z0-9]/g,'_')}:${record.amount || ''}`,state:record.state,approvalRejected:Boolean(record.approvalRejected),amount:record.amount,destination:record.destination,createdAt:record.createdAt || 0,steps,events};
 }
 function saveHistory(record) {
   const entry=historyEntry(record);
   historyRecords=[entry,...historyRecords.filter(item=>item.id!==entry.id)].slice(0,100);
-  if (historyKey()) localStorage.setItem(historyKey(),safeJson(historyRecords));
+  let units;try{units=parseUnits(String(entry.amount),6).toString();}catch{}
+  void saveOutcome('usdc',record.account||account,entry.id,{state:entry.state,operation:'transfer',hash:burnHash(record)||undefined,chain:5042,amount:units,target_chain:entry.destination}).then(saved=>{if(saved&&same(account,record.account||account))void loadServerHistory(true);});
   renderHistory();
 }
 function saveRecord(record) {
@@ -192,7 +193,7 @@ function loadRecord() {
   } else renderHistory();
   renderRecord();
   if (currentRecord) void syncBurn(currentRecord);
-  for (const item of historyRecords.slice(0,5)) void syncBurn(item);
+  for (const item of historyRecords.slice(0,100)) { saveHistory(item);void syncBurn(item); }
 }
 function pendingRecord() { return currentRecord && !['success','cancelled'].includes(currentRecord.state); }
 function selectedChain() { return supported.find(chain => chain.name === $('destination').value); }
@@ -292,51 +293,32 @@ function renderHistory() {
   const activity=$('activity');
   activity.hidden=true;
   $('transfer-history').append(activity);
-  let activeCard=null;
   $('transfer-history').hidden=!account;
   if (!account) $('transfer-history').open=false;
   list.replaceChildren();
   $('history-more').hidden=!account || !serverMore || serverLoading;
   if (!account) { list.textContent=t('Connect your wallet to view transfer history.','连接钱包后查看跨链记录。'); return; }
   if (serverLoading && !serverRecords.length) { const p=document.createElement('p'); p.textContent=t('Loading verified transfers…','正在读取已核验跨链…'); list.append(p); }
-  if (serverUnavailable) { const p=document.createElement('p'); p.textContent=t('Verified history is temporarily unavailable. Browser records appear below.','已核验历史暂时无法读取；下方仍显示浏览器记录。'); list.append(p); }
+  if (serverUnavailable) { const p=document.createElement('p'); p.textContent=t('History is temporarily unavailable. Reopen to retry.','交易记录暂时无法读取，请重新展开重试。'); list.append(p); }
   for (const item of serverRecords) {
     const card=document.createElement('article'); card.className='history-card';
     const top=document.createElement('div'); top.className='history-card-top';
-    const route=document.createElement('strong'); route.textContent=`${formatUnits(BigInt(item.amount),6)} USDC · Arc → ${item.target_chain}`;
+    const route=document.createElement('strong'); route.textContent=`${item.amount?formatUnits(BigInt(item.amount),6):'?'} USDC · Arc → ${item.target_chain||'?'}`;
     const arrived=item.status==='arrived';
     const status=document.createElement('span'); status.className=`history-status history-${arrived?'success':'pending'}`;
-    status.textContent=arrived ? t('Destination verified','目标链已核验') : t('Transfer confirmed','转账已确认');
+    status.textContent=arrived ? t('Destination verified','目标链已核验') : item.reported ? item.state==='cancelled'?t('Cancelled','已取消'):['error','failed'].includes(item.state)?t('Operation failed','操作失败'):t('Pending verification','待核验') : t('Transfer confirmed','转账已确认');
     top.append(route,status);
     const meta=document.createElement('p'); meta.textContent=`${new Date(Number(item.created_at)*1000).toLocaleString(language,{hour12:false})} · ${arrived ? t('Destination arrival verified','目标链到账已核验') : t('Destination arrival not yet verified','目标链到账尚未核验')}`;
     const links=document.createElement('div'); links.className='history-links';
-    const link=document.createElement('a'); link.href=`https://explorer.arc.io/tx/${item.source_hash}`; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent=t('Arc source transaction ↗','Arc 来源交易 ↗'); links.append(link);
+    const link=document.createElement('a'); link.href=`https://explorer.arc.io/tx/${item.source_hash}`; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent=t('Arc source transaction ↗','Arc 来源交易 ↗'); if(validHash(item.source_hash))links.append(link);
     card.append(top,meta,links); list.append(card);
-    if (currentRecord && same(item.source_hash,burnHash(currentRecord))) {
-      activeCard=card;
-      const entry=historyEntry(currentRecord);
-      transactionLinks(links,{steps:[...entry.steps,...entry.events].filter(step=>!same(step.txHash,item.source_hash))});
-    }
   }
-  const verified=new Set(serverRecords.map(item=>item.source_hash?.toLowerCase()));
-  for (const item of historyRecords.filter(item=>!verified.has(burnHash(item)))) {
-    const card=document.createElement('article'); card.className='history-card';
-    const top=document.createElement('div'); top.className='history-card-top';
-    const route=document.createElement('strong'); route.textContent=`${item.amount || '?'} USDC · Arc → ${item.destination || '?'}`;
-    const status=document.createElement('span'); status.className=`history-status history-${['success','pending','error','cancelled','unknown'].includes(item.state) ? item.state : 'unknown'}`; status.textContent=recordLabel(item);
-    top.append(route,status);
-    const meta=document.createElement('p');
-    const date=Number(item.createdAt) ? new Date(Number(item.createdAt)).toLocaleString(language,{hour12:false}) : t('Date unavailable','日期不可用');
-    meta.textContent=`${date} · ${item.state==='success' ? t('Submitted; arrival verification pending','已提交；目标链到账待核验') : item.approvalRejected ? t('No transaction hash saved; check wallet activity','未保存交易哈希；请核对钱包记录') : t('Saved browser status','浏览器保存的状态')}`;
-    const links=document.createElement('div'); links.className='history-links'; transactionLinks(links,item);
-    card.append(top,meta,links); list.append(card);
-    if (currentRecord && item.id===historyEntry(currentRecord).id) activeCard=card;
-  }
-  if (account && activeCard) { activeCard.append(activity); renderRecord(); }
+  // Current-operation recovery is separate from the server history list.
+  $('transfer-history').before(activity);renderRecord();
   if (!list.children.length) list.textContent=t('No USDC transfers found for this wallet.','此钱包暂无 USDC 跨链记录。');
 }
 function renderRecord() {
-  $('activity').hidden = !(account && currentRecord && $('activity').closest('.history-card'));
+  $('activity').hidden = !(account && currentRecord);
   if (!currentRecord) return;
   const body = $('activity-body');
   body.replaceChildren();
@@ -533,6 +515,7 @@ async function startBridge() {
     setStatus(!currentRecord ? t('Approval declined. No transaction hash was saved; review the attempt in transfer history.','授权已拒绝，未保存交易哈希；可在跨链记录中查看本次尝试。') : result.state==='success' ? t('The transfer was submitted. Verify destination arrival independently.','交易已提交；请独立核验目标链到账。') : t('The transfer needs review. Do not start another source transfer until you check its status.','这笔跨链需要核查。确认状态前请勿重新发起源链转账。'));
     await readBalance();
   } catch (error) {
+    if(!currentRecord&&account)void saveOutcome('usdc',account,crypto.randomUUID(),{state:'error',operation:'transfer',chain:5042,target_chain:selectedChain()?.name});
     // Once the SDK has been called, an ambiguous wallet/network failure must not
     // silently reopen the send button. A stored result can be retried instead.
     if (currentRecord?.state==='pending') {

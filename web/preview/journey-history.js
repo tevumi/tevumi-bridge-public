@@ -1,3 +1,4 @@
+import {historyWrite} from './server-history.js';
 import {formatEther} from 'ethers';
 import {bridgeView} from '../immediate-deploy/live.js';
 import {currentLanguage} from './locale.js';
@@ -32,9 +33,7 @@ function render(kind) {
   view.heading.textContent = text('Transfer history', '交易记录');
   view.more.textContent = text('Load more', '加载更多');
   view.list.replaceChildren();
-  const owner=bridgeView().account?.toLowerCase();
-  let sales=[];try{sales=kind==='buy'&&owner?JSON.parse(localStorage.getItem(`tevumi:sale-history:v1:${owner}`)||'[]'):[];}catch{}
-  const items=[...view.items,...sales.filter(item=>hashOk(item.hash)).map(item=>({tx_hash:item.hash,created_at:item.createdAt/1000,status:item.state==='verified'?'verified':item.state==='failed'?'failed':'pending',input_asset:'WOTR',output_asset:'BNB',input_amount:item.amountIn,output_amount:item.received,token_address:item.token,local:true}))].sort((a,b)=>b.created_at-a.created_at);
+  const items=view.items;
   if (!items.length) {
     view.list.textContent = text('No transactions recorded for this wallet yet.', '这个钱包暂无交易记录。');
     return;
@@ -47,10 +46,10 @@ function render(kind) {
     const title = document.createElement('strong');
     const reverse = kind === 'swap' && item.input_asset === 'USDC' && item.output_asset === 'WOTR';
     const sale=kind==='buy'&&item.input_asset==='WOTR'&&item.output_asset==='BNB';
-    title.textContent = kind === 'buy' ? sale?'BNB Chain · WOTR → BNB':'BNB Chain · BNB → WOTR' : reverse ? 'Arc · USDC → WOTR' : 'Arc · WOTR → USDC';
+    title.textContent = (item.operation?.startsWith('approve')?text('Approval · ','授权 · '):'') + (kind === 'buy' ? sale?'BNB Chain · WOTR → BNB':'BNB Chain · BNB → WOTR' : reverse ? 'Arc · USDC → WOTR' : 'Arc · WOTR → USDC');
     const badge = document.createElement('span');
     badge.className = `history-status history-${item.status}`;
-    badge.textContent = item.status === 'verified' ? text('Completed', '已完成') : item.status === 'failed' ? text('Failed on-chain', '链上失败') : text('Confirming', '确认中');
+    badge.textContent = item.status === 'verified' ? text('Completed', '已完成') : item.status === 'failed' ? text('Failed on-chain', '链上失败') : item.status==='cancelled'?text('Cancelled','已取消'):item.status==='error'?text('Operation failed','操作失败'):item.status==='unknown'?text('Pending verification','待核验'):text('Confirming', '确认中');
     top.append(title, badge);
     const meta = document.createElement('p');
     const inputUnit = kind === 'buy' ? sale?'WOTR':'BNB' : reverse ? 'USDC' : 'WOTR';
@@ -58,7 +57,6 @@ function render(kind) {
     const input = /^\d+$/.test(item.input_amount || '') ? `${formatEther(BigInt(item.input_amount))} ${inputUnit}` : text('Amount unverified', '数量未核验');
     const output = item.status === 'verified' && /^\d+$/.test(item.output_amount || '') ? ` → ${formatEther(BigInt(item.output_amount))} ${outputUnit}` : '';
     meta.textContent = `${input}${output} · ${new Date(item.created_at * 1000).toLocaleString(currentLanguage(), {hour12: false})}`;
-    if(item.local)meta.textContent+=' · '+text('Saved in this browser','此浏览器记录');
     if(kind==='buy'){
       const token=item.token_address || '0xb97b99cb6dc0edbb89512e14100b2e9c23132ee5';
       meta.textContent+=` · ${token.toLowerCase()==='0xe2a0ce4be658ee9b09e461f5283c718a20984444'?'WOTR':text('Historical contract','历史合约')}`;
@@ -102,7 +100,7 @@ async function load(kind, reset = false) {
     view.more.hidden = !data.more;
     render(kind);
   } catch {
-    if (page === 0) {render(kind);const warning=document.createElement('p');warning.textContent=text('Online history is temporarily unavailable. Reopen to retry.','线上交易记录暂时无法加载，请重新展开重试。');view.list.append(warning);}
+    if (page === 0) {view.items=[];view.list.textContent=text('History is temporarily unavailable. Reopen to retry.','交易记录暂时无法加载，请重新展开重试。');}
     else view.more.textContent = text('Retry', '重试');
   } finally { view.loading = false; }
 }
@@ -113,13 +111,12 @@ async function index(kind, hash) {
   if (sent.has(key)) return;
   sent.add(key);
   try {
-    const response = await fetch('/api/journey-transfers', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({kind,hash}), signal:AbortSignal.timeout(12000)});
-    if (!response.ok) throw Error('Index unavailable');
+    if(!await historyWrite('/api/journey-transfers',{kind,hash},{timeout:12000}))throw Error('Index unavailable');
     if (views[kind].panel.open) void load(kind, true);
   } catch { sent.delete(key); }
 }
 
-window.addEventListener('tevumi:sale-history',()=>{if(views.buy.panel.open)render('buy');});
+window.addEventListener('tevumi:server-history-saved',event=>{const kind=event.detail?.page;if(views[kind]?.panel.open&&event.detail.account?.toLowerCase()===bridgeView().account?.toLowerCase())void load(kind,true);});
 window.addEventListener('tevumi:journey-hash', event => { void index(event.detail?.kind, event.detail?.hash); });
 function showTab(tab) {
   const account = bridgeView().account;
