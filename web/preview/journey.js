@@ -2,6 +2,7 @@ import {BrowserProvider, Contract, Interface, ZeroAddress, formatEther, getAddre
 import {buildSwapPlan, verifySwapReceipt, swapAssets} from './swap-plan.js';
 import {BUY,quoteNewBuy,assertBuyRefresh,buyCall,verifyBuyReceipt} from './buy-plan.js';
 import {quoteSell,assertSellRefresh,sellCall} from '../source-trade/sell-plan.js';
+import {confirmedSaleApproval} from './sale-approval.js';
 import {sourceProof} from '../source-trade/proofs.js';
 import {quoteFailure} from './quote-error.js';
 import {rpc} from '../immediate-deploy/rpc.js';
@@ -35,7 +36,7 @@ const readers = {56:new BrowserProvider({request:({method,params=[]})=>rpc(56,me
 const hashOk = value => /^0x[0-9a-f]{64}$/i.test(value || '');
 const same = (a,b) => String(a).toLowerCase() === String(b).toLowerCase();
 const assert = (condition, message) => { if (!condition) throw Error(message); };
-const cleanError = error => /Four\.meme|PancakeSwap|Uniswap|LayerZero|RPC|0x[a-f0-9]{40}/i.test(String(error?.shortMessage||error?.message||error))?local('Unable to complete this operation. Refresh the quote or verify your submitted transaction.','暂时无法完成操作，请刷新报价或核验已提交的交易。'):String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,230);
+const cleanError = error => String(error?.message||error)==='Approval transaction does not match the selected token, wallet or spender.'?local('Approval transaction does not match the selected token, wallet or spender.','授权交易与所选代币、钱包或授权对象不匹配，请核对原交易。'):/Four\.meme|PancakeSwap|Uniswap|LayerZero|RPC|0x[a-f0-9]{40}/i.test(String(error?.shortMessage||error?.message||error))?local('Unable to complete this operation. Refresh the quote or verify your submitted transaction.','暂时无法完成操作，请刷新报价或核验已提交的交易。'):String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,230);
 const local = (en,zh) => currentLanguage() === 'zh-CN' ? zh : en;
 let account = null;
 let reverseBuy = false;
@@ -160,7 +161,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
 async function verify(kind) {
   if (!account) return null;
   const verificationAccount = account;
-  const item = record(kind);
+  let item = record(kind);
   if (!item) return null;
   if (item.state === 'verified' && (kind !== 'swap' || item.outputVerified === true || item.usdcArrivalVerified === true && item.direction !== 'usdc-to-wotr')) return item;
   if (item.state === 'failed') return item;
@@ -168,7 +169,8 @@ async function verify(kind) {
   const reader = readers[item.chainId];
   const [transaction,receipt] = await Promise.all([reader.getTransaction(item.hash),reader.getTransactionReceipt(item.hash)]);
   if (!transaction || !receipt) return item;
-  assert(same(transaction.from,verificationAccount) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), 'Saved transaction does not match the chain transaction.');
+  if(kind==='approve-sale')item=confirmedSaleApproval(item,transaction,verificationAccount);
+  assert(same(transaction.from,verificationAccount) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), local('Saved transaction does not match the chain transaction.','保存的交易与链上交易不匹配，请核对原交易。'));
   if (receipt.status !== 1) { const failed={...item,state:'failed'};save(kind,failed,verificationAccount);if(kind==='buy'&&item.direction==='sell'){saveSaleHistory(failed,verificationAccount);window.dispatchEvent(new CustomEvent('tevumi:sale-history'));}return failed; }
   if (kind === 'approve-sale' || kind==='buy' && item.direction==='sell') {
     const proof=await sourceProof(reader,{...item,chain:item.chainId,kind:kind==='approve-sale'?'approval':'sell'},verificationAccount);
@@ -590,7 +592,7 @@ for(const [id,side] of [['journey-side-buy',false],['journey-side-sell',true]])$
 $('journey-bnb').addEventListener('input',()=>{buyRequest++;statusEpoch++;interactiveStatus.buy=true;status('buy','');buyQuote=null;renderLiveText();draw();});
 $('journey-wotr').addEventListener('input',()=>{statusEpoch++;interactiveStatus.swap=true;status('swap','');swapQuote=null;renderLiveText();draw();});
 $('journey-buy-refresh').addEventListener('click',()=>run(quoteBuy,'buy'));
-$('journey-sale-recover').onclick=()=>run(async()=>{const kind=record('approve-sale')&&!['verified','failed'].includes(record('approve-sale').state)&&!record('approve-sale').hash?'approve-sale':'buy';const item=record(kind),hash=$('journey-sale-hash').value.trim();assert(hashOk(hash)&&item&&!item.hash,'Enter the full original transaction hash.');const original=await readers[56].getTransaction(hash);assert(original&&same(original.from,account)&&same(original.to,item.to)&&original.data===item.data&&original.value===BigInt(item.value)&&original.nonce===item.nonce,'This hash does not match the original transaction.');save(kind,{...item,hash,state:'submitted'});await refreshAll({operation:true});},'buy');
+$('journey-sale-recover').onclick=()=>run(async()=>{const kind=record('approve-sale')&&!['verified','failed'].includes(record('approve-sale').state)&&!record('approve-sale').hash?'approve-sale':'buy';const item=record(kind),hash=$('journey-sale-hash').value.trim();assert(hashOk(hash)&&item&&!item.hash,'Enter the full original transaction hash.');const original=await readers[56].getTransaction(hash);if(kind==='approve-sale'){assert(original,'Approval transaction is not available yet.');const confirmed=confirmedSaleApproval({...item,hash},original,account);await sourceProof(readers[56],{...confirmed,chain:56,kind:'approval'},account);save(kind,{...confirmed,state:'submitted'});await refreshAll({operation:true});return;}assert(original&&same(original.from,account)&&same(original.to,item.to)&&original.data===item.data&&original.value===BigInt(item.value)&&original.nonce===item.nonce,'This hash does not match the original transaction.');save(kind,{...item,hash,state:'submitted'});await refreshAll({operation:true});},'buy');
 $('journey-buy-action').addEventListener('click',()=>run(buy,'buy'));
 $('journey-swap-direction').addEventListener('click',()=>{if ($('journey-swap-direction').disabled) return; statusEpoch++;interactiveStatus.swap=true; reverseSwap=!reverseSwap; swapQuote=null; $('journey-wotr').value=''; status('swap',''); renderLiveText(); draw();});
 $('journey-swap-refresh').addEventListener('click',()=>run(quoteSwap,'swap'));

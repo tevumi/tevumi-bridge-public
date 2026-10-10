@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {Interface,parseEther} from 'ethers';import {BUY} from '../web/preview/buy-plan.js';import {confirmedSaleApproval} from '../web/preview/sale-approval.js';
+const token=new Interface(['function approve(address,uint256)']),account='0x'+'1'.repeat(40),hash='0x'+'2'.repeat(64),n=parseEther('46809');
+const record={chainId:56,token:BUY.token,to:BUY.token,spender:BUY.manager,nonce:44,value:'0',amount:String(n),data:token.encodeFunctionData('approve',[BUY.manager,n]),hash};
+const tx={hash,from:account,to:BUY.token,nonce:44,value:0n,data:record.data};
+test('recognizes a wallet-edited approval while retaining the requested amount',()=>{const actual=parseEther('46809.86591738'),r=confirmedSaleApproval(record,{...tx,data:token.encodeFunctionData('approve',[BUY.manager,actual])},account);assert.equal(r.amount,String(actual));assert.equal(r.requestedAmount,String(n));assert.equal(r.requestedData,record.data);assert.equal(r.walletAdjusted,true);});
+test('an exact approval remains exact',()=>assert.equal(confirmedSaleApproval(record,tx,account).walletAdjusted,false));
+test('a smaller allowance is recorded accurately, never inflated to the sale amount',()=>assert.equal(confirmedSaleApproval(record,{...tx,data:token.encodeFunctionData('approve',[BUY.manager,1n])},account).amount,'1'));
+for(const [name,changed]of Object.entries({spender:{data:token.encodeFunctionData('approve',[BUY.router,n])},sender:{from:BUY.manager},token:{to:BUY.router},nonce:{nonce:45},value:{value:1n},hash:{hash:'0x'+'3'.repeat(64)},method:{data:'0x'},trailing:{data:record.data+'00'}}))test('rejects changed '+name,()=>assert.throws(()=>confirmedSaleApproval(record,{...tx,...changed},account)));
+test('rejects another chain',()=>assert.throws(()=>confirmedSaleApproval({...record,chainId:5042},tx,account)));
