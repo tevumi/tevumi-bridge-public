@@ -101,3 +101,5 @@ input{caret-color:var(--mint)}
 
 /* Keep section names available to assistive technology without repeating navigation. */
 .workspace-heading .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+
+.buy-side-switch{display:flex;gap:4px;padding:4px;margin:16px 0;border:1px solid var(--line);border-radius:9px}.buy-side-switch button{flex:1;min-height:40px;background:transparent;color:var(--muted);border:0;border-radius:6px}.buy-side-switch button[aria-pressed="true"]{background:var(--mint);color:#062328}

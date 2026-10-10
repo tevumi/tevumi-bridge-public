@@ -32,28 +32,33 @@ function render(kind) {
   view.heading.textContent = text('Transfer history', '交易记录');
   view.more.textContent = text('Load more', '加载更多');
   view.list.replaceChildren();
-  if (!view.items.length) {
+  const owner=bridgeView().account?.toLowerCase();
+  let sales=[];try{sales=kind==='buy'&&owner?JSON.parse(localStorage.getItem(`tevumi:sale-history:v1:${owner}`)||'[]'):[];}catch{}
+  const items=[...view.items,...sales.filter(item=>hashOk(item.hash)).map(item=>({tx_hash:item.hash,created_at:item.createdAt/1000,status:item.state==='verified'?'verified':item.state==='failed'?'failed':'pending',input_asset:'WOTR',output_asset:'BNB',input_amount:item.amountIn,output_amount:item.received,token_address:item.token,local:true}))].sort((a,b)=>b.created_at-a.created_at);
+  if (!items.length) {
     view.list.textContent = text('No transactions recorded for this wallet yet.', '这个钱包暂无交易记录。');
     return;
   }
-  for (const item of view.items) {
+  for (const item of items) {
     const card = document.createElement('article');
     card.className = 'history-card';
     const top = document.createElement('div');
     top.className = 'history-card-top';
     const title = document.createElement('strong');
     const reverse = kind === 'swap' && item.input_asset === 'USDC' && item.output_asset === 'WOTR';
-    title.textContent = kind === 'buy' ? 'BNB Chain · BNB → WOTR' : reverse ? 'Arc · USDC → WOTR' : 'Arc · WOTR → USDC';
+    const sale=kind==='buy'&&item.input_asset==='WOTR'&&item.output_asset==='BNB';
+    title.textContent = kind === 'buy' ? sale?'BNB Chain · WOTR → BNB':'BNB Chain · BNB → WOTR' : reverse ? 'Arc · USDC → WOTR' : 'Arc · WOTR → USDC';
     const badge = document.createElement('span');
     badge.className = `history-status history-${item.status}`;
     badge.textContent = item.status === 'verified' ? text('Completed', '已完成') : item.status === 'failed' ? text('Failed on-chain', '链上失败') : text('Confirming', '确认中');
     top.append(title, badge);
     const meta = document.createElement('p');
-    const inputUnit = kind === 'buy' ? 'BNB' : reverse ? 'USDC' : 'WOTR';
-    const outputUnit = kind === 'buy' || reverse ? 'WOTR' : 'USDC';
+    const inputUnit = kind === 'buy' ? sale?'WOTR':'BNB' : reverse ? 'USDC' : 'WOTR';
+    const outputUnit = kind==='buy' ? sale?'BNB':'WOTR' : reverse?'WOTR':'USDC';
     const input = /^\d+$/.test(item.input_amount || '') ? `${formatEther(BigInt(item.input_amount))} ${inputUnit}` : text('Amount unverified', '数量未核验');
     const output = item.status === 'verified' && /^\d+$/.test(item.output_amount || '') ? ` → ${formatEther(BigInt(item.output_amount))} ${outputUnit}` : '';
     meta.textContent = `${input}${output} · ${new Date(item.created_at * 1000).toLocaleString(currentLanguage(), {hour12: false})}`;
+    if(item.local)meta.textContent+=' · '+text('Saved in this browser','此浏览器记录');
     if(kind==='buy'){
       const token=item.token_address || '0xb97b99cb6dc0edbb89512e14100b2e9c23132ee5';
       meta.textContent+=` · ${token.toLowerCase()==='0xe2a0ce4be658ee9b09e461f5283c718a20984444'?'WOTR':text('Historical contract','历史合约')}`;
@@ -97,7 +102,7 @@ async function load(kind, reset = false) {
     view.more.hidden = !data.more;
     render(kind);
   } catch {
-    if (page === 0) view.list.textContent = text('History is temporarily unavailable. Reopen to retry.', '交易记录暂时无法加载，请重新展开重试。');
+    if (page === 0) {render(kind);const warning=document.createElement('p');warning.textContent=text('Online history is temporarily unavailable. Reopen to retry.','线上交易记录暂时无法加载，请重新展开重试。');view.list.append(warning);}
     else view.more.textContent = text('Retry', '重试');
   } finally { view.loading = false; }
 }
@@ -114,6 +119,7 @@ async function index(kind, hash) {
   } catch { sent.delete(key); }
 }
 
+window.addEventListener('tevumi:sale-history',()=>{if(views.buy.panel.open)render('buy');});
 window.addEventListener('tevumi:journey-hash', event => { void index(event.detail?.kind, event.detail?.hash); });
 function showTab(tab) {
   const account = bridgeView().account;

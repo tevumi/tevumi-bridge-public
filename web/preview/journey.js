@@ -1,6 +1,8 @@
 import {BrowserProvider, Contract, Interface, ZeroAddress, formatEther, getAddress, parseEther} from 'ethers';
 import {buildSwapPlan, verifySwapReceipt, swapAssets} from './swap-plan.js';
 import {BUY,quoteNewBuy,assertBuyRefresh,buyCall,verifyBuyReceipt} from './buy-plan.js';
+import {quoteSell,assertSellRefresh,sellCall} from '../source-trade/sell-plan.js';
+import {sourceProof} from '../source-trade/proofs.js';
 import {quoteFailure} from './quote-error.js';
 import {rpc} from '../immediate-deploy/rpc.js';
 import {classifyWalletSendError} from '../immediate-deploy/wallet-result.js';
@@ -36,6 +38,7 @@ const assert = (condition, message) => { if (!condition) throw Error(message); }
 const cleanError = error => /Four\.meme|PancakeSwap|Uniswap|LayerZero|RPC|0x[a-f0-9]{40}/i.test(String(error?.shortMessage||error?.message||error))?local('Unable to complete this operation. Refresh the quote or verify your submitted transaction.','暂时无法完成操作，请刷新报价或核验已提交的交易。'):String(error?.shortMessage || error?.message || error).replace(/https?:\/\/\S+/g,'[network]').slice(0,230);
 const local = (en,zh) => currentLanguage() === 'zh-CN' ? zh : en;
 let account = null;
+let reverseBuy = false;
 let buyQuote = null;
 let buyRequest = 0;
 let swapQuote = null;
@@ -88,6 +91,7 @@ function setTab(tab) {
   }
   if (account && previousTab !== tab) void loadBalances();
   if (tab === 'swap') renderSwapDirection();
+  if(tab==='buy')renderBuyDirection();
 }
 function setStep(step) {
   activeStep = step;
@@ -115,7 +119,7 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   await walletOn(chainId,wallet);
   await guard();
   const reader = readers[chainId];
-  const nonce = await reader.getTransactionCount(account, 'pending');
+  const nonce = Number(BigInt(await reader.send('eth_getTransactionCount',[account,'pending'])));
   let gasEstimate;
   try { gasEstimate = await reader.estimateGas({from:account,to,data,value}); }
   catch (error) {
@@ -147,7 +151,9 @@ async function tx(kind, chainId, to, data, value=0n, extra={}, guard=()=>{}) {
   }
   assert(hashOk(hash), 'Wallet did not return a transaction hash. Do not submit again.');
   save(kind,{...pending,state:'submitted',hash},transactionAccount);
-  if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash}}));
+  if(kind==='buy' && extra.direction==='sell')saveSaleHistory({...pending,state:'submitted',hash},transactionAccount);
+  if (kind === 'buy' && extra.direction==='sell') window.dispatchEvent(new CustomEvent('tevumi:sale-history'));
+  else if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash}}));
   await guard();
   return hash;
 }
@@ -163,8 +169,11 @@ async function verify(kind) {
   const [transaction,receipt] = await Promise.all([reader.getTransaction(item.hash),reader.getTransactionReceipt(item.hash)]);
   if (!transaction || !receipt) return item;
   assert(same(transaction.from,verificationAccount) && same(transaction.to,item.to) && same(transaction.data,item.data) && transaction.value === BigInt(item.value), 'Saved transaction does not match the chain transaction.');
-  if (receipt.status !== 1) { save(kind,{...item,state:'failed'},verificationAccount); return {...item,state:'failed'}; }
-  if (kind === 'buy') {
+  if (receipt.status !== 1) { const failed={...item,state:'failed'};save(kind,failed,verificationAccount);if(kind==='buy'&&item.direction==='sell'){saveSaleHistory(failed,verificationAccount);window.dispatchEvent(new CustomEvent('tevumi:sale-history'));}return failed; }
+  if (kind === 'approve-sale' || kind==='buy' && item.direction==='sell') {
+    const proof=await sourceProof(reader,{...item,chain:item.chainId,kind:kind==='approve-sale'?'approval':'sell'},verificationAccount);
+    item.received=proof.received;
+  } else if (kind === 'buy') {
     const received = verifyBuyReceipt(receipt,verificationAccount,{...item,token:item.token || A.bnbWotr,sender:item.sender || A.pair});
     item.received = received.toString();
   }
@@ -181,7 +190,8 @@ async function verify(kind) {
   }
   const verified = {...item,state:'verified',block:receipt.blockNumber};
   save(kind,verified,verificationAccount);
-  if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}}));
+  if(kind==='buy' && item.direction==='sell'){saveSaleHistory(verified,verificationAccount);window.dispatchEvent(new CustomEvent('tevumi:sale-history'));}
+  else if (kind === 'buy' || kind === 'swap') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}}));
   return verified;
 }
 async function balances(requestId) {
@@ -219,23 +229,24 @@ function renderBalances() {
   const unavailable = local('Balance temporarily unavailable','余额暂不可用');
   const pending = account ? local('Loading balance…','正在读取余额…') : '';
   const fallback = balanceError ? unavailable : pending;
-  $('journey-buy-balance').textContent = ready ? local(`BNB Chain balance: ${displayBalance(balanceData.bnb)} BNB`,`BNB Chain 余额：${displayBalance(balanceData.bnb)} BNB`) : fallback;
+  $('journey-buy-balance').textContent = ready ? local(`BNB Chain balance: ${displayBalance(reverseBuy?balanceData.bnbWotr:balanceData.bnb)} ${reverseBuy?'WOTR':'BNB'}`,`BNB Chain 余额：${displayBalance(reverseBuy?balanceData.bnbWotr:balanceData.bnb)} ${reverseBuy?'WOTR':'BNB'}`) : fallback;
   $('journey-buy-held').textContent = ready ? local(`BNB Chain WOTR: ${displayBalance(balanceData.bnbWotr)} · Keep BNB for gas.`,`BNB Chain WOTR：${displayBalance(balanceData.bnbWotr)} · 请预留 BNB 支付 Gas。`) : '';
   $('journey-swap-balance').textContent = ready ? local(`Arc balance: ${displayBalance(reverseSwap ? balanceData.arcUsdc : balanceData.arcWotr)} ${swapAssets(reverseSwap).input}`,`Arc 余额：${displayBalance(reverseSwap ? balanceData.arcUsdc : balanceData.arcWotr)} ${swapAssets(reverseSwap).input}`) : fallback;
   $('journey-swap-gas').textContent = ready ? local(`Arc native USDC balance: ${displayBalance(balanceData.arcUsdc)} · Keep some for gas.`,`Arc 原生 USDC 余额：${displayBalance(balanceData.arcUsdc)} · 请预留部分支付 Gas。`) : '';
 }
 function renderLiveText() {
+  renderBuyDirection();
   renderBalances();
   if (balanceData) {
     const {bnb,bnbWotr,arcWotr,arcUsdc} = balanceData;
     $('journey-balances').textContent = local(`BNB Chain: ${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc: ${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC for gas`,`BNB Chain：${formatEther(bnb)} BNB · ${formatEther(bnbWotr)} WOTR\nArc：${formatEther(arcWotr)} WOTR · ${formatEther(arcUsdc)} USDC 可支付 Gas`);
   }
-  $('journey-buy-quote').textContent = buyQuote ? local(
+  $('journey-buy-quote').textContent = reverseBuy && buyQuote ? local(`Estimated receive: ${formatEther(buyQuote.out)} BNB\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(buyQuote.out)} BNB\nGas 另计，报价 60 秒后失效。`) : buyQuote ? local(
     `Estimated receive: ${formatEther(buyQuote.out)} WOTR\nMinimum receive: ${formatEther(buyQuote.minOut)} WOTR (1% slippage)\nTransaction payment: ${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX trading fee included in quote.':`Protocol fee included: ${formatEther(buyQuote.fee)} BNB`}\nEstimated price impact: ${(buyQuote.impactBps/100).toFixed(2)}%\nGas is charged separately. Quote expires after 60 seconds.`,
     `预计收到：${formatEther(buyQuote.out)} WOTR\n最低收到：${formatEther(buyQuote.minOut)} WOTR（1% 滑点）\n交易支付：${formatEther(buyQuote.msgValue)} BNB\n${buyQuote.fee===null?'DEX 交易费已包含在报价中。':`已含协议交易费：${formatEther(buyQuote.fee)} BNB`}\n预计价格影响：${(buyQuote.impactBps/100).toFixed(2)}%\nGas 另计，报价 60 秒后失效。`)
     : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
   $('journey-buy-card').querySelector('h3 + p').hidden=true;
-  $('context-buy').querySelector('h3 + p').textContent=local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
+  renderBuyDirection();
   $('journey-buy-identity').hidden=true;
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
@@ -250,13 +261,16 @@ async function quoteBuy() {
   const request = ++buyRequest, owner=account;
   buyQuote=null; renderLiveText(); draw();
   const value = amount($('journey-bnb').value.trim());
-  const result = await quoteNewBuy(readers[56],value);
-  assert(request===buyRequest && same(owner,account) && amount($('journey-bnb').value.trim())===value,'Wallet or amount changed. Refresh the quote.');
+  const side=reverseBuy;
+  if(side)assert(await new Contract(BUY.token,tokenAbi,readers[56]).balanceOf(owner)>=value,local('Not enough WOTR.','WOTR 余额不足。'));
+  const result = side?await quoteSell(readers[56],value):await quoteNewBuy(readers[56],value);
+  assert(side===reverseBuy && request===buyRequest && same(owner,account) && amount($('journey-bnb').value.trim())===value,'Wallet or amount changed. Refresh the quote.');
   buyQuote = {...result,account:owner};
   renderLiveText();
   draw();
 }
 async function buy() {
+  if(reverseBuy)return sell();
   assert(buyQuote && Date.now()-buyQuote.at < 60000, 'Refresh the buy quote before signing.');
   assert(!record('buy') || ['failed','verified'].includes(record('buy').state), 'A prior buy transaction is being checked. Do not submit again.');
   const quoted = buyQuote;
@@ -383,16 +397,17 @@ async function refreshAll({operation=false} = {}) {
   const report = (kind,message) => {
     if (same(owner,account) && epoch === statusEpoch && (operation || !busy && !interactiveStatus[kind])) status(kind,message);
   };
-  for (const kind of ['buy','approve-token','approve-permit','swap']) {
+  for (const kind of ['buy','approve-sale','approve-token','approve-permit','swap']) {
     if (!same(owner,account)) return;
-    try { await verify(kind); } catch (error) { report(kind==='buy'?'buy':'swap',cleanError(error)); }
+    try { await verify(kind); } catch (error) { report(kind==='buy'||kind==='approve-sale'?'buy':'swap',cleanError(error)); }
   }
   if (!same(owner,account)) return;
-  for (const kind of ['buy','swap']) { const item=record(kind); if (hashOk(item?.hash)) window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}})); }
+  for (const kind of ['buy','swap']) { const item=record(kind); if (hashOk(item?.hash)&&item.direction!=='sell') window.dispatchEvent(new CustomEvent('tevumi:journey-hash',{detail:{kind,hash:item.hash}})); }
   const buyRecord = record('buy'), swapRecord = record('swap');
   if (buyRecord?.state === 'verified') report('buy','');
   else if (buyRecord?.state === 'failed') report('buy','Buy transaction failed on-chain. Refresh the quote before retrying.');
-  else if (buyRecord) report('buy',`Buy transaction is being checked${buyRecord.hash ? ': '+buyRecord.hash : ''}. Do not submit again.`);
+  else if (buyRecord) report('buy',local('Checking the transaction. Do not submit again.','正在核验交易，请勿重复提交。'));
+  else if(record('approve-sale')&&!['verified','failed'].includes(record('approve-sale').state))report('buy',local('Checking approval. Do not submit again.','正在核验授权，请勿重复提交。'));
   else report('buy','');
   const permitRecord = record('approve-permit'), tokenRecord = record('approve-token');
   if (swapRecord?.state === 'verified') report('swap',(swapRecord.outputVerified === true || swapRecord.usdcArrivalVerified === true && swapRecord.direction !== 'usdc-to-wotr')
@@ -412,6 +427,10 @@ async function refreshAll({operation=false} = {}) {
 function draw() {
   const view = bridgeView();
   account = view.account || null;
+  const pendingApproval=record('approve-sale');
+  if(pendingApproval&&!['verified','failed'].includes(pendingApproval.state))reverseBuy=true;
+  const pendingTrade=record('buy');
+  if(pendingTrade&&!['verified','failed'].includes(pendingTrade.state))reverseBuy=pendingTrade.direction==='sell';
   const pendingSwap = record('swap');
   if (pendingSwap && !['failed','verified'].includes(pendingSwap.state) && pendingSwap.direction) reverseSwap = pendingSwap.direction === 'usdc-to-wotr';
   $('header-connect').hidden = false;
@@ -419,7 +438,17 @@ function draw() {
   renderWalletButton($('header-connect'),selectedWalletProvider(),account,document.documentElement.lang);
   $('journey-wallet').textContent = account ? local('Wallet connected','钱包已连接') : local('Connect your wallet to get started.','连接钱包即可开始。');
   $('journey-wallet').hidden = !account;
-  $('journey-buy-action').disabled = busy || view.busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
+  renderBuyDirection();
+  const recovering=pendingApproval&&!['verified','failed'].includes(pendingApproval.state)&&!hashOk(pendingApproval.hash)||pendingTrade?.direction==='sell'&&!['verified','failed'].includes(pendingTrade.state)&&!hashOk(pendingTrade.hash);
+  $('journey-sale-recovery').hidden=!account||!recovering;
+  $('journey-sale-recover').disabled=busy;
+  $('journey-sale-recovery').querySelector('label').textContent=local('Original transaction hash','原交易哈希');
+  $('journey-sale-recover').textContent=local('Verify original transaction','核验原交易');
+  const salePending=record('approve-sale')&&!['verified','failed'].includes(record('approve-sale').state);
+  $('journey-side-buy').disabled=$('journey-side-sell').disabled=busy||salePending||Boolean(pendingTrade&&!['verified','failed'].includes(pendingTrade.state));
+  $('journey-bnb').disabled=busy||salePending||Boolean(pendingTrade&&!['verified','failed'].includes(pendingTrade.state));
+  if(pendingTrade?.direction==='sell'&&!['verified','failed'].includes(pendingTrade.state)&&pendingTrade.amount)$('journey-bnb').value=formatEther(BigInt(pendingTrade.amount));
+  $('journey-buy-action').disabled = salePending || busy || view.busy || !account || !buyQuote || Date.now()-buyQuote.at>60000 || Boolean(record('buy') && !['failed','verified'].includes(record('buy').state));
   $('journey-swap-action').disabled = busy || view.busy || !account || !swapQuote || Date.now()-swapQuote.at>60000 || ['approve-token','approve-permit','swap'].some(kind=>record(kind) && !['failed','verified'].includes(record(kind).state));
   $('journey-swap-action').textContent = swapProgress || (reverseSwap || swapQuote?.stage === 'swap' ? local(`Swap ${swapAssets(reverseSwap).input} for ${swapAssets(reverseSwap).output}`,`兑换 ${swapAssets(reverseSwap).input} 为 ${swapAssets(reverseSwap).output}`) : local('Approve and swap','授权并兑换'));
   $('journey-wotr').disabled = busy;
@@ -471,6 +500,48 @@ function renderSwapDirection() {
   context.querySelector('.context-route strong').textContent = `${input} → ${output}`;
   context.querySelector('h3 + p').textContent = local(`Exchange ${input} for ${output} in the Arc pool. The output depends on the live quote.`,`在 Arc 池中将 ${input} 兑换为 ${output}。到账数量取决于实时报价。`);
 }
+function renderBuyDirection(){
+  const input=reverseBuy?'WOTR':'BNB',output=reverseBuy?'BNB':'WOTR';
+  $('journey-side-buy').textContent=local('Buy','买入');$('journey-side-sell').textContent=local('Sell','卖出');
+  $('journey-side-buy').setAttribute('aria-pressed',String(!reverseBuy));$('journey-side-sell').setAttribute('aria-pressed',String(reverseBuy));
+  $('journey-buy-card').querySelector('h3').textContent=reverseBuy?local('Sell WOTR on BNB Chain','在 BNB Chain 卖出 WOTR'):local('Buy WOTR on BNB Chain','在 BNB Chain 买入 WOTR');
+  $('journey-buy-card').querySelector('label[for="journey-bnb"]').textContent=local(`You sell · ${input}`,`卖出 · ${input}`);
+  $('journey-buy-card').querySelector('.journey-input strong').textContent=input;$('journey-buy-card').querySelector('.journey-output span').textContent=output;
+  $('journey-buy-action').textContent=reverseBuy?local('Sell WOTR','卖出 WOTR'):local('Buy WOTR','购买 WOTR');
+  const description=reverseBuy?local('Sell WOTR for BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 将 WOTR 卖出为 BNB。确认前请核对实时报价。'):local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
+  if(activeTab==='buy')$('journey-intro').textContent=description;
+  const context=$('context-buy');context.querySelector('.eyebrow').textContent=local('TRADE ON BNB CHAIN','在 BNB CHAIN 交易');context.querySelector('h3').textContent=local(`From ${input} to ${output}.`,`从 ${input} 到 ${output}。`);context.querySelector('h3 + p').textContent=description;context.querySelector('.context-route strong').textContent=`${input} → ${output}`;
+}
+function saveSaleHistory(item,owner){
+  const historyKey=`tevumi:sale-history:v1:${owner.toLowerCase()}`;
+  const items=JSON.parse(localStorage.getItem(historyKey)||'[]');
+  localStorage.setItem(historyKey,JSON.stringify([...items.filter(v=>v.hash!==item.hash),item]));
+}
+async function sell(){
+  assert(buyQuote&&Date.now()-buyQuote.at<60000,'Refresh the quote before signing.');
+  assert(!record('buy')||['failed','verified'].includes(record('buy').state),'A trade is still being checked.');
+  assert(!record('approve-sale')||['failed','verified'].includes(record('approve-sale').state),'An approval is still being checked.');
+  const selected=buyQuote,owner=account,provider=selectedWalletProvider();
+  const check=()=>assert(Date.now()-selected.at<60000&&reverseBuy&&same(owner,account)&&provider===selectedWalletProvider()&&amount($('journey-bnb').value.trim())===selected.amount,'Wallet or amount changed. Refresh the quote.');
+  check();await quoteBuy();check();assertSellRefresh(selected,buyQuote);
+  const token=new Contract(BUY.token,tokenAbi,readers[56]);
+  if(await token.allowance(owner,selected.to)<selected.amount){
+    const data=new Interface(tokenAbi).encodeFunctionData('approve',[selected.to,selected.amount]);
+    const hash=await tx('approve-sale',56,BUY.token,data,0n,{token:BUY.token,spender:selected.to,amount:String(selected.amount)},check);
+    status('buy',local('Confirming approval…','正在确认授权…'));
+    await readers[56].waitForTransaction(hash,1,120000).catch(()=>null);check();
+    assert((await verify('approve-sale'))?.state==='verified','Approval has not been verified. Check the original transaction.');
+  }
+  check();await quoteBuy();check();assertSellRefresh(selected,buyQuote);
+  assert(await token.allowance(owner,selected.to)>=selected.amount,'Approval is not ready.');
+  const deadline=BigInt((await readers[56].getBlock('latest')).timestamp+900);
+  const data=sellCall(selected,owner,deadline);
+  const guard=async(beforeSend=false)=>{check();if(beforeSend){const fresh=await quoteSell(readers[56],selected.amount);check();assertSellRefresh(selected,fresh);assert(await token.balanceOf(owner)>=selected.amount,'Not enough WOTR.');}};
+  const serialQuote=JSON.parse(JSON.stringify(selected,(_,value)=>typeof value==='bigint'?String(value):value));
+  const hash=await tx('buy',56,selected.to,data,0n,{direction:'sell',quote:serialQuote,amount:String(selected.amount),amountIn:String(selected.amount),minOut:String(selected.minOut),deadline:String(deadline),token:BUY.token},guard);
+  buyQuote=null;renderLiveText();status('buy',local('Checking the transaction…','正在核验交易…'));draw();
+  await readers[56].waitForTransaction(hash,1,120000).catch(()=>null);await refreshAll({operation:true});
+}
 async function run(action, kind) {
   if (busy) return;
   statusEpoch++; if (kind === 'swap' || kind === 'buy') interactiveStatus[kind] = true; status(kind,'');
@@ -485,8 +556,19 @@ async function run(action, kind) {
         'Price or fees changed. Review the new quote before signing.':'价格或费用已变化，请查看新报价后再次确认。',
         'The curve cannot quote this full budget. Reduce the amount and refresh.':'联合曲线无法完整执行此金额，请减少金额后刷新报价。',
         'PancakeSwap liquidity is not ready.':'PancakeSwap 流动性尚未就绪，请稍后刷新报价。',
+        'Use a positive amount with at most 6 decimal places.':'请输入正数，WOTR 数量最多支持6位小数。',
+        'Sale route or price changed. Refresh and review again.':'卖出报价已变化，请刷新并重新确认。',
+        'Refresh the quote before signing.':'请刷新报价后再确认。',
+        'Not enough WOTR.':'WOTR 余额不足。',
+        'Wallet or amount changed. Refresh the quote.':'钱包、数量或报价已变化，请刷新报价。',
+        'Sale is too small.':'卖出数量太小，请增加数量。',
+        'Sale is too small after the protocol fee.':'扣除费用后的卖出金额太小，请增加数量。',
+        'Approval is not ready.':'授权尚未就绪，请核验原交易。',
+        'Approval has not been verified. Check the original transaction.':'授权尚未核验，请检查原交易。',
+        'Enter the full original transaction hash.':'请填写完整的原交易哈希。',
+        'This hash does not match the original transaction.':'该哈希不属于原交易，请核对后重试。',
       };
-      status(kind,known[message]?local(message,known[message]):/missing revert data|execution reverted/i.test(message)?local('Buy quote or transaction simulation failed. Refresh the quote; no new purchase was submitted.','购买报价或交易预检失败，请刷新报价；未提交新的购买交易。'):message);
+      status(kind,known[message]?local(message,known[message]):/missing revert data|execution reverted/i.test(message)?local('Quote or transaction simulation failed. Refresh the quote; no new trade was submitted.','报价或交易预检失败，请刷新报价；未提交新的交易。'):message);
     }else status(kind,message);
   }
   finally {
@@ -504,9 +586,11 @@ $('nav-swap').addEventListener('click',()=>setTab('swap'));
 for (const step of ['buy','bridge','swap']) $(`journey-step-${step}`).addEventListener('click',()=>setStep(step));
 $('header-connect').addEventListener('click',()=>{$('connect').click();});
 $('journey-open-bridge').addEventListener('click',()=>run(async()=>{await chooseAsset('wotr');await chooseDirection('bsc');setTab('bridge');$('asset-picker').scrollIntoView({behavior:'smooth'});},'bridge'));
+for(const [id,side] of [['journey-side-buy',false],['journey-side-sell',true]])$(id).onclick=()=>{if($(id).disabled||reverseBuy===side)return;reverseBuy=side;buyRequest++;statusEpoch++;interactiveStatus.buy=true;buyQuote=null;$('journey-bnb').value='';status('buy','');renderLiveText();draw();};
 $('journey-bnb').addEventListener('input',()=>{buyRequest++;statusEpoch++;interactiveStatus.buy=true;status('buy','');buyQuote=null;renderLiveText();draw();});
 $('journey-wotr').addEventListener('input',()=>{statusEpoch++;interactiveStatus.swap=true;status('swap','');swapQuote=null;renderLiveText();draw();});
 $('journey-buy-refresh').addEventListener('click',()=>run(quoteBuy,'buy'));
+$('journey-sale-recover').onclick=()=>run(async()=>{const kind=record('approve-sale')&&!['verified','failed'].includes(record('approve-sale').state)&&!record('approve-sale').hash?'approve-sale':'buy';const item=record(kind),hash=$('journey-sale-hash').value.trim();assert(hashOk(hash)&&item&&!item.hash,'Enter the full original transaction hash.');const original=await readers[56].getTransaction(hash);assert(original&&same(original.from,account)&&same(original.to,item.to)&&original.data===item.data&&original.value===BigInt(item.value)&&original.nonce===item.nonce,'This hash does not match the original transaction.');save(kind,{...item,hash,state:'submitted'});await refreshAll({operation:true});},'buy');
 $('journey-buy-action').addEventListener('click',()=>run(buy,'buy'));
 $('journey-swap-direction').addEventListener('click',()=>{if ($('journey-swap-direction').disabled) return; statusEpoch++;interactiveStatus.swap=true; reverseSwap=!reverseSwap; swapQuote=null; $('journey-wotr').value=''; status('swap',''); renderLiveText(); draw();});
 $('journey-swap-refresh').addEventListener('click',()=>run(quoteSwap,'swap'));
