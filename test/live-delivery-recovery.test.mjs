@@ -26,6 +26,7 @@ function setup({targetStart=100,targetAmount=amount,badCall=false,unconfirmed=fa
  const context={...ethers,candidateAppAbi,candidateTokenAbi,wotrRoutes,console,
   BrowserProvider:class{constructor(){return Object.values(providers)[context.providerIndex++];}},providerIndex:0,
   rpc:()=>{},arcFeeParams:()=>{},classifyWalletSendError:()=>{},planCandidateTransfer:()=>{},
+  saveOutcome:async()=>true,historyWrite:async()=>true,
   pickWallet:()=>{},rememberWalletSession:()=>{},restoreWalletSession:()=>{},clearWalletSession:()=>{},
   document:{body:{dataset:{asset:'wotr'}},getElementById:id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id);}},
   window:{dispatchEvent:()=>{},addEventListener:()=>{}},CustomEvent:class{},Event:class{},

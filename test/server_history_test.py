@@ -43,6 +43,40 @@ class ServerHistory(unittest.TestCase):
         self.save()
         for extra in ({'hash':'0x'+'3'*64},{'state':'arrived'},{'input_amount':'-1'},{'id':'<script>'}):
             with self.assertRaises(ValueError): self.save(**extra)
+    def approval(self, forged=False, wrong_owner=False, failed=False, bridge=False):
+        token=h.buy_history.TOKEN;spender=h.ASSETS['wotr-four'][56] if bridge else h.buy_history.MANAGER
+        page='bridge' if bridge else 'buy';operation='approve-bsc' if bridge else 'approve-sale'
+        self.save(operation=operation,state='verified',page=page,chain=56,asset='wotr-four')
+        tx={'from':ACCOUNT,'to':token,'input':'0x095ea7b3'+words([int(spender,16),123]),'value':'0x0'}
+        receipt={'transactionHash':HASH,'from':ACCOUNT,'to':token,'blockNumber':'0x5','status':'0x0' if failed else '0x1','logs':[
+            {'address':token,'topics':['0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925','0x'+words([int(ACCOUNT,16)]),'0x'+words([int(spender,16)])],'data':'0x'+words([124 if forged else 123])}]}
+        if wrong_owner:tx['from']='0x'+'3'*40
+        def rpc(chain,method,args):
+            if method=='eth_getTransactionByHash': return tx
+            if method=='eth_getTransactionReceipt': return receipt
+            if method=='eth_getBlockByNumber': return {'timestamp':'0x10'}
+            raise AssertionError(method)
+        from types import SimpleNamespace
+        with patch.object(h,'rpc',rpc): h.operation_results.verify_sale_approval(self.c,{'hash':HASH,'account':ACCOUNT,'page':page,'operation':operation,'chain':56,'asset':'wotr-four'},SimpleNamespace(**vars(h)))
+        return h.operation_results.merged(self.c,ACCOUNT,page,[])[0]
+    def test_bridge_approval_is_verified_separately_from_arrival(self):
+        result=self.approval(bridge=True);self.assertEqual(result['status'],'verified');self.assertFalse(result['reported']);self.assertEqual(result['amount_ld'],'123');self.assertEqual(result['operation'],'approve-bsc')
+    def test_forged_bridge_approval_cannot_be_completed(self):
+        with self.assertRaises(ValueError):self.approval(bridge=True,forged=True)
+        self.assertEqual(h.operation_results.merged(self.c,ACCOUNT,'bridge',[])[0]['status'],'unknown')
+    def test_buy_approval_proof_cannot_complete_bridge_report(self):
+        self.approval()
+        self.save(page='bridge',operation='approve-bsc',asset='wotr-four',chain=56)
+        self.assertEqual(h.operation_results.merged(self.c,ACCOUNT,'bridge',[])[0]['status'],'unknown')
+    def test_approval_verified_only_with_server_proof(self):
+        result=self.approval();self.assertEqual(result['status'],'verified');self.assertFalse(result['reported']);self.assertEqual(result['input_amount'],'123')
+    def test_forged_approval_event_rejected(self):
+        with self.assertRaises(ValueError):self.approval(forged=True)
+        self.assertEqual(h.operation_results.merged(self.c,ACCOUNT,'buy',[])[0]['status'],'unknown')
+    def test_wrong_wallet_approval_rejected(self):
+        with self.assertRaises(ValueError):self.approval(wrong_owner=True)
+    def test_reverted_approval_is_not_completed(self):
+        self.assertEqual(self.approval(failed=True)['status'],'failed')
     def sale(self,forged=False,multiple=False):
         token=h.buy_history.TOKEN;manager=h.buy_history.MANAGER
         tx={'from':ACCOUNT,'to':manager,'input':h.sell_history.CURVE+words([0,int(token,16),1000,90,0,0]),'value':'0x0','blockNumber':'0x5'}

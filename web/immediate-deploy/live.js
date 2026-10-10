@@ -3,7 +3,7 @@ import {BrowserProvider,Contract,Interface,formatEther,getAddress,id,keccak256,p
 import {rpc} from './rpc.js';
 import {arcFeeParams} from './arc-fees.js';
 import {classifyWalletSendError} from './wallet-result.js';
-import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi} from '../src/production-transfer.js';
+import {planCandidateTransfer,candidateAppAbi,candidateTokenAbi,verifyBridgeApproval} from '../src/production-transfer.js';
 import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
 import {wotrRoutes} from '../src/wotr-routes.js';
 
@@ -67,7 +67,7 @@ const accountKey=()=>storageKey()+':'+account.toLowerCase();
 const load=()=>{records={};try{const loaded=JSON.parse(localStorage.getItem(accountKey())||'{}');if(loaded&&typeof loaded==='object'&&!Array.isArray(loaded))records=loaded;}catch{/* keep empty */}renderRecords();};
 function reportBridge(kind,item,state){
  if(!account||!item)return;
- void saveOutcome('bridge',item.account||account,item.operationId||`${kind}:${item.nonceBefore}:${item.sourceStart}`,{state:state||(item.deliveredHash?'verified':item.hash?'submitted':'unknown'),operation:kind,hash:item.hash,target_hash:item.deliveredHash,chain:networks[item.side||sideFor(kind)].chainId,asset:assetId==='wotr'?'wotr-four':assetId,amount_ld:item.amountLD});
+ void saveOutcome('bridge',item.account||account,item.operationId||`${kind}:${item.nonceBefore}:${item.sourceStart}`,{state:state||(item.deliveredHash||item.approvalVerified?'verified':item.hash?'submitted':'unknown'),operation:kind,hash:item.hash,target_hash:item.deliveredHash,chain:networks[item.side||sideFor(kind)].chainId,asset:assetId==='wotr'?'wotr-four':assetId,amount_ld:item.approvedAmountLD||item.amountLD});
 }
 const save=()=>{localStorage.setItem(accountKey(),JSON.stringify(records));for(const [kind,item]of Object.entries(records))if(kind.startsWith('send-')||kind.startsWith('approve-'))reportBridge(kind,item);renderRecords();};
 async function clearVerifiedLegacyArcAttempt(){
@@ -223,12 +223,13 @@ async function request(side,to,data,value=0n){
  ensure(BigInt(native)>=value+gas*maximumPrice,'钱包余额不足以覆盖本笔最高网络费用。');
  return tx;
 }
-async function submit(kind,side,to,data,value=0n,amountLD){
+async function submit(kind,side,to,data,value=0n,amountLD,guard=()=>{}){
  ensure(!records[kind]?.hash&&!records[kind]?.unknown,`${kind} 已有交易或结果不明；先核验原哈希。`);
  await switchTo(side);
  const tx=await request(side,to,data,value);
  const [sourceStart,targetStart]=await Promise.all([providers[side].getBlockNumber(),kind.startsWith('send-')?providers[side==='bsc'?'arc':'bsc'].getBlockNumber():undefined]);
  const nonceBefore=await rpc(networks[side].chainId,'eth_getTransactionCount',[account,'pending']);
+ guard();
  records[kind]={operationId:crypto.randomUUID(),unknown:true,to,dataHash:keccak256(data),account,side,sourceStart,targetStart,nonceBefore,...(amountLD===undefined?{}:{amountLD:amountLD.toString()})};save();
  note(`${kind} 正在请求钱包确认；请核对网络、合约和费用。`);
  let hash;
@@ -288,7 +289,7 @@ async function reconcileUnknown(kind){
   try{
    const tx=await provider.getTransaction(hash);
    if(!stillCurrent())return false;
-   if(!tx||record.nonceBefore!==undefined&&BigInt(tx.nonce)!==BigInt(record.nonceBefore)||!same(tx.from,record.account)||!same(tx.to,record.to)||keccak256(tx.data)!==record.dataHash)return false;
+   if(!tx||record.nonceBefore!==undefined&&BigInt(tx.nonce)!==BigInt(record.nonceBefore)||!same(tx.from,record.account)||!same(tx.to,record.to)||kind!=='approve-bsc'&&keccak256(tx.data)!==record.dataHash)return false;
    await verifyRecord(kind,hash);
   }catch{return false;}
   if(!stillCurrent())return false;
@@ -332,7 +333,10 @@ async function verifyRecord(kind,hash){
  const side=sideFor(kind),provider=providers[side];
  const [tx,receipt]=await Promise.all([provider.getTransaction(hash),provider.getTransactionReceipt(hash)]);
  ensure(records[kind]===record&&assetId===observedAsset&&same(account,observedAccount),'钱包或资产已切换，请重新加载当前状态。');
- ensure(tx&&receipt&&receipt.status===1&&same(tx.from,record.account)&&same(tx.to,record.to)&&keccak256(tx.data)===record.dataHash,`原交易未确认成功或调用身份不匹配：${kind}`);
+ if(kind==='approve-bsc'){
+  record.approvedAmountLD=verifyBridgeApproval(record,tx,receipt,pair,hash).toString();
+  record.requestedDataHash??=record.dataHash;record.dataHash=keccak256(tx.data);record.approvalVerified=true;
+ }else ensure(tx&&receipt&&receipt.status===1&&same(tx.from,record.account)&&same(tx.to,record.to)&&keccak256(tx.data)===record.dataHash,`原交易未确认成功或调用身份不匹配：${kind}`);
  if(kind.startsWith('send-')){
   const event=receipt.logs.filter(log=>same(log.address,pair[side])).map(log=>{try{return appIface.parseLog(log);}catch{return null;}}).find(x=>x?.name==='OFTSent');
   ensure(event&&same(event.args.fromAddress,record.account)&&event.args.amountSentLD===recordAmount(record)&&event.args.amountReceivedLD===recordAmount(record),'未找到匹配的 OFTSent 事件。');
@@ -357,22 +361,29 @@ async function pause(side){
 async function send(side){
  const invalidAmount=amountValidation();ensure(!invalidAmount,invalidAmount);
  const chosenAmount=amount,chosenAmountLD=parseEther(chosenAmount);
+ const chosenAccount=account,chosenAsset=assetId,chosenWallet=selectedWallet;
+ const guard=()=>ensure(same(account,chosenAccount)&&assetId===chosenAsset&&selectedWallet===chosenWallet&&amount===chosenAmount,'钱包、资产或数量已变化，请重新确认。');
  archiveCompletedTransfer(side);
  const before=await refresh();
  ensure(!before[side].sendPaused&&!before[side==='bsc'?'arc':'bsc'].receivePaused,'发送链或目标链接收仍暂停。');
  const plan=await planCandidateTransfer({providers,networks,pair,side,account,amount:chosenAmount,extraOptions:options});
+ guard();
  if(plan.key==='approve'){
   ensure(side==='bsc'&&plan.amountLD===chosenAmountLD,'授权计划异常。');
   const decoded=tokenIface.decodeFunctionData('approve',plan.data);
   ensure(same(decoded[0],pair.bsc)&&decoded[1]===chosenAmountLD,'精确授权地址或数量不匹配。');
-  await submit('approve-bsc','bsc',plan.to,plan.data);
+  if(records['approve-bsc']?.hash){await verifyRecord('approve-bsc',records['approve-bsc'].hash);guard();delete records['approve-bsc'];save();}
+  await submit('approve-bsc','bsc',plan.to,plan.data,0n,chosenAmountLD,guard);
+  guard();
+  ensure(BigInt(records['approve-bsc'].approvedAmountLD)>=chosenAmountLD,'授权额度不足，未发送跨链交易。');
   note('精确授权已核验，正在准备跨链交易，请继续查看钱包。');
   const after=await planCandidateTransfer({providers,networks,pair,side,account,amount:chosenAmount,extraOptions:options});
+  guard();
   ensure(after.key==='send'&&after.amountLD===chosenAmountLD&&after.value>0n,'授权已完成，但发送计划未就绪；请检查状态后重试。');
-  await submit('send-bsc','bsc',after.to,after.data,after.value,chosenAmountLD);return;
+  await submit('send-bsc','bsc',after.to,after.data,after.value,chosenAmountLD,guard);return;
  }
  ensure(plan.key==='send'&&plan.amountLD===chosenAmountLD&&plan.value>0n,'发送计划异常。');
- await submit(`send-${side}`,side,plan.to,plan.data,plan.value,chosenAmountLD);
+ await submit(`send-${side}`,side,plan.to,plan.data,plan.value,chosenAmountLD,guard);
 }
 function archiveCompletedTransfer(side){
  const key=`send-${side}`,record=records[key];
@@ -491,7 +502,7 @@ export async function selectAsset(id){
 }
 // Navigation remains usable while wallet restoration and chain reads are pending.
 // Transaction controls still use the existing busy and verification guards.
-async function run(action){if(busy)return;setBridgeBusy(true);try{await action();}catch(error){if(account)void saveOutcome('bridge',account,crypto.randomUUID(),{state:Object.values(records).some(item=>item.hash||item.unknown)?'unknown':'error',operation:'transfer',chain:networks[selectedSide].chainId,asset:assetId==='wotr'?'wotr-four':assetId});note(errorText(error));}finally{setBridgeBusy(false);}}
+async function run(action){if(busy)return;setBridgeBusy(true);try{await action();}catch(error){if(account)void saveOutcome('bridge',account,crypto.randomUUID(),{state:Object.entries(records).some(([kind,item])=>item.unknown||kind.startsWith('send-')&&item.hash&&!item.deliveredHash)?'unknown':'error',operation:'transfer',chain:networks[selectedSide].chainId,asset:assetId==='wotr'?'wotr-four':assetId});note(errorText(error));}finally{setBridgeBusy(false);}}
 for(const side of ['bsc','arc']){
  if($(`open-${side}`))$(`open-${side}`).onclick=()=>run(()=>open(side));
  if($(`pause-${side}`))$(`pause-${side}`).onclick=()=>run(()=>pause(side));

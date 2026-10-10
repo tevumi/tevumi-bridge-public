@@ -1,4 +1,4 @@
-import {Contract,Interface,getAddress,parseUnits,zeroPadValue} from 'ethers';
+import {Contract,Interface,getAddress,id,parseUnits,zeroPadValue} from 'ethers';
 
 const sendParam='(uint32 dstEid,bytes32 to,uint256 amountLD,uint256 minAmountLD,bytes extraOptions,bytes composeMsg,bytes oftCmd)';
 export const candidateAppAbi=[
@@ -20,6 +20,16 @@ export const candidateTokenAbi=[
  'function decimals() view returns(uint8)',
  'function approve(address,uint256) returns(bool)',
 ];
+export function verifyBridgeApproval(record,transaction,receipt,pair,hash){
+ check(record.side==='bsc'&&record.nonceBefore!==undefined&&same(record.to,pair.sourceToken),'授权身份不匹配。');
+ check(transaction&&receipt?.status===1&&same(transaction.hash,hash)&&same(transaction.from,record.account)&&same(transaction.to,record.to)&&BigInt(transaction.nonce)===BigInt(record.nonceBefore)&&transaction.value===0n,'授权回执或账户不匹配。');
+ let actual;try{actual=tokenInterface.parseTransaction({data:transaction.data});}catch{check(false,'授权调用不匹配。');}
+ check(actual?.name==='approve'&&same(actual.args[0],pair.bsc)&&tokenInterface.encodeFunctionData('approve',actual.args)===transaction.data.toLowerCase(),'授权对象或调用不匹配。');
+ const topics=[id('Approval(address,address,uint256)'),zeroPadValue(record.account,32).toLowerCase(),zeroPadValue(pair.bsc,32).toLowerCase()];
+ const events=receipt.logs.filter(log=>same(log.address,pair.sourceToken)&&log.topics.length===3&&log.topics.every((topic,i)=>same(topic,topics[i])));
+ check(events.length===1&&events[0].data.toLowerCase()==='0x'+actual.args[1].toString(16).padStart(64,'0'),'授权事件或额度不匹配。');
+ return actual.args[1];
+}
 const appInterface=new Interface(candidateAppAbi),tokenInterface=new Interface(candidateTokenAbi);
 const endpointAbi=['function eid() view returns(uint32)'];
 const check=(condition,message)=>{if(!condition)throw Error(message);};
@@ -63,7 +73,7 @@ export async function planCandidateTransfer({providers,networks,pair,side,accoun
   check(Number(decimals)===18,'原币精度不符合候选合约要求。');
   check(principal<=capacity&&amountLD<=capacity-principal,'超过锁仓容量。');
   check(balance>=amountLD,'原币余额不足。');
-  if(allowance!==amountLD)return {key:'approve',side,amountLD,recipient:user,to:tokenAddress,value:0n,data:tokenInterface.encodeFunctionData('approve',[sourceAddress,amountLD])};
+  if(allowance<amountLD)return {key:'approve',side,amountLD,recipient:user,to:tokenAddress,value:0n,data:tokenInterface.encodeFunctionData('approve',[sourceAddress,amountLD])};
  }else{
   check(await app.balanceOf(user)>=amountLD,'Arc 对应币余额不足。');
  }

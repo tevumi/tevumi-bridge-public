@@ -14,6 +14,44 @@ def initialize(c):
       created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,index_checks INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY(account,page,id))''')
     c.execute('CREATE INDEX IF NOT EXISTS operation_account_time ON operation_results(account,page,created_at DESC)')
+    c.execute('''CREATE TABLE IF NOT EXISTS approval_proofs(
+      tx_hash TEXT PRIMARY KEY,account TEXT NOT NULL,body TEXT NOT NULL)''')
+
+def verify_sale_approval(c,item,h):
+    """Store independently verified approval identity, never trust reported success."""
+    tx_hash=item['hash'];account=item['account']
+    bridge=item.get('page')=='bridge'
+    asset=item.get('asset')
+    if bridge:
+        if item.get('chain')!=56 or item.get('operation')!='approve-bsc' or asset not in h.ASSETS: raise ValueError('Bridge approval identity mismatch')
+        token=h.SOURCE_TOKENS[asset];spenders=(h.ASSETS[asset][56],)
+    else:
+        token=h.buy_history.TOKEN;spenders=(h.buy_history.MANAGER,h.JOURNEY['buy'][1])
+    tx=h.rpc(56,'eth_getTransactionByHash',[tx_hash])
+    if not tx or tx.get('from','').lower()!=account or tx.get('to','').lower()!=token or int(tx.get('value','0x0'),16)!=0:
+        raise ValueError('Approval identity mismatch')
+    data=tx.get('input','').lower()
+    if not re.fullmatch(r'0x095ea7b3[0-9a-f]{128}',data): raise ValueError('Approval call mismatch')
+    words=h.transaction_words(data);spender='0x'+f'{words[0]:040x}'
+    if spender not in spenders: raise ValueError('Approval spender mismatch')
+    receipt=h.rpc(56,'eth_getTransactionReceipt',[tx_hash])
+    if not receipt or not receipt.get('blockNumber'): return
+    if receipt.get('transactionHash','').lower()!=tx_hash or receipt.get('from','').lower()!=account or receipt.get('to','').lower()!=token:
+        raise ValueError('Approval receipt mismatch')
+    status='failed' if int(receipt['status'],16)==0 else 'verified'
+    if status=='verified':
+        topics=['0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925',
+                '0x'+account[2:].zfill(64),'0x'+spender[2:].zfill(64)]
+        logs=[log for log in receipt.get('logs',[]) if log.get('address','').lower()==token and [v.lower() for v in log.get('topics',[])]==topics]
+        if len(logs)!=1 or logs[0].get('data','').lower()!='0x'+f'{words[1]:064x}': raise ValueError('Approval event mismatch')
+    block=h.rpc(56,'eth_getBlockByNumber',[receipt['blockNumber'],False])
+    proof={'status':status,'input_amount':str(words[1]),'input_asset':'WOTR','output_asset':'BNB',
+           'token_address':token,'operation':'approve-bsc' if bridge else 'approve-sale','spender':spender,
+           'created_at':int(block['timestamp'],16),'block_number':int(receipt['blockNumber'],16),'reported':False}
+    if bridge: proof.update(asset=asset,chain=56,amount_ld=str(words[1]))
+    c.execute('INSERT INTO approval_proofs(tx_hash,account,body) VALUES(?,?,?) ON CONFLICT(tx_hash) DO UPDATE SET body=excluded.body',
+              (tx_hash,account,json.dumps(proof,separators=(',',':'))))
+    c.commit()
 
 def save(c,item):
     # Serialize updates so a delayed request cannot overwrite a newer result.
@@ -73,9 +111,11 @@ def index_pending(c,h):
     for row in rows:
         item=json.loads(row['body']);tx_hash=item.get('hash')
         # No-hash attempts are retained as reported results; never invent a tx.
-        if tx_hash and not item.get('operation','').startswith('approve'):
+        if tx_hash:
             try:
-                if row['page'] in ('buy','swap'): h.upsert_journey(c,row['page'],tx_hash)
+                if row['page']=='buy' and item.get('operation')=='approve-sale' or row['page']=='bridge' and item.get('operation')=='approve-bsc': verify_sale_approval(c,item,h)
+                elif item.get('operation','').startswith('approve'): pass
+                elif row['page'] in ('buy','swap'): h.upsert_journey(c,row['page'],tx_hash)
                 elif row['page']=='usdc': h.upsert_usdc_source(c,tx_hash)
                 elif row['page']=='bridge': h.upsert_source(c,item['chain'],tx_hash)
             except (ValueError,TypeError,KeyError,TimeoutError,OSError): pass
@@ -89,6 +129,12 @@ def merged(c,account,page,verified):
         item=json.loads(row['body'])
         if item.get('hash') in hashes: continue
         item['status']='cancelled' if item['state']=='cancelled' else 'error' if item['state'] in ('failed','error') else 'unknown'
+        if ((page=='buy' and item.get('operation')=='approve-sale') or (page=='bridge' and item.get('operation')=='approve-bsc')) and item.get('hash'):
+            proof=c.execute('SELECT body FROM approval_proofs WHERE tx_hash=? AND account=?',(item['hash'],account)).fetchone()
+            if proof:
+                checked=json.loads(proof['body'])
+                if checked['operation']==item['operation'] and (page!='bridge' or checked.get('asset')==item.get('asset') and item.get('chain')==56):
+                    item.update(checked)
         if page in ('buy','swap'): item['tx_hash']=item.get('hash');item['kind']=page
         else: item['source_hash']=item.get('hash')
         if page=='bridge': item['target_chain']=5042 if item.get('chain')==56 else 56

@@ -12,11 +12,13 @@ const origin=process.env.TEVUMI_BASE_URL||'http://127.0.0.1:5341/preview/web/pre
 const iface=new Interface([...endpointAbi,...candidateAppAbi,...candidateTokenAbi,'function owner() view returns(address)','function guardian() view returns(address)','function enforcedOptions(uint32,uint16) view returns(bytes)','function msgInspector() view returns(address)']);
 const coder=AbiCoder.defaultAbiCoder(),browser=await chromium.launch({headless:true}),report=[];
 try{
- for(const mode of ['amounts','wrong-token','insufficient-balance','approve-reject','send-reject','unknown-reload','arc-independent','history-mobile']){
-  const page=await browser.newPage({viewport:mode==='history-mobile'?{width:390,height:844}:{width:1440,height:1000}}),errors=[],sent=[];let walletChain=56;page.on('pageerror',e=>errors.push(e.message));
+ for(const mode of ['amounts','wrong-token','insufficient-balance','approve-reject','send-reject','unknown-reload','arc-independent','history-mobile','approve-and-send','edited-approve-and-send','short-approval'].filter(mode=>!process.env.BRIDGE_UI_CASE||process.env.BRIDGE_UI_CASE.split(',').includes(mode))){
+  const page=await browser.newPage({viewport:mode==='history-mobile'?{width:390,height:844}:{width:1440,height:1000}}),errors=[],sent=[];let walletChain=56,approvedAmount=0n,approvalTx=null;const approvalModes=['approve-and-send','edited-approve-and-send','short-approval'],approvalHash='0x'+'c'.repeat(64),blockHash='0x'+'a'.repeat(64);page.on('pageerror',e=>errors.push(e.message));
   const answer=(req,chain)=>{
    const {method,params=[]}=req,item=plan.batches.find(i=>i.chainId===chain),r=routes[chain];let result;
    if(method==='eth_chainId')result='0x'+chain.toString(16);
+   else if(method==='eth_getTransactionByHash')result=approvalTx?{hash:approvalHash,blockHash,blockNumber:'0x100',transactionIndex:'0x0',from:account,to:approvalTx.to,input:approvalTx.data,value:'0x0',nonce:'0x1',gas:'0x50000',gasPrice:'0x2faf080',type:'0x0',chainId:'0x38',v:'0x25',r:'0x'+'1'.padStart(64,'0'),s:'0x'+'1'.padStart(64,'0')}:null;
+   else if(method==='eth_getTransactionReceipt')result=approvalTx?{transactionHash:approvalHash,blockHash,blockNumber:'0x100',transactionIndex:'0x0',from:account,to:approvalTx.to,status:'0x1',gasUsed:'0x10000',cumulativeGasUsed:'0x10000',effectiveGasPrice:'0x2faf080',type:'0x0',logsBloom:'0x'+'0'.repeat(512),logs:[{address:plan.sourceToken,topics:[new Interface(['event Approval(address indexed owner,address indexed spender,uint256 value)']).getEvent('Approval').topicHash,zeroPadValue(account,32),zeroPadValue(plan.batches[0].apps.wotr,32)],data:coder.encode(['uint256'],[approvedAmount]),blockHash,blockNumber:'0x100',transactionHash:approvalHash,transactionIndex:'0x0',logIndex:'0x0',removed:false}]}:null;
    else if(method==='eth_getCode')result='0x6000';
    else if(method==='eth_blockNumber')result='0x100';
    else if(method==='eth_getTransactionCount')result='0x1';
@@ -42,7 +44,7 @@ try{
     else if(name==='enforcedOptions')values=['0x'];
     else if(name==='msgInspector')values=[ZeroAddress];
     else if(name==='balanceOf')values=[mode==='insufficient-balance'?0n:parseEther('2000000')];
-    else if(name==='allowance')values=[mode==='approve-reject'?0n:parseEther('100')];
+    else if(name==='allowance')values=[approvalModes.includes(mode)?approvedAmount:mode==='approve-reject'?0n:parseEther('100')];
     else if(name==='decimals')values=[18];
     else if(name==='capacityLD')values=[parseEther('1000000000')];
     else if(name==='principalLD')values=[0n];
@@ -56,12 +58,12 @@ try{
   await page.exposeFunction('testRpc',async req=>{
    if(req.method==='eth_accounts'||req.method==='eth_requestAccounts')return [account];
    if(req.method==='wallet_switchEthereumChain'){walletChain=Number(BigInt(req.params[0].chainId));return null}
-   if(req.method==='eth_sendTransaction'){sent.push(req.params[0]);return {testError:mode==='unknown-reload'?-32000:4001}}
+   if(req.method==='eth_sendTransaction'){sent.push(req.params[0]);if(approvalModes.includes(mode)&&sent.length===1){approvedAmount=parseEther(mode==='short-approval'?'99':mode==='edited-approve-and-send'?'101':'100');approvalTx={...req.params[0],data:iface.encodeFunctionData('approve',[plan.batches[0].apps.wotr,approvedAmount])};return approvalHash;}return {testError:mode==='unknown-reload'?-32000:4001}}
    return answer({...req,id:1},walletChain).result;
   });
   await page.addInitScript(address=>{localStorage.setItem('tevumi-immediate-wotr-live-v1:'+address,JSON.stringify({'send-bsc':{hash:'0x'+'a'.repeat(64)}}));window.ethereum={isMetaMask:true,on(){},request:async req=>{const r=await window.testRpc(req);if(r?.testError)throw Object.assign(Error('Synthetic wallet error'),{code:r.testError});return r}};window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider:window.ethereum}})));},account);
   await page.route(/https:\/\/.*/,async route=>{if(route.request().method()!=='POST')return route.continue();const req=route.request().postDataJSON(),chain=route.request().url().includes('arc.io')?5042:56;await route.fulfill({json:Array.isArray(req)?req.map(q=>answer(q,chain)):answer(req,chain)})});
-  await page.route('**/api/**',r=>r.fulfill({json:{items:r.request().url().includes('/transfers?')?[{asset:'wotr-four',chain:56,target_chain:5042,status:'arrived',amount_ld:String(parseEther('1000')),created_at:1,source_token:wotrRoutes.current.sourceToken},{asset:'wotr',chain:56,target_chain:5042,status:'arrived',amount_ld:String(parseEther('1000')),created_at:1,source_token:wotrRoutes.historical.sourceToken}]:[],more:false}}));
+  await page.route('**/api/**',r=>r.fulfill({json:{items:r.request().url().includes('/transfers?')?[{asset:'wotr-four',chain:56,target_chain:5042,status:'verified',operation:'approve-bsc',amount_ld:String(parseEther('100')),created_at:1},{asset:'wotr-four',chain:56,target_chain:5042,status:'arrived',amount_ld:String(parseEther('1000')),created_at:1,source_token:wotrRoutes.current.sourceToken},{asset:'wotr',chain:56,target_chain:5042,status:'arrived',amount_ld:String(parseEther('1000')),created_at:1,source_token:wotrRoutes.historical.sourceToken}]:[],more:false}}));
   await page.goto(origin,{waitUntil:'networkidle'});await page.locator('#nav-bridge').click();
   await page.locator('#header-connect').click();await page.locator('.tevumi-wallet-option').first().click();await page.waitForFunction(()=>!document.querySelector('#send-bsc').disabled);await page.locator('#send-amount').fill('100');
   if(mode==='amounts'){
@@ -70,11 +72,12 @@ try{
    await page.locator('#send-amount').fill('1.0000001');assert(await page.locator('#send-bsc').isDisabled());
    assert.equal(sent.length,0);
   }else if(mode==='history-mobile'){
-   await page.locator('[data-language="zh-CN"]').click();await page.locator('#history-panel summary').click();await page.waitForFunction(()=>document.querySelector('#history-list').textContent.includes('历史合约'));assert(!(await page.locator('#history-list').textContent()).includes(wotrRoutes.current.sourceToken));await page.locator('#nav-swap').click();await page.waitForURL('**?action=swap');await page.waitForFunction(()=>document.querySelector('#source-asset')?.textContent.length>0);assert((await page.locator('#source-asset').textContent()).includes(wotrRoutes.current.arc));await page.reload({waitUntil:'networkidle'});assert(await page.locator('#source-heading').isVisible());assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+   await page.locator('[data-language="zh-CN"]').click();await page.locator('#history-panel summary').click();await page.waitForFunction(()=>document.querySelector('#history-list').textContent.includes('历史合约'));assert(!(await page.locator('#history-list').textContent()).includes(wotrRoutes.current.sourceToken));assert((await page.locator('#history-list').textContent()).includes('授权已完成'));await page.locator('#nav-swap').click();await page.waitForURL('**?action=swap');await page.waitForFunction(()=>document.querySelector('#source-asset')?.textContent.length>0);assert(await page.locator('#source-asset').isHidden());await page.reload({waitUntil:'networkidle'});assert(await page.locator('#source-swap-card').isVisible());assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   }else{
    if(mode==='arc-independent')await page.locator('#reverse-direction').click();
    await page.locator(mode==='arc-independent'?'#send-arc':'#send-bsc').click();await page.waitForFunction(()=>!document.querySelector('#send-bsc').disabled);
-   if(mode==='wrong-token'||mode==='insufficient-balance'){assert.equal(sent.length,0);assert.match(await page.locator('#message').textContent(),mode==='wrong-token'?/绑定|binding/i:/余额不足|balance/i)}
+   if(approvalModes.includes(mode)){assert.equal(sent.length,mode==='short-approval'?1:2);assert.equal(iface.decodeFunctionData('approve',sent[0].data)[1],parseEther('100'));if(mode!=='short-approval'){const decoded=iface.decodeFunctionData('send',sent[1].data);assert.equal(decoded[0].amountLD,parseEther('100'));assert.equal(sent[1].to.toLowerCase(),plan.batches[0].apps.wotr.toLowerCase());}else assert.match(await page.locator('#message').textContent(),/授权额度不足/);}
+   else if(mode==='wrong-token'||mode==='insufficient-balance'){assert.equal(sent.length,0);assert.match(await page.locator('#message').textContent(),mode==='wrong-token'?/绑定|binding/i:/余额不足|balance/i)}
    else{
     assert.equal(sent.length,1);const tx=sent[0];
     if(mode==='approve-reject'){assert.equal(tx.to.toLowerCase(),plan.sourceToken.toLowerCase());const decoded=iface.decodeFunctionData('approve',tx.data);assert.equal(decoded[0].toLowerCase(),plan.batches[0].apps.wotr.toLowerCase());assert.equal(decoded[1],parseEther('100'))}

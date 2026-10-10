@@ -14,8 +14,8 @@ const explorers = { 56: 'https://bscscan.com/tx/', 5042: 'https://explorer.arc.i
 const chainNames = { 56: 'BNB Chain', 5042: 'Arc' };
 const validHash = hash => /^0x[0-9a-f]{64}$/i.test(hash || '');
 const labels = {
-  en: { arrived: 'Arrived', in_transit: 'In transit', pending: 'Confirming', failed: 'Send failed', unknown: 'Status pending verification', cancelled:'Cancelled',error:'Operation failed', amountFailed: 'Amount unverified', amountPending: 'Amount pending confirmation', amountUnknown: 'Amount pending verification', source: 'View source transaction', target: 'View destination transaction', unit: 'tokens', empty: 'No transfer history for this wallet yet.' },
-  'zh-CN': { arrived: '已到账', in_transit: '跨链中', pending: '确认中', failed: '发送失败', unknown: '状态待核验',cancelled:'已取消',error:'操作失败', amountFailed: '数量未核验', amountPending: '数量待确认', amountUnknown: '数量待核验', source: '查看发送交易', target: '查看到账交易', unit: '枚', empty: '这个钱包暂无跨链记录。' },
+  en: { verified:'Approval completed',approval:'Approval',arrived: 'Arrived', in_transit: 'In transit', pending: 'Confirming', failed: 'Transaction failed', unknown: 'Status pending verification', cancelled:'Cancelled',error:'Operation failed', amountFailed: 'Amount unverified', amountPending: 'Amount pending confirmation', amountUnknown: 'Amount pending verification', source: 'View source transaction', target: 'View destination transaction', unit: 'tokens', empty: 'No transfer history for this wallet yet.' },
+  'zh-CN': { verified:'授权已完成',approval:'授权',arrived: '已到账', in_transit: '跨链中', pending: '确认中', failed: '交易失败', unknown: '状态待核验',cancelled:'已取消',error:'操作失败', amountFailed: '数量未核验', amountPending: '数量待确认', amountUnknown: '数量待核验', source: '查看发送交易', target: '查看到账交易', unit: '枚', empty: '这个钱包暂无跨链记录。' },
 };
 const copy = () => labels[currentLanguage()];
 
@@ -37,9 +37,11 @@ function card(item) {
   const route = document.createElement('strong');
   const historical=currentLanguage()==='zh-CN'?'WOTR（历史合约）':'WOTR (historical contract)';
   route.textContent = `${({cat:'CAT',binancelife:'币安人生',wotr:historical,'wotr-four':'WOTR'})[item.asset] ?? 'Unknown asset'} · ${chainNames[item.chain]} → ${chainNames[item.target_chain]}`;
+  if(item.operation?.startsWith('approve'))route.textContent=`${text.approval} · ${route.textContent.split(' → ')[0]}`;
   const state = document.createElement('span');
   state.className = `history-status history-${item.status}`;
   state.textContent = text[item.status] || text.unknown;
+  if(item.status==='unknown'&&!validHash(item.source_hash)&&item.operation==='transfer')state.textContent=currentLanguage()==='zh-CN'?'操作未完成':'Incomplete';
   top.append(route, state);
   const meta = document.createElement('p');
   const quantity = item.status === 'failed' ? text.amountFailed : item.status === 'pending' ? text.amountPending : /^\d+$/.test(item.amount_ld || '') ? `${formatEther(BigInt(item.amount_ld))} ${text.unit}` : text.amountUnknown;
