@@ -108,3 +108,6 @@ input{caret-color:var(--mint)}
 #journey-buy-card > .journey-card-heading,
 #journey-swap-card > .journey-card-heading,
 #source-swap-card > .journey-card-heading{display:none}
+
+#header-connect[data-wallet-brand="okx"] svg path,
+#wallet-button[data-wallet-brand="okx"] svg path{fill:var(--ink)}

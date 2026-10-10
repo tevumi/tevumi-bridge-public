@@ -41,12 +41,14 @@ export function renderWalletButton(button,provider,account,language='en') {
   const zh=language==='zh-CN';
   button.classList.toggle('tevumi-active-wallet',Boolean(account));
   if (!account) {
+    delete button.dataset.walletBrand;
     button.textContent=zh?'连接钱包':'Connect wallet';
     button.removeAttribute('title');
     button.removeAttribute('aria-label');
     return;
   }
   const kind=brand({provider,name:'',rdns:''});
+  button.dataset.walletBrand=kind || 'generic';
   const walletName=kind==='metamask'?'MetaMask':kind==='okx'?'OKX Wallet':zh?'当前钱包':'Current wallet';
   const label=zh?`${walletName} · ${account} · 点击切换钱包`:`${walletName} · ${account} · Change wallet`;
   button.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:kind==='okx'?WalletBrandedOkx.default:genericWalletIcon;
