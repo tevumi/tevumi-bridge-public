@@ -48,14 +48,20 @@ export async function sourceProof(provider,record,account){
  check(receipt.status===1,'Transaction reverted. Keep this receipt and check gas before starting a new order.');
  check(same(tx.from,account)&&tx.nonce===record.nonce,'Original sender or nonce does not match this order.');
  const direct=same(tx.to,record.to)&&tx.data===record.data&&tx.value===BigInt(record.value);
- check(direct||await matchesWalletBridge(provider,tx,receipt,record,account),'Original transaction does not match this order.');
+ // Wallets may edit only the amount of an approval. Payment and bridge intents stay exact.
+ const editedApproval=record.kind==='approval'&&same(tx.to,record.to)&&tx.value===0n&&BigInt(record.value)===0n;
+ check(direct||editedApproval||await matchesWalletBridge(provider,tx,receipt,record,account),'Original transaction does not match this order.');
  let result={hash:record.hash,block:receipt.blockNumber,gas:String(receipt.gasUsed*receipt.gasPrice)};
- if(!direct)result.walletWrapper=walletManager;
+ if(!direct&&!editedApproval)result.walletWrapper=walletManager;
  if(record.kind==='approval'){
-  const call=tokenInterface.parseTransaction({data:record.data});
-  check(call?.name==='approve'&&same(record.to,record.token)&&same(call.args[0],record.spender)&&call.args[1]===BigInt(record.amount),'Unexpected approval.');
+  const call=tokenInterface.parseTransaction({data:record.data}),actual=tokenInterface.parseTransaction({data:tx.data});
+  check(call?.name==='approve'&&same(record.to,record.token)&&same(call.args[0],record.spender)&&call.args[1]===BigInt(record.amount)&&BigInt(record.value)===0n,'Unexpected approval.');
+  check(tokenInterface.encodeFunctionData('approve',call.args)===record.data,'Saved approval is not canonical.');
+  check(actual?.name==='approve'&&same(actual.args[0],record.spender)&&tokenInterface.encodeFunctionData('approve',actual.args)===tx.data&&tx.value===0n,'Actual approval token, spender or call differs.');
   check(same(record.token,USDC)?record.chain===5042&&same(record.spender,ROUTERS[5042]):record.chain===56&&same(record.token,BUY.token)&&[BUY.manager,BUY.router,wotrRoutes.current.bsc].some(a=>same(a,record.spender)),'Approval token or spender is outside this route.');
-  check(events(receipt,record.token,tokenInterface,'Approval').some(e=>same(e.args.owner,account)&&same(e.args.spender,record.spender)&&e.args.value===BigInt(record.amount)),'Exact approval event is missing.');
+  const approvals=events(receipt,record.token,tokenInterface,'Approval').filter(e=>same(e.args.owner,account)&&same(e.args.spender,record.spender));
+  check(approvals.length===1&&approvals[0].args.value===actual.args[1],'Actual approval event is missing or ambiguous.');
+  result.requestedAmount=String(call.args[1]);result.approvedAmount=String(actual.args[1]);result.actualData=tx.data;
  }else if(record.kind==='funding'){
   const b=validateQuote(record.quote,{account,fromChain:record.chain,toChain:record.targetChain,amount:BigInt(record.amount)});
   check(record.data===record.quote.transactionRequest.data&&same(record.to,record.quote.transactionRequest.to)&&BigInt(record.value)===BigInt(record.quote.transactionRequest.value),'Saved funding call differs from its quote.');

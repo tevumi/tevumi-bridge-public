@@ -127,7 +127,7 @@ export class TradeEngine{
    if(fresh.kind==='funding'&&fresh.chain===5042||fresh.kind==='sell'){
     const token=fresh.kind==='funding'?USDC:BUY.token,spender=fresh.kind==='funding'?fresh.quote.estimate.approvalAddress:fresh.to;
     const allowance=await new Contract(token,contractAbi,this.providers[fresh.chain]).allowance(o.account,spender);
-    if(allowance!==fresh.amount)intent={...fresh,kind:'approval',token,spender,to:token,data:tokenInterface.encodeFunctionData('approve',[spender,fresh.amount]),value:0n};
+    if(allowance<fresh.amount)intent={...fresh,kind:'approval',token,spender,to:token,data:tokenInterface.encodeFunctionData('approve',[spender,fresh.amount]),value:0n};
    }
    if(fresh.kind==='bridge'&&fresh.key==='approve')intent={...fresh,kind:'approval'};
    const p=this.providers[intent.chain];check(Number(await p.send('eth_chainId',[]))===intent.chain&&await p.getCode(intent.to)!=='0x','RPC or transaction contract mismatch.');

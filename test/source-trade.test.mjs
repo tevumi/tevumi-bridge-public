@@ -15,7 +15,7 @@ const iface=new Interface([...sellHelperAbi,...candidateAppAbi,...sellDexAbi,'fu
 const started=new Interface(['event LiFiTransferStarted('+bridgeType+' bridgeData)']);
 const log=(contract,address,event,args)=>({address,...contract.encodeEventLog(event,args)});
 const clone=value=>JSON.parse(stringify(value));
-function rig({reject=false,uncertain=false,wrongTarget=false,partial=false,graduate=false,failSave=false}={}){
+function rig({reject=false,uncertain=false,wrongTarget=false,partial=false,graduate=false,failSave=false,approvalDelta=0n}={}){
  const txs=new Map(),receipts=new Map(),blocks=new Map(),deltas=new Map(),allowances=new Map(),quotes=new Map();let serial=1,walletChain=5042,writes=0,journal=null;
  const native=amount=>'0x'+amount.toString(16);
  const providers=Object.fromEntries([56,5042].map(chain=>[chain,{
@@ -79,7 +79,7 @@ function rig({reject=false,uncertain=false,wrongTarget=false,partial=false,gradu
   if(reject||uncertain)throw Object.assign(Error('Wallet error'),{code:reject?4001:-32000});
   const t=engine.order.transactions.at(-1),hash='0x'+(++serial).toString(16).padStart(64,'0'),block=100+serial;
   const tx={hash,from:user,to:t.to,data:t.data,value:BigInt(t.value),nonce:t.nonce};txs.set(hash,tx);let logs=[];
-  if(t.kind==='approval'){logs=[log(tokenInterface,t.token,'Approval',[user,t.spender,BigInt(t.amount)])];allowances.set(t.token.toLowerCase()+':'+t.spender.toLowerCase(),BigInt(t.amount));}
+  if(t.kind==='approval'){const actual=BigInt(t.amount)+approvalDelta;tx.data=tokenInterface.encodeFunctionData('approve',[t.spender,actual]);logs=[log(tokenInterface,t.token,'Approval',[user,t.spender,actual])];allowances.set(t.token.toLowerCase()+':'+t.spender.toLowerCase(),actual);}
   else if(t.kind==='funding'){
    const b=AbiCoder.defaultAbiCoder().decode([bridgeType],'0x'+t.data.slice(10))[0];logs=[log(started,t.to,'LiFiTransferStarted',[b])];
    if(t.chain===5042)logs.push(log(tokenInterface,USDC,'Transfer',[user,t.to,BigInt(t.amount)]));
@@ -129,3 +129,6 @@ test('MetaMask single-call bridge wrapper matches the original intent and actual
  p.getCode=async()=> '0xef0100'+walletDelegator.slice(2);p.getBalance=async(a,b)=>b===receipt.blockNumber?parseEther('1')-BigInt(record.value)*2n-receipt.gasUsed*receipt.gasPrice:b===receipt.blockNumber-1?parseEther('1'):balance(a,b);await assert.rejects(sourceProof(p,record,user),/payment differs/);
  Object.assign(tx,original);
 });
+
+
+test('wallet-raised approvals complete both directions without repeated approval and keep original journal intent',async()=>{for(const kind of ['buy','sell']){const baseline=rig();await complete(baseline,kind);const r=rig({approvalDelta:parseEther('1')});await complete(r,kind);assert.equal(r.engine.order.state,'COMPLETED');assert.equal(r.writes(),baseline.writes());for(const t of r.engine.order.transactions.filter(t=>t.kind==='approval')){assert.equal(BigInt(t.proof.approvedAmount),BigInt(t.amount)+parseEther('1'));assert.equal(t.proof.requestedAmount,t.amount);assert.equal(tokenInterface.parseTransaction({data:t.data}).args[1],BigInt(t.amount));}}});
