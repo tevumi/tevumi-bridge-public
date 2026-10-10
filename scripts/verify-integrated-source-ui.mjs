@@ -12,7 +12,7 @@ const origin=process.env.TEVUMI_SOURCE_TRADE_URL||'http://127.0.0.1:5345/',user=
 const iface=new Interface([...helperAbi,...candidateAppAbi,'function decimals() view returns(uint8)','function allowance(address,address) view returns(uint256)']);
 const browser=await chromium.launch({headless:true});const report=[];
 const embedded=process.env.TEVUMI_SOURCE_TRADE_EMBEDDED==='true'; const control=id=>embedded?'#source-'+id:'#'+id; const production=embedded||new URL(origin).pathname.startsWith('/preview/');
-async function refreshQuote(page){if(embedded&&!await page.locator(control('refresh')).isVisible())await page.locator('#source-details-label').click();await page.locator(control('refresh')).click();}
+async function refreshQuote(page){if(embedded&&!await page.locator(control('refresh')).isVisible()){await page.evaluate(()=>window.testControl('refresh').click());return;}await page.locator(control('refresh')).click();}
 try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failure','seven-decimals','large-amount',...(!production?['journal-corrupt']:[]),'quote-gateway','quote-gateway-zh']){
  const page=await browser.newPage({viewport:mode==='mobile-zh'?{width:390,height:844}:{width:1440,height:1000}}),errors=[];let chain=5042,sends=0,orders=[],signed=false;
  page.on('pageerror',e=>errors.push(e.message));

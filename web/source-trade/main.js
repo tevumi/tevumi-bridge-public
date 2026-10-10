@@ -120,7 +120,8 @@ function renderEmbedded(){
  $('connect').hidden=!account||restored;$('next').hidden=!order||order.state!=='COMPLETED';$('cancel').hidden=!order||order.transactions.some(t=>t.state!=='REJECTED');
  host.querySelector('#source-input-token').textContent=input;host.querySelector('#source-input-symbol').textContent='Arc';host.querySelector('#source-output-token').textContent=output;
  host.querySelector('#source-output-label').textContent=text('Estimated receive','预计收到');
- host.querySelector('#source-details-label').textContent=text('Fees and recovery','费用与恢复');
+ $('orders-heading').textContent=text('Transaction history','交易记录');
+ $('refresh').hidden=!account||!restored||working||previewing||Boolean(quote)||order?.state==='COMPLETED';
  const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order)||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
  let amount,decimals=buy?18:6;
  if(order?.state==='COMPLETED')amount=engine.results[2]?.destination?.received;
