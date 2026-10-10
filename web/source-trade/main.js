@@ -121,6 +121,12 @@ function renderEmbedded(){
  host.querySelector('#source-input-token').textContent=input;host.querySelector('#source-input-symbol').textContent='Arc';host.querySelector('#source-output-token').textContent=output;
  host.querySelector('#source-output-label').textContent=text('Estimated receive','预计收到');
  $('orders-heading').textContent=text('Transaction history','交易记录');
+ host.querySelector('#source-portal-title').textContent=text('Explore USDC on Arc','探索 Arc 上的 USDC');
+ host.querySelector('#source-portal-copy').textContent=text('Explore USDC options on Arc Portal. It opens separately and transfers nothing automatically.','前往 Arc Portal 了解 USDC 的用途。它会在新页面打开，不会自动转移资产。');
+ host.querySelector('#source-portal-link').textContent=text('Explore USDC on Arc Portal ↗','前往 Arc Portal 探索 USDC ↗');
+ host.querySelector('#source-usdc-title').textContent=text('Bridge USDC to another chain','将 USDC 跨往其他链');
+ host.querySelector('#source-usdc-copy').textContent=text('Choose a destination and review a live Circle App Kit quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 Circle App Kit 实时报价。只有在钱包确认后才会转移资产。');
+ host.querySelector('#source-usdc-link').textContent=text('Bridge USDC ↗','跨链 USDC ↗');
  $('refresh').hidden=!account||!restored||working||previewing||Boolean(quote)||order?.state==='COMPLETED';
  const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order)||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
  let amount,decimals=buy?18:6;

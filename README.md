@@ -1,6 +1,6 @@
 # Tevumi Bridge
 
-**2026-10-10 · Swap keeps the original site layout:** Source trading now runs inside the familiar Swap form, sharing navigation, wallet connection and language controls with Buy and Bridge. Estimates and verified receipts appear in the same form; transaction history expands below it. The former standalone production URL redirects here. Automatic mode still requires each wallet confirmation; a fresh real-wallet test of this integrated interface remains pending.
+**2026-10-10 · Swap keeps the original site layout:** Source trading now runs inside the familiar Swap form, sharing navigation, wallet connection and language controls with Buy and Bridge. Estimates and verified receipts appear in the same form; transaction history expands below it. The Arc Portal and USDC bridge cards remain beneath the form. The former standalone production URL redirects here. Automatic mode still requires each wallet confirmation; a fresh real-wallet test of this integrated interface remains pending.
 
 **2026-10-09 · Source trading is live:** [Swap](https://bridge.tevumi.com/preview/index.html?action=swap) supports Arc USDC → BNB Chain WOTR purchase → Arc delivery and Arc WOTR → BNB Chain sale → Arc USDC return. LI.FI moves funds and LayerZero bridges WOTR. Trades execute at the source market without a current-token Arc liquidity pool. Buy, Bridge and Swap use WOTR `0xe2a0ce4be658ee9b09e461f5283c718a20984444`. Before graduation the market is Four.meme; afterwards the route validates a PancakeSwap V2 pool. Actual graduated trading remains unverified.
 

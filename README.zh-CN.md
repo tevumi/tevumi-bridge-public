@@ -1,6 +1,6 @@
 # Tevumi Bridge
 
-**2026-10-10 · Swap 恢复原站布局：**源链成交现接入原来的 Swap 表单，与 Buy、Bridge 共用导航、钱包连接和语言切换。预估和核验结果显示在原表单，交易记录可展开查看；此前独立生产地址自动返回此页面。自动流程仍须逐笔钱包确认，本次集成界面的新增真实钱包验收仍待完成。
+**2026-10-10 · Swap 恢复原站布局：**源链成交现接入原来的 Swap 表单，与 Buy、Bridge 共用导航、钱包连接和语言切换。预估和核验结果显示在原表单，交易记录可展开查看，表单下方保留 Arc Portal 和 USDC 跨链卡片；此前独立生产地址自动返回此页面。自动流程仍须逐笔钱包确认，本次集成界面的新增真实钱包验收仍待完成。
 
 **2026-10-09 · 源链成交已接入正式站：**[Swap](https://bridge.tevumi.com/preview/index.html?action=swap) 支持 Arc USDC → BNB Chain 买入 WOTR → Arc 到账，以及 Arc WOTR → BNB Chain 卖出 → Arc USDC 回款。资金通过 LI.FI，WOTR 通过 LayerZero；成交在源链完成，不依赖当前 WOTR 的 Arc 流动池。Buy、Bridge、Swap 使用同一当前 WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业走 Four.meme，毕业后核验 PancakeSwap V2 池；实际毕业交易仍待验收。
 
