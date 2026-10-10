@@ -42,7 +42,7 @@ try{for(const mode of ['buy-en','sell-zh-mobile','pause-reload','reject','unknow
   else throw Error('Unexpected intercepted API '+url.pathname);
   await route.fulfill({json:result});
  });
- await page.goto(origin);await page.locator('#connect').click();await page.locator('.tevumi-wallet-option').first().click();
+ await page.goto(origin);await page.waitForFunction(()=>document.querySelector('#heading').textContent.length>0);await page.locator('#connect').click();await page.locator('.tevumi-wallet-option').first().click();
  if(mode==='sell-zh-mobile'){await page.locator('#language').click();await page.locator('#direction').selectOption('sell');await page.locator('#amount').fill('1000');}
  await page.waitForFunction(()=>!document.querySelector('#send').disabled);
  assert.equal(orders.length,0,'Automatic quote must not create an order');
@@ -52,7 +52,7 @@ try{for(const mode of ['buy-en','sell-zh-mobile','pause-reload','reject','unknow
   assert.equal(sends,1);assert.equal(await page.evaluate(()=>navigator.locks.request('tevumi-source-trade:'+'0x'+'1'.repeat(40),{ifAvailable:true},lock=>Boolean(lock))),false);
   await page.locator('#language').click();await page.locator('#pause').click();
   await page.waitForFunction(()=>document.querySelector('#pause').hidden);assert.equal(sends,1);
-  await page.reload();await page.locator('#connect').click();await page.locator('.tevumi-wallet-option').first().click();
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#heading').textContent.length>0);await page.locator('#connect').click();await page.locator('.tevumi-wallet-option').first().click();
   await page.evaluate(()=>window.holdArrival=false);await page.waitForTimeout(9000);assert.equal(sends,1,'Reload/checks must never open another wallet prompt');
   await page.waitForFunction(()=>!document.querySelector('#send').disabled);await page.locator('#send').click();await page.waitForFunction(()=>document.querySelector('#orders').textContent.includes('Completed'),{},{timeout:20000});assert.equal(sends,4);
  }else if(mode==='reject'||mode==='unknown'){

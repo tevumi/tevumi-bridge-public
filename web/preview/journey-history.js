@@ -118,7 +118,7 @@ async function index(kind, hash) {
 window.addEventListener('tevumi:journey-hash', event => { void index(event.detail?.kind, event.detail?.hash); });
 function showTab(tab) {
   const account = bridgeView().account;
-  for (const kind of ['buy','swap']) views[kind].panel.hidden = !account || tab !== kind;
+  for (const kind of ['buy','swap']) views[kind].panel.hidden = !account || tab !== kind || (kind==='swap'&&new URLSearchParams(location.search).get('market')!=='historical');
 }
 window.addEventListener('tevumi:journey-tab', event => showTab(event.detail?.tab));
 let activeAccount = bridgeView().account?.toLowerCase() || null;

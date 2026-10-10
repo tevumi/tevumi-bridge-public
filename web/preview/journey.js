@@ -61,12 +61,6 @@ function amount(value) {
   return parseEther(value);
 }
 function setTab(tab) {
-  if (tab === 'swap' && new URLSearchParams(location.search).get('market') !== 'historical') {
-    const target = new URL('/preview/trade/index.html',location.origin);
-    target.search = location.search; target.searchParams.set('action','swap'); target.hash = location.hash;
-    location.assign(target.href);
-    return;
-  }
   const previousTab = activeTab;
   activeTab = tab;
   // The URL belongs to this browser tab: refresh and copied links restore it.
@@ -97,9 +91,11 @@ function setTab(tab) {
 }
 function setStep(step) {
   activeStep = step;
+  const currentSwap=step==='swap'&&new URLSearchParams(location.search).get('market')!=='historical';
+  $('source-swap-card').hidden=!currentSwap;
   for (const item of ['buy','bridge','swap']) {
     const selected = item === step;
-    $(`journey-${item}-card`).hidden = !selected;
+    $(`journey-${item}-card`).hidden = !selected||(item==='swap'&&currentSwap);
     $(`journey-route-${item}`).classList.toggle('active',selected);
     if (selected) $(`journey-step-${item}`).setAttribute('aria-current','step');
     else $(`journey-step-${item}`).removeAttribute('aria-current');
@@ -240,7 +236,7 @@ function renderLiveText() {
     : local('Connect your wallet, enter an amount and refresh the quote.','连接钱包，输入金额后刷新报价。');
   $('journey-buy-card').querySelector('h3 + p').textContent=local('Four.meme curve → PancakeSwap after graduation','Four.meme 联合曲线 → 毕业后 PancakeSwap');
   $('context-buy').querySelector('h3 + p').textContent=local('Buy WOTR with BNB on BNB Chain. Review the live quote before confirming.','在 BNB Chain 使用 BNB 购买 WOTR。确认前请核对实时报价。');
-  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nBridge this WOTR between BNB Chain and Arc. Arc trading through the source chain is being developed.`,`WOTR 合约：${BUY.token}\n此 WOTR 支持 BNB Chain 与 Arc 双向跨链；通过源链成交的 Arc 交易功能正在开发。`);
+  $('journey-buy-identity').textContent=local(`WOTR contract: ${BUY.token}\nBridge this WOTR between BNB Chain and Arc, or trade from Arc through the BNB Chain market on Swap.`,`WOTR 合约：${BUY.token}\n此 WOTR 支持 BNB Chain 与 Arc 双向跨链；也可在 Swap 从 Arc 发起交易，通过 BNB Chain 市场成交。`);
   const units = swapAssets(reverseSwap);
   renderSwapDirection();
   if (swapQuote) $('journey-swap-quote').textContent = local(`Estimated receive: ${formatEther(swapQuote.out)} ${units.output}\nMinimum receive: ${formatEther(swapQuote.minOut)} ${units.output} (1% slippage)\nGas is charged separately. Quote expires after 60 seconds.`,`预计收到：${formatEther(swapQuote.out)} ${units.output}\n最低收到：${formatEther(swapQuote.minOut)} ${units.output}（1% 滑点）\nGas 另计，报价 60 秒后失效。`);
@@ -460,6 +456,7 @@ function draw() {
   else if (view.assetId==='wotr' && view.records['send-bsc']?.hash) $('journey-bridge-status').textContent = local('BNB transfer submitted; waiting for verified Arc arrival.','BNB 跨链已提交，等待核验 Arc 到账。');
 }
 function renderSwapDirection() {
+  if(new URLSearchParams(location.search).get('market')!=='historical')return;
   const {input,output} = swapAssets(reverseSwap);
   $('journey-swap-direction').textContent = local(`⇄ ${input} → ${output}`,`⇄ ${input} → ${output}`);
   $('journey-swap-direction').setAttribute('aria-label',local('Reverse swap direction','反转兑换方向'));

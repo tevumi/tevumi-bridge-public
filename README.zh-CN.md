@@ -1,6 +1,8 @@
 # Tevumi Bridge
 
-**2026-10-09 · 源链成交已接入正式站：**[Swap](https://bridge.tevumi.com/preview/trade/index.html) 支持 Arc USDC → BNB Chain 买入 WOTR → Arc 到账，以及 Arc WOTR → BNB Chain 卖出 → Arc USDC 回款。资金通过 LI.FI，WOTR 通过 LayerZero；成交在源链完成，不依赖当前 WOTR 的 Arc 流动池。Buy、Bridge、Swap 使用同一当前 WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业走 Four.meme，毕业后核验 PancakeSwap V2 池；实际毕业交易仍待验收。
+**2026-10-10 · Swap 恢复原站布局：**源链成交现接入原来的 Swap 表单，与 Buy、Bridge 共用导航、钱包连接和语言切换。预估和核验结果显示在原表单，费用、恢复与订单可展开查看；此前独立生产地址自动返回此页面。自动流程仍须逐笔钱包确认，本次集成界面的新增真实钱包验收仍待完成。
+
+**2026-10-09 · 源链成交已接入正式站：**[Swap](https://bridge.tevumi.com/preview/index.html?action=swap) 支持 Arc USDC → BNB Chain 买入 WOTR → Arc 到账，以及 Arc WOTR → BNB Chain 卖出 → Arc USDC 回款。资金通过 LI.FI，WOTR 通过 LayerZero；成交在源链完成，不依赖当前 WOTR 的 Arc 流动池。Buy、Bridge、Swap 使用同一当前 WOTR 合约 `0xe2a0ce4be658ee9b09e461f5283c718a20984444`。未毕业走 Four.meme，毕业后核验 PancakeSwap V2 池；实际毕业交易仍待验收。
 
 报价自动更新。核对预估后点击「开始兑换」，自动推进授权和三步交易、更新后续报价并核验实际到账；每笔交易仍需在钱包确认。「暂停后续操作」在当前请求结束后停止新的钱包弹窗。刷新只恢复核验，后续签署须点击「继续兑换」。拒签、结果不明、部分到账或退款、报价变化及订单保存失败都会停止推进，不重试付款。首次连接需签名登录恢复服务器订单，此签名不转移资金。历史 WOTR 池保留独立入口。不增加额外数量或次数限制，余额、共享精度、合约容量和费用仍须满足。
 

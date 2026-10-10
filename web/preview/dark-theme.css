@@ -86,3 +86,15 @@ input{caret-color:var(--mint)}
 
 .journey-card button.swap-direction { margin: 0 0 18px; min-height: 40px; width: auto; padding: 8px 18px; background: #0b2228; color: var(--mint); border: 1px solid var(--mint); border-radius: 10px; box-shadow: none; }
 .journey-card button.swap-direction:hover:not(:disabled) { background: #173a40; }
+
+#source-swap-card [hidden]{display:none!important}
+#source-swap-card .journey-quote{white-space:pre-line;overflow-wrap:anywhere}
+#source-swap-card .source-steps{display:flex;gap:18px;flex-wrap:wrap;margin:20px 0;padding-left:20px;color:var(--muted);font-size:12px}
+#source-swap-card .source-details,#source-swap-card .source-history{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;font-size:13px;color:var(--muted)}
+#source-swap-card summary{cursor:pointer;color:var(--muted)}
+#source-swap-card .balance-detail{overflow-wrap:anywhere;white-space:pre-line}
+#source-swap-card .order{border:1px solid var(--line);border-radius:10px;padding:15px;margin:14px 0;overflow-wrap:anywhere}
+#source-swap-card .order h3{font-family:inherit;font-size:15px}
+#source-swap-card .order p{font-size:12px}
+#source-swap-card .order a,#source-swap-card details a{color:var(--mint)}
+#source-connect{margin:0 0 18px}

@@ -11,13 +11,12 @@ try {
   await page.goto(start.href,{waitUntil:'domcontentloaded'});
   for(const tab of ['buy','bridge','swap']) {
    await page.locator('#nav-'+tab).click();
-   if(tab==='swap')await page.waitForURL('**/preview/trade/index.html*');
    for(let round=0;round<2;round++) {
     await page.reload({waitUntil:'domcontentloaded'});
-    await page.waitForFunction(tab=>tab==='swap'?document.querySelector('#trade-nav [aria-current]')?.textContent==='Swap':document.querySelector('#nav-'+tab)?.getAttribute('aria-current')==='page',tab);
+    await page.waitForFunction(tab=>document.querySelector('#nav-'+tab)?.getAttribute('aria-current')==='page',tab);
     const url=new URL(page.url());
     if(url.searchParams.get('action')!==tab||url.searchParams.get('source')!=='refresh-test'||url.hash!=='#keep')throw Error('VIEW_URL_NOT_PRESERVED');
-    if(await page.locator(tab==='swap'?'#direction':tab==='bridge'?'#asset-picker':`#journey-${tab}-card`).isHidden())throw Error('WRONG_VISIBLE_VIEW');
+    if(await page.locator(tab==='swap'?'#source-swap-card':tab==='bridge'?'#asset-picker':`#journey-${tab}-card`).isHidden())throw Error('WRONG_VISIBLE_VIEW');
    }
   }
   const invalid=new URL(origin);invalid.searchParams.set('action','invalid');

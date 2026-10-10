@@ -26,7 +26,7 @@ try {
     if (await page.locator('#route-from').textContent() !== 'Arc') throw Error(`REVERSE_DIRECTION_${name}`);
     if (await page.locator('#route-from-icon').getAttribute('src') !== originalToIcon || await page.locator('#route-to-icon').getAttribute('src') !== originalFromIcon) throw Error(`REVERSE_ICON_${name}`);
     await page.locator('#nav-swap').click();
-    if (!(await page.locator('#journey-swap-card').isVisible())) throw Error(`SWAP_NAV_${name}`);
+    if (!(await page.locator('#source-swap-card').isVisible())) throw Error(`SWAP_NAV_${name}`);
     await page.locator('#nav-buy').click();
     if (!(await page.locator('#journey-buy-card').isVisible())) throw Error(`BUY_NAV_${name}`);
     await page.waitForTimeout(250);

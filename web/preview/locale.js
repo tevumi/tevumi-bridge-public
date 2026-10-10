@@ -266,6 +266,7 @@ export function translate(value) {
 const sources = new WeakMap();
 const attributes = ['aria-label', 'placeholder', 'content'];
 function updateText(node) {
+  if(node.parentElement?.closest('[data-source-trade]'))return;
   const prior = sources.get(node);
   const original = prior && node.nodeValue === prior.rendered ? prior.original : originalText(node.nodeValue);
   const rendered = language === 'en' ? translate(original) : original;
@@ -286,6 +287,7 @@ function updateAttribute(element, name) {
 function visit(root) {
   if (root.nodeType === Node.TEXT_NODE) { updateText(root); return; }
   if (root.nodeType !== Node.ELEMENT_NODE) return;
+  if(root.closest('[data-source-trade]'))return;
   if (root.matches('script,style')) return;
   for (const name of attributes) updateAttribute(root, name);
   for (const child of root.childNodes) visit(child);
