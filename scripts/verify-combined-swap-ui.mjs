@@ -13,10 +13,10 @@ const browser=await chromium.launch({headless:true}),report=[];
 const hex=n=>'0x'+BigInt(n).toString(16),pad=n=>'0x'+BigInt(n).toString(16).padStart(64,'0');
 const balanceInterface=new Interface(['function balanceOf(address) view returns(uint256)','function allowance(address,address) view returns(uint256)']);
 mkdirSync('.local/combined-swap-ui',{recursive:true});
-try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unknown-reload','save-failure','pause-reload','refresh-pending','double-click']){
+try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unknown-reload','save-failure','pause-reload','refresh-pending','double-click','small-amount']){
  const r=await combinedWalletRig({kind:mode.startsWith('sell')?'sell':'buy',approved:mode==='sell-approved',reject:mode==='reject',unknown:mode==='unknown-reload',pending:['pause-reload','refresh-pending','double-click'].includes(mode)});
  const context=await browser.newContext({viewport:mode==='sell-zh-mobile'?{width:390,height:844}:{width:1440,height:1050}}),page=await context.newPage(),errors=[];
- let orders=[],loginSignatures=0;
+ let orders=[],loginSignatures=0,smallPreviews=0;
  page.on('pageerror',e=>errors.push(e.message));
  await page.exposeFunction('isolatedWallet',async request=>{
   if(request.method==='personal_sign'){loginSignatures++;return '0x'+'1'.repeat(130);}
@@ -38,6 +38,7 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
    }else if(path==='/api/combined/config')data={enabled:true,uiReady:true,deployment:r.deployment};
    else if(path==='/api/combined/preview'){
     const value=req.postDataJSON();createCombinedOrder(value.kind,r.account,value.input,'readonly-ui-preview',r.deployment);
+    if(mode==='small-amount'&&value.input==='0.4'){smallPreviews++;return route.fulfill({status:422,json:{code:'QUOTE_AMOUNT_TOO_SMALL',error:'Amount is too small to cover the estimated transaction fees.'}});}
     data={version:2,previewOnly:true,estimatedReceive:value.kind==='buy'?'101000000000000000000':'2000000',at:Date.now()};
    }else if(path==='/api/combined/verify'){
     const o=orders.find(v=>v.id===req.postDataJSON().id);assert(o);data=r.verify(o);
@@ -73,6 +74,18 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
  if(mode==='sell-zh-mobile')await page.locator('[data-language=zh-CN]').click();
  if(mode.startsWith('sell')){await page.locator('#source-reverse').click();await page.locator('#source-amount').fill('1');}
  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled);
+ if(mode==='small-amount'){
+  await page.locator('#source-amount').fill('0.4');
+  await page.waitForFunction(()=>document.querySelector('#source-message').textContent.includes('Amount is too small'));
+  await page.waitForTimeout(6500);
+  assert.equal(smallPreviews,1,'Insufficient amount must not auto-retry.');
+  assert.equal(orders.length,0);assert.equal(r.counts().financialConfirmations,0);
+  await page.locator('#source-refresh').click();
+  await page.waitForFunction(()=>!document.querySelector('#source-refresh').hidden);
+  assert.equal(smallPreviews,2);assert.equal(orders.length,0,'Manual preview refresh must not save an order.');
+  await page.locator('#source-amount').fill('1');
+  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled);
+ }
  assert.equal(orders.length,0,'Readonly preview must not create a server order.');
  const before=await page.locator('#source-swap-card').innerText();assert(!/Four\.meme|PancakeSwap|LayerZero|0x[0-9a-f]{40}/i.test(before),'Technical execution text must not appear.');
  await page.screenshot({path:`.local/combined-swap-ui/${mode}-ready.png`,fullPage:true});

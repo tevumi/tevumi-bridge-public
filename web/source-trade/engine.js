@@ -55,7 +55,7 @@ export class TradeEngine{
   const app=new Contract(wotrRoutes.current.bsc,candidateAppAbi,this.providers[56]);
   const [fee,price]=await Promise.all([app.quoteSend([30417,'0x'+account.slice(2).padStart(64,'0'),parseEther('1'),parseEther('1'),options,'0x','0x'],false),this.providers[56].send('eth_gasPrice',[])]);
   const reserve=fee.nativeFee*125n/100n+BigInt(price)*4000000n;
-  check(received>reserve,'Funding is too small after the WOTR message fee and BNB gas reserve.');
+  if(received<=reserve)throw Object.assign(Error('Funding is too small after the WOTR message fee and BNB gas reserve.'),{code:'QUOTE_AMOUNT_TOO_SMALL'});
   return {budget:received-reserve,reserve};
  }
  async quote(){
