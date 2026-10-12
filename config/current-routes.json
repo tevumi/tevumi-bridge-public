@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-12",
+  "scope": "Current deployed identities; not an unsigned management plan or a promise of live pause/capacity status",
+  "networks": {
+    "bnb": {
+      "chainId": 56,
+      "layerZeroEid": 30102
+    },
+    "arc": {
+      "chainId": 5042,
+      "layerZeroEid": 30417
+    }
+  },
+  "wotr": {
+    "sourceToken": "0xE2A0CE4bE658Ee9b09E461f5283C718a20984444",
+    "bnbAdapter": "0x7b0036fEC706761864cfBFA72E6Da09da6E61e6B",
+    "arcOft": "0x0FC104231002E1DA57EC5aF516f9CACa6C4F7BfB"
+  },
+  "swap": {
+    "buyAndBridge": "0xee1E4a9497D4E5968F2e010bc1d594D715f22A4B",
+    "sellAndFund": "0xf1F46195495c641A68A46Dee588415a6008d50e0",
+    "arcFunding": "0x791b9691B6b81AdB9F45e89FE828d6E9a4DB4710"
+  },
+  "historicalWotr": {
+    "sourceToken": "0xB97b99cB6DC0EdBB89512e14100B2e9C23132eE5",
+    "bnbAdapter": "0xAC93aA5DFD4dFF9FC57C470FC6C9172F7a9bfbcf",
+    "arcOft": "0x70Cedd901366ad932203BBB08B22DcD4d4510028"
+  }
+}
