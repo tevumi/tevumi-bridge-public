@@ -6,6 +6,8 @@ const STORES = {
   okx: 'https://chromewebstore.google.com/detail/okx-wallet/mcohilncbfahbmgdjkbpemcciiolgcge',
 };
 const SESSION_KEY = 'tevumi:wallet-session:v1';
+const OKX_AVAILABLE = false;
+const walletAllowed = item => OKX_AVAILABLE || brand(item) !== 'okx';
 const addressOk = value => /^0x[0-9a-f]{40}$/i.test(value || '');
 
 const announced = [];
@@ -58,6 +60,7 @@ export function renderWalletButton(button,provider,account,language='en') {
 
 export function rememberWalletSession(choice, account) {
   if (!choice?.provider || !addressOk(account)) return;
+  if (!walletAllowed(choice)) { clearWalletSession(); return; }
   const kind=brand({provider:choice.provider,name:choice.name || '',rdns:choice.rdns || ''});
   sessionStorage.setItem(SESSION_KEY,JSON.stringify({kind,name:choice.name || '',rdns:choice.rdns || '',account}));
 }
@@ -68,10 +71,11 @@ export async function restoreWalletSession() {
   let saved;
   try { saved=JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { clearWalletSession(); return null; }
   if (!saved || !addressOk(saved.account)) return null;
+  if (!OKX_AVAILABLE && (saved.kind === 'okx' || /okx|okex/i.test(`${saved.name || ''} ${saved.rdns || ''}`))) { clearWalletSession(); return null; }
   discoveredWallets();
   await new Promise(resolve=>setTimeout(resolve,200));
   const choices=discoveredWallets().filter((item,index,list)=>list.findIndex(other=>other.provider===item.provider)===index);
-  const matching=choices.filter(item=>saved.rdns ? item.rdns===saved.rdns : saved.kind ? brand(item)===saved.kind : item.name===saved.name);
+  const matching=choices.filter(item=>walletAllowed(item) && (saved.rdns ? item.rdns===saved.rdns : saved.kind ? brand(item)===saved.kind : item.name===saved.name));
   for (const choice of matching) {
     try {
       const accounts=await choice.provider.request({method:'eth_accounts'});
@@ -101,7 +105,7 @@ export async function pickWallet(language='en') {
   const discovered=[...announced,...choices];
   const available=discovered.filter((item,index,list) => list.findIndex(other => other.provider === item.provider) === index);
   const ordered=['metamask','okx'].map(kind => discovered.find(item => brand(item) === kind));
-  const other=available.filter(item => !brand(item));
+  const other=available.filter(item => walletAllowed(item) && !brand(item));
   const modal = walletDialog();
   modal.replaceChildren();
   const head = document.createElement('div'); head.className='tevumi-wallet-head';
@@ -120,13 +124,15 @@ export async function pickWallet(language='en') {
   for (const [index,kind] of ['metamask','okx'].entries()) {
     const item=ordered[index];
     const row=document.createElement('div'); row.className='tevumi-wallet-row';
-    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=!item;
+    const paused=kind==='okx' && !OKX_AVAILABLE;
+    row.classList.toggle('is-paused',paused);
+    const option=document.createElement('button'); option.type='button'; option.className='tevumi-wallet-option'; option.disabled=paused || !item;
     const emblem=document.createElement('span'); emblem.className=`tevumi-wallet-emblem ${kind}`; emblem.setAttribute('aria-hidden','true'); emblem.innerHTML=kind==='metamask'?WalletBrandedMetamask.default:WalletBrandedOkx.default;
     const copy=document.createElement('span'); copy.className='tevumi-wallet-copy';
     const name=document.createElement('strong'); name.textContent=kind==='metamask'?'MetaMask':'OKX Wallet';
-    const state=document.createElement('small'); state.textContent=item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
+    const state=document.createElement('small'); state.textContent=paused ? (zh?'暂不可用':'Currently unavailable') : item ? (zh?'已检测到 · 点击连接':'Detected · connect') : (zh?'未检测到插件':'Extension not detected');
     copy.append(name,state); option.append(emblem,copy);
-    if (item) option.onclick=()=>finish({provider:item.provider,name:name.textContent,rdns:item.rdns});
+    if (item && !paused) option.onclick=()=>finish({provider:item.provider,name:name.textContent,rdns:item.rdns});
     const install=document.createElement('a'); install.href=STORES[kind]; install.target='_blank'; install.rel='noopener noreferrer'; install.textContent=zh?'Chrome 商店 ↗':'Chrome Web Store ↗'; install.setAttribute('aria-label',`${name.textContent} · Chrome Web Store`);
     row.append(option,install); rows.append(row);
   }

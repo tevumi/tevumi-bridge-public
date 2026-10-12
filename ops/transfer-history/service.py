@@ -18,7 +18,7 @@ import operation_results
 import sell_history
 from types import SimpleNamespace
 
-DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', '/var/lib/tevumi/transfer-history.sqlite3')
+DB_PATH = os.environ.get('TEVUMI_HISTORY_DB', os.path.join(os.getcwd(), '.local', 'transfer-history.sqlite3'))
 HOST = os.environ.get('TEVUMI_HISTORY_HOST', '127.0.0.1')
 PORT = int(os.environ.get('TEVUMI_HISTORY_PORT', '8765'))
 RPC = {
