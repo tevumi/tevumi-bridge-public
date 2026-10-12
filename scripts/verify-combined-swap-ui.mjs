@@ -13,10 +13,10 @@ const browser=await chromium.launch({headless:true}),report=[];
 const hex=n=>'0x'+BigInt(n).toString(16),pad=n=>'0x'+BigInt(n).toString(16).padStart(64,'0');
 const balanceInterface=new Interface(['function balanceOf(address) view returns(uint256)','function allowance(address,address) view returns(uint256)']);
 mkdirSync('.local/combined-swap-ui',{recursive:true});
-try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unknown-reload','save-failure','pause-reload','refresh-pending','double-click','small-amount']){
+try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unknown-reload','save-failure','pause-reload','refresh-pending','double-click','small-amount','preview-efficiency','rate-backoff']){
  const r=await combinedWalletRig({kind:mode.startsWith('sell')?'sell':'buy',approved:mode==='sell-approved',reject:mode==='reject',unknown:mode==='unknown-reload',pending:['pause-reload','refresh-pending','double-click'].includes(mode)});
  const context=await browser.newContext({viewport:mode==='sell-zh-mobile'?{width:390,height:844}:{width:1440,height:1050}}),page=await context.newPage(),errors=[];
- let orders=[],loginSignatures=0,smallPreviews=0;
+ let orders=[],loginSignatures=0,smallPreviews=0,previewCalls=0;
  page.on('pageerror',e=>errors.push(e.message));
  await page.exposeFunction('isolatedWallet',async request=>{
   if(request.method==='personal_sign'){loginSignatures++;return '0x'+'1'.repeat(130);}
@@ -37,6 +37,7 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
     }
    }else if(path==='/api/combined/config')data={enabled:true,uiReady:true,deployment:r.deployment};
    else if(path==='/api/combined/preview'){
+    previewCalls++;if(mode==='rate-backoff')return route.fulfill({status:429,json:{code:'RATE_LIMITED',retryAfter:120,error:'Quotes temporarily busy.'}});
     const value=req.postDataJSON();createCombinedOrder(value.kind,r.account,value.input,'readonly-ui-preview',r.deployment);
     if(mode==='small-amount'&&value.input==='0.4'){smallPreviews++;return route.fulfill({status:422,json:{code:'QUOTE_AMOUNT_TOO_SMALL',error:'Amount is too small to cover the estimated transaction fees.'}});}
     data={version:2,previewOnly:true,estimatedReceive:value.kind==='buy'?'101000000000000000000':'2000000',at:Date.now()};
@@ -73,7 +74,20 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
  if(await page.locator('#source-connect').isVisible())await page.locator('#source-connect').click();
  if(mode==='sell-zh-mobile')await page.locator('[data-language=zh-CN]').click();
  if(mode.startsWith('sell')){await page.locator('#source-reverse').click();await page.locator('#source-amount').fill('1');}
+ if(mode==='rate-backoff'){
+  await page.waitForFunction(()=>document.querySelector('#source-message').textContent.includes('temporarily busy'));
+  assert.equal(previewCalls,1);await page.locator('#source-refresh').click();
+  await page.locator('#source-amount').fill('2');await page.waitForTimeout(6500);
+  assert.equal(previewCalls,1,'Input and manual refresh must obey the rate-limit wait.');assert.equal(orders.length,0);assert.equal(r.counts().financialConfirmations,0);
+  report.push({mode,passed:true,previewCalls,...r.counts()});console.log(JSON.stringify(report.at(-1)));await context.close();continue;
+ }
  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled);
+ if(mode==='preview-efficiency'){
+  assert.equal(previewCalls,1);for(const value of ['1.1','1.2','1.3'])await page.locator('#source-amount').fill(value);
+  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled);assert.equal(previewCalls,2,'Typing only requests the final amount.');
+  await page.locator('#nav-buy').click();await page.waitForTimeout(6500);assert.equal(previewCalls,2,'Other product tabs do not fetch Swap previews.');
+  await page.locator('#nav-swap').click();await page.waitForTimeout(1000);assert.equal(previewCalls,2,'Returning within the valid quote window reuses the preview.');
+ }
  if(mode==='small-amount'){
   await page.locator('#source-amount').fill('0.4');
   await page.waitForFunction(()=>document.querySelector('#source-message').textContent.includes('Amount is too small'));
