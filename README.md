@@ -33,7 +33,7 @@ All four pages display history from server records. Browser journals are only fo
 
 MetaMask and OKX Wallet are offered when detected. English and Chinese share behavior and the saved language preference. Wallet warnings are not bypassed. Users sign their own transactions; neither a session-login signature nor a server quote authorization replaces wallet approval of a payment.
 
-The live WOTR bridge uses ImmediateAdmin with EOA management. Safe/timelock contracts in this repository are candidate implementations, not the deployed governance. The funding entrances pin their router, destination and quote authorization identity. This design does not imply multisig custody or an external audit. Frontend policy adds no arbitrary quantity/frequency cap; balances, shared precision, gas, contract capacity and pause state still apply.
+The live WOTR bridge uses ImmediateAdmin with EOA management. It does not use Safe/timelock governance. Separate governance candidates and earlier timelock deployment records are not the current bridge configuration. The funding entrances pin their router, destination and quote authorization identity. This design does not imply multisig custody or an external audit. Frontend policy adds no arbitrary quantity/frequency cap; balances, shared precision, gas, contract capacity and pause state still apply.
 
 ## Stack and code
 
