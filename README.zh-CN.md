@@ -68,7 +68,7 @@ npm run compile
 node --test test/swap-buy-and-bridge.test.mjs test/swap-sell-and-fund.test.mjs
 ```
 
-产品产物为dist-home。通过npx vite --config vite.home.config.js查看前端，连接钱包后的真实功能需兼容的同源服务器。测试只用隔离钱包，不广播。npm run dev是较早开发应用，不是线上四页产品；独立source-trade开发入口保留旧流程，不能自动启用已部署的两段后台。
+产品产物为dist-home。通过npx vite --config vite.home.config.js --host 127.0.0.1 --port 5294 --strictPort启动，打开http://127.0.0.1:5294/preview/web/preview/index.html?action=buy（可换action=bridge或swap）；USDC页路径为/preview/web/preview/usdc/index.html。终端默认/preview/会404，不是源码页面入口。该配置没有生产API代理，连接钱包后的真实功能需兼容的同源服务器。测试只用隔离钱包，不广播。npm run dev是较早开发应用，不是线上四页产品；独立source-trade开发入口保留旧流程，不能自动启用已部署的两段后台。
 
 公开仓库包含逐项筛查的前端、通用合约与可复现测试，不包含生产签署身份、后台部署配置或内部资料，也不是私有Git历史的镜像。
 

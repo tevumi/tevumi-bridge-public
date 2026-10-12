@@ -70,7 +70,7 @@ npm run compile
 node --test test/swap-buy-and-bridge.test.mjs test/swap-sell-and-fund.test.mjs
 ```
 
-The product build is in `dist-home`. Review the frontend with `npx vite --config vite.home.config.js`; wallet-connected live functionality requires compatible same-origin services. Local tests use disposable wallets and do not broadcast. `npm run dev` starts a separate earlier development application; it is not the production four-page site. The standalone source-trade dev entry is retained for the legacy workflow and does not enable the deployed combined backend automatically.
+The product build is in `dist-home`. Review the frontend with `npx vite --config vite.home.config.js --host 127.0.0.1 --port 5294 --strictPort`, then open `http://127.0.0.1:5294/preview/web/preview/index.html?action=buy` (or `action=bridge` / `action=swap`). The independent USDC page is `/preview/web/preview/usdc/index.html`. The printed `/preview/` root is not the source entry and returns 404. This Vite configuration does not proxy production APIs; wallet-connected live functionality requires compatible same-origin services. Local tests use disposable wallets and do not broadcast. `npm run dev` starts a separate earlier development application; it is not the production four-page site. The standalone source-trade dev entry is retained for the legacy workflow and does not enable the deployed combined backend automatically.
 
 This public snapshot contains selected frontend, contracts and reproducible tests. Signing credentials, backend deployment configuration and internal operations/evidence are excluded. It is an independent reviewed snapshot, not a mirror of private Git history.
 
