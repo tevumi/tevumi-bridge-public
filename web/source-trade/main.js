@@ -53,7 +53,7 @@ async function persist(o){
 const makeEngine=o=>new (o?.version===2?CombinedTradeEngine:TradeEngine)({providers,api,persist,onChange:()=>render()});
 let engine=makeEngine(null);
 const newOrder=(kind,who,input)=>combinedDeployment?createCombinedOrder(kind,who,input,crypto.randomUUID(),combinedDeployment):createOrder(kind,who,input,crypto.randomUUID());
-function clearQuote(){lastPreviewActivity=Date.now();previewRequest?.abort();quote=null;quoteVersion++;previewing=false;previewRetryAt=0;render();schedulePreview();}
+function clearQuote(){if(order&&['COMPLETED','CANCELLED'].includes(order.state)&&!working&&!flow){selectOrder(null);message('','');}lastPreviewActivity=Date.now();previewRequest?.abort();quote=null;quoteVersion++;previewing=false;previewRetryAt=0;render();schedulePreview();}
 function active(){return orders.find(o=>o.account.toLowerCase()===account?.toLowerCase()&&!['COMPLETED','CANCELLED'].includes(o.state));}
 function selectOrder(o){order=o?JSON.parse(stringify(o)):o;quote=null;quoteVersion++;previewing=false;previewRetryAt=0;engine=makeEngine(order);if(o){engine.setOrder(order);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
 async function balances(){
@@ -115,7 +115,7 @@ function render(){
  $('note').textContent=text('Real mainnet transactions. LI.FI funds the BNB market; LayerZero bridges WOTR. There is no Arc WOTR pool and no guaranteed end-to-end price or time. Funding slippage is 0.5%; source trade slippage is 1%. Gas and token message fees are additional. Residual BNB and sub-6-decimal WOTR stay in your wallet.','真实主网交易。LI.FI 转移资金，LayerZero 跨链 WOTR；不使用 Arc WOTR 池，不保证全流程价格或完成时间。资金跨链滑点 0.5%，源链交易滑点 1%。Gas 和代币消息费另计；预留 BNB 和不足六位小数的 WOTR 尾数留在钱包。');
  const index=order?progress(order,engine.results):0;
  $('steps').replaceChildren(...legs(order||$('direction').value).map((key,i)=>{const li=document.createElement('li');li.textContent=tr[key]()+(i<index?text(' · verified',' · 已核验'):i===index?text(' · next',' · 下一步'):'');return li;}));
- $('direction').disabled=Boolean(order)||working;$('amount').disabled=Boolean(order)||working;
+ $('direction').disabled=Boolean(order&&order.state==='OPEN')||working;$('amount').disabled=Boolean(order&&order.state==='OPEN')||working;
  $('refresh').disabled=!account||!restored||working||order?.state==='COMPLETED';$('send').disabled=!quote||working||!restored||order?.state==='COMPLETED'||Date.now()-quote.at>60000;
  $('check').disabled=!order||checking||working;$('connect').disabled=working;$('next').disabled=working||Boolean(order&&order.state!=='COMPLETED');$('cancel').disabled=!order||working||order.transactions.some(t=>t.state!=='REJECTED');
  renderQuote();renderOrders();
@@ -126,7 +126,7 @@ function renderEmbedded(){
  $('heading').textContent=text(`Swap ${input} for ${output} on Arc`,`在 Arc 将 ${input} 兑换为 ${output}`);
  $('intro').hidden=true;$('account').hidden=true;$('steps').hidden=true;$('quote').hidden=true;
  $('amount-label').textContent=text(`You sell · ${input}`,`卖出 · ${input}`);
- $('connect').hidden=!account||restored;$('next').hidden=!order||order.state!=='COMPLETED';$('cancel').hidden=true;
+ $('connect').hidden=!account||restored;$('next').hidden=true;$('cancel').hidden=true;
  host.querySelector('#source-input-token').textContent=input;host.querySelector('#source-input-symbol').textContent='Arc';host.querySelector('#source-output-token').textContent=output;
  host.querySelector('#source-output-label').textContent=text('Estimated receive','预计收到');
  $('orders-heading').textContent=text('Transaction history','交易记录');
@@ -140,7 +140,7 @@ function renderEmbedded(){
  host.querySelector('#source-usdc-link').textContent=text('Bridge USDC ↗','跨链 USDC ↗');
  $('refresh').hidden=!account||!restored||working||previewing||Boolean(quote)||order?.state==='COMPLETED';
  $('send').hidden=order?.state==='COMPLETED';
- const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order)||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
+ const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order&&order.state==='OPEN')||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
  let amount,decimals=buy?18:6;
  if(order?.state==='COMPLETED')amount=engine.results[legs(order).length-1]?.destination?.received;
  else if(quote?.estimatedReceive)amount=quote.estimatedReceive;
@@ -269,7 +269,7 @@ $('next').onclick=()=>run(async()=>{if(order)await verify();if(order&&order.stat
 $('cancel').onclick=()=>run(async()=>{if(order.transactions.some(t=>t.state!=='REJECTED'))throw Error('Submitted or uncertain transactions cannot be cancelled here.');order.state='CANCELLED';await persist(order);selectOrder(null);});
 $('export').onclick=()=>{const a=document.createElement('a'),url=URL.createObjectURL(new Blob([stringify(orders)],{type:'application/json'}));a.href=url;a.download='tevumi-source-trade-orders-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);};
 if(embedded){
- host.querySelector('#source-reverse').onclick=()=>{if(order||working)return;$('direction').value=$('direction').value==='buy'?'sell':'buy';$('direction').dispatchEvent(new Event('change'));};
+ host.querySelector('#source-reverse').onclick=()=>{if(order&&order.state==='OPEN'||working)return;$('direction').value=$('direction').value==='buy'?'sell':'buy';$('direction').dispatchEvent(new Event('change'));};
 }else if(production){
  lang=sessionStorage.getItem('tevumi:trade-language')==='zh-CN'?'zh-CN':'en';
  void restoreWalletSession().then(async choice=>{if(!choice)return;useWallet(choice,choice.account);render();void balances();try{await restore();selectOrder(active());if(order)await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}schedulePreview();}).catch(e=>{$('message').textContent=explain(e);});

@@ -138,12 +138,24 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
   await page.waitForFunction(()=>document.querySelector('#source-orders').textContent.includes('Completed')||document.querySelector('#source-orders').textContent.includes('已完成'),{},{timeout:25000});
   assert.equal(r.counts().financialConfirmations,mode==='sell-zh-mobile'?3:2);assert.equal(orders[0].state,'COMPLETED');
   assert(await page.locator('#source-send').isHidden(),'A completed order must not offer another Continue action.');
+  assert(await page.locator('#source-next').isHidden(),'No separate next-order button below history.');
+  assert(await page.locator('#source-amount').isEnabled());assert(await page.locator('#source-reverse').isEnabled());
   assert.notEqual(await page.locator('#source-output').textContent(),'—');
  }
  if(mode==='sell-zh-mobile'){
   await page.screenshot({path:'.local/combined-swap-ui/sell-zh-mobile-completed.png',fullPage:true});
   await page.reload();await page.waitForFunction(()=>document.documentElement.lang==='zh-CN'&&document.querySelector('#source-orders').textContent.includes('已完成'));
   assert.equal(r.counts().financialConfirmations,3);
+ }
+ if(['buy-en','sell-approved'].includes(mode)){
+  const confirmations=r.counts().financialConfirmations;
+  await page.locator('#source-amount').fill('2');
+  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled&&!document.querySelector('#source-send').hidden);
+  assert.equal(orders.length,1,'Editing a finished form only obtains a preview.');assert.equal(orders[0].state,'COMPLETED');
+  assert.equal(r.counts().financialConfirmations,confirmations,'Editing cannot resend a completed payment.');
+  await page.locator('#source-reverse').click();
+  await page.waitForFunction(()=>!document.querySelector('#source-send').disabled);
+  assert.equal(orders.length,1);assert.equal(r.counts().financialConfirmations,confirmations);assert(await page.locator('#source-next').isHidden());
  }
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  assert.deepEqual(errors,[]);await page.screenshot({path:`.local/combined-swap-ui/${mode}-result.png`,fullPage:true});
