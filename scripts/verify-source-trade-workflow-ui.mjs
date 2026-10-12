@@ -37,7 +37,8 @@ try{for(const mode of ['buy-en','sell-zh-mobile','pause-reload','reject','unknow
  await page.route('**/engine.js*',route=>route.fulfill({contentType:'application/javascript',body:stub}));
  await page.route('**/api/**',async route=>{
   const url=new URL(route.request().url());let result;
-  if(url.pathname==='/api/orders'){if(route.request().method()==='GET')result=orders;else{const o=route.request().postDataJSON();assertJournalUpdate(orders.find(v=>v.id===o.id),o);orders=orders.filter(v=>v.id!==o.id);orders.unshift(o);result={saved:true};}}
+  if(url.pathname==='/api/combined/config')result={enabled:false};
+  else if(url.pathname==='/api/orders'){if(route.request().method()==='GET')result=orders;else{const o=route.request().postDataJSON();assertJournalUpdate(orders.find(v=>v.id===o.id),o);orders=orders.filter(v=>v.id!==o.id);orders.unshift(o);result={saved:true};}}
   else if(url.pathname.startsWith('/api/rpc/')){const r=route.request().postDataJSON();result={jsonrpc:'2.0',id:r.id,result:r.method==='eth_chainId'?'0x'+Number(url.pathname.split('/').pop()).toString(16):r.method==='eth_getBalance'?'0x56bc75e2d63100000':'0x'+'0'.repeat(64)};}
   else throw Error('Unexpected intercepted API '+url.pathname);
   await route.fulfill({json:result});

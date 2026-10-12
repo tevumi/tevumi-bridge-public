@@ -14,7 +14,7 @@ const contractAbi=['function allowance(address,address) view returns(uint256)','
 const serialize=v=>JSON.parse(stringify(v));
 export class TradeEngine{
  constructor({providers,api,persist,onChange=()=>{}}){Object.assign(this,{providers,api,persist,onChange});this.results={};this.order=null;this.running=false;}
- setOrder(order){this.order=validateOrder(order);this.results={};}
+ setOrder(order){validateOrder(order);check(order.version===1,'This order requires its original combined execution engine.');this.order=order;this.results={};}
  async save(){await this.persist(this.order);this.onChange();}
  async verify(){
   check(this.order,'No order selected.');validateOrder(this.order);this.results={};

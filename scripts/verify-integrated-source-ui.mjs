@@ -20,7 +20,8 @@ try{for(const mode of ['quote','reject','unknown-reload','mobile-zh','save-failu
  await page.addInitScript(corrupt=>{if(corrupt)localStorage.setItem('tevumi:source-trade:orders:v1','{broken');const provider={isMetaMask:true,on(){},request:async req=>{const r=await window.testWallet(req);if(r?.error)throw Object.assign(Error('Synthetic wallet rejection'),{code:r.error});return r;}};window.ethereum=provider;window.addEventListener('eip6963:requestProvider',()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{name:'MetaMask',rdns:'io.metamask'},provider}})));},mode==='journal-corrupt');
  await page.route('**/api/**',async route=>{ if(embedded&&!new URL(route.request().url()).pathname.startsWith('/api/source-trade/')){await route.abort();return;}
   const url=new URL(route.request().url());url.pathname=url.pathname.replace('/api/source-trade/','/api/');let result;
-  if(url.pathname==='/api/auth/challenge')result={id:'synthetic-challenge',message:'Synthetic wallet login only.'};
+  if(url.pathname==='/api/combined/config')result={enabled:false};
+  else if(url.pathname==='/api/auth/challenge')result={id:'synthetic-challenge',message:'Synthetic wallet login only.'};
   else if(url.pathname==='/api/auth/login'){signed=true;result={account:user};}
   else if(url.pathname==='/api/orders'){
    if(embedded&&!signed){await route.fulfill({status:401,json:{error:'Sign in required'}});return;}

@@ -2,7 +2,8 @@ import {historyWrite,saveOutcome} from '../preview/server-history.js';
 import {JsonRpcProvider,Contract,parseUnits,formatUnits,formatEther,hexlify,toUtf8Bytes} from 'ethers';
 import {pickWallet,rememberWalletSession,restoreWalletSession,clearWalletSession} from '../preview/wallet-picker.js';
 import {TradeEngine} from './engine.js';
-import {createOrder,validateOrder,legs,progress,stringify} from './order.js';
+import {CombinedTradeEngine} from './combined-engine.js';
+import {createOrder,createCombinedOrder,validateOrder,legs,progress,stringify} from './order.js';
 import {wotrRoutes} from '../src/wotr-routes.js';
 import {hashValid} from './proofs.js';
 import {continueTrade,waitingForProof} from './workflow.js';
@@ -14,10 +15,12 @@ const apiPath=path=>production?path.replace(/^\/api\//,'/api/source-trade/'):pat
 const providers=Object.fromEntries([56,5042].map(chain=>[chain,new JsonRpcProvider(location.origin+apiPath('/api/rpc/'+chain),chain,{batchMaxCount:1,cacheTimeout:-1})]));
 let lang='en',wallet,account,orders=[],reportedOrders=[],order,quote,working=false,restored=false,quoteVersion=0,checking=false;
 let flow,previewTimer,previewing=false;
+let combinedDeployment=null;
 const text=(en,zh)=>lang==='en'?en:zh;
 const tr={funding:()=>embedded?text('Payment','付款'):text('Move funds','资金跨链'),buy:()=>embedded?text('Exchange','兑换'):text('Buy on BNB Chain','在 BNB Chain 买入'),sell:()=>embedded?text('Exchange','兑换'):text('Sell on BNB Chain','在 BNB Chain 卖出'),bridge:()=>embedded?text('Arrival','到账'):text('Bridge WOTR','WOTR 跨链'),approval:()=>text('Approve this exact amount','授权本次数量')};
+tr.buybridge=()=>text('Exchange','兑换');tr.sellfunding=()=>text('Exchange','兑换');
 let cacheKey='tevumi:source-trade:orders:v1';
-const api=async(path,init)=>{const response=await fetch(apiPath(path),{...init,signal:AbortSignal.timeout(55000)});const data=await response.json();if(!response.ok)throw Error(response.status===401?text('Connect and sign in to recover your orders. The signature does not transfer funds.','请连接并签名登录以恢复订单；此签名不转移资产。'):data.error||'Order service unavailable.');return data;};
+const api=async(path,init)=>{const response=await fetch(apiPath(path),{...init,signal:AbortSignal.timeout(55000)});const data=await response.json();if(!response.ok)throw Object.assign(Error(response.status===401?text('Connect and sign in to recover your orders. The signature does not transfer funds.','请连接并签名登录以恢复订单；此签名不转移资产。'):data.error||'Order service unavailable.'),{code:data.code,status:response.status});return data;};
 async function signIn(){
  if(!production)return;
  const challenge=await api('/api/auth/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account})});
@@ -47,10 +50,12 @@ async function persist(o){
  }catch(e){o.revision=oldRevision;restored=false;throw e;}
  render();
 }
-const engine=new TradeEngine({providers,api,persist,onChange:()=>render()});
+const makeEngine=o=>new (o?.version===2?CombinedTradeEngine:TradeEngine)({providers,api,persist,onChange:()=>render()});
+let engine=makeEngine(null);
+const newOrder=(kind,who,input)=>combinedDeployment?createCombinedOrder(kind,who,input,crypto.randomUUID(),combinedDeployment):createOrder(kind,who,input,crypto.randomUUID());
 function clearQuote(){quote=null;quoteVersion++;previewing=false;render();schedulePreview();}
 function active(){return orders.find(o=>o.account.toLowerCase()===account?.toLowerCase()&&!['COMPLETED','CANCELLED'].includes(o.state));}
-function selectOrder(o){order=o?JSON.parse(stringify(o)):o;quote=null;quoteVersion++;previewing=false;engine.results={};if(o){engine.setOrder(order);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
+function selectOrder(o){order=o?JSON.parse(stringify(o)):o;quote=null;quoteVersion++;previewing=false;engine=makeEngine(order);if(o){engine.setOrder(order);$('direction').value=o.kind;$('amount').value=formatUnits(o.input,6);}render();}
 async function balances(){
  if(!account)return;const who=account;
  try{
@@ -62,6 +67,7 @@ async function balances(){
 function renderQuote(){
  if(embedded){$('quote').textContent='';return;}
  if(!quote){$('quote').textContent=text('Refresh the quote for the next step.','刷新下一步的报价。');return;}
+ if(order?.version===2||quote.previewOnly){$('quote').textContent=text('Review the estimated receive before confirming.','确认前请核对预计收到的数量。');return;}
  const q=quote;let lines=[text(`Step ${q.leg+1}: ${tr[q.kind]()}`,`第 ${q.leg+1} 步：${tr[q.kind]()}`)];
  if(q.kind==='funding'){
   const d=q.chain===5042?6:18,out=q.targetChain===5042?6:18;
@@ -107,10 +113,10 @@ function render(){
  $('orders-heading').textContent=text('Orders','订单');$('export').textContent=text('Export records','导出记录');
  $('recovery-note').textContent=text('Arrival checks resume automatically after refresh. Further wallet requests require Continue exchange. Pausing does not cancel a submitted transaction. Keep the original order and journal.','刷新后自动恢复到账核验；继续钱包操作需要点击「继续兑换」。暂停不撤销已提交交易，请保留原订单与记录。');
  $('note').textContent=text('Real mainnet transactions. LI.FI funds the BNB market; LayerZero bridges WOTR. There is no Arc WOTR pool and no guaranteed end-to-end price or time. Funding slippage is 0.5%; source trade slippage is 1%. Gas and token message fees are additional. Residual BNB and sub-6-decimal WOTR stay in your wallet.','真实主网交易。LI.FI 转移资金，LayerZero 跨链 WOTR；不使用 Arc WOTR 池，不保证全流程价格或完成时间。资金跨链滑点 0.5%，源链交易滑点 1%。Gas 和代币消息费另计；预留 BNB 和不足六位小数的 WOTR 尾数留在钱包。');
- const index=order?progress(order.kind,engine.results):0;
- $('steps').replaceChildren(...legs(order?.kind||$('direction').value).map((key,i)=>{const li=document.createElement('li');li.textContent=tr[key]()+(i<index?text(' · verified',' · 已核验'):i===index?text(' · next',' · 下一步'):'');return li;}));
+ const index=order?progress(order,engine.results):0;
+ $('steps').replaceChildren(...legs(order||$('direction').value).map((key,i)=>{const li=document.createElement('li');li.textContent=tr[key]()+(i<index?text(' · verified',' · 已核验'):i===index?text(' · next',' · 下一步'):'');return li;}));
  $('direction').disabled=Boolean(order)||working;$('amount').disabled=Boolean(order)||working;
- $('refresh').disabled=!account||!restored||working||order?.state==='COMPLETED';$('send').disabled=!quote||working||!restored||Date.now()-quote.at>60000;
+ $('refresh').disabled=!account||!restored||working||order?.state==='COMPLETED';$('send').disabled=!quote||working||!restored||order?.state==='COMPLETED'||Date.now()-quote.at>60000;
  $('check').disabled=!order||checking||working;$('connect').disabled=working;$('next').disabled=working||Boolean(order&&order.state!=='COMPLETED');$('cancel').disabled=!order||working||order.transactions.some(t=>t.state!=='REJECTED');
  renderQuote();renderOrders();
  if(embedded)renderEmbedded();
@@ -133,9 +139,11 @@ function renderEmbedded(){
  host.querySelector('#source-usdc-copy').textContent=text('Choose a destination and review a live quote. Nothing moves until you confirm in your wallet.','选择目标链并查看 实时报价。只有在钱包确认后才会转移资产。');
  host.querySelector('#source-usdc-link').textContent=text('Bridge USDC ↗','跨链 USDC ↗');
  $('refresh').hidden=!account||!restored||working||previewing||Boolean(quote)||order?.state==='COMPLETED';
+ $('send').hidden=order?.state==='COMPLETED';
  const reverse=host.querySelector('#source-reverse');reverse.textContent=`⇄ ${input} → ${output}`;reverse.disabled=Boolean(order)||working;reverse.setAttribute('aria-label',text('Reverse swap direction','反转兑换方向'));
  let amount,decimals=buy?18:6;
- if(order?.state==='COMPLETED')amount=engine.results[2]?.destination?.received;
+ if(order?.state==='COMPLETED')amount=engine.results[legs(order).length-1]?.destination?.received;
+ else if(quote?.estimatedReceive)amount=quote.estimatedReceive;
  else if(buy)amount=quote?.preview?.estimatedArcWotr||(quote?.kind==='buy'?quote.quote.out:quote?.kind==='bridge'?quote.amount:null);
  else amount=quote?.returnPreview?.estimate?.toAmount||quote?.preview?.estimate?.toAmount||(quote?.kind==='funding'?quote.quote.estimate.toAmount:null);
  host.querySelector('#source-output').textContent=amount?Number(formatUnits(amount,decimals)).toLocaleString(lang==='en'?'en-US':'zh-CN',{maximumFractionDigits:6}):'—';
@@ -174,7 +182,7 @@ function renderOrders(){
    if(t.proof?.gas&&!embedded){const fee=document.createElement('p');fee.textContent=text('Actual source gas: ','实际来源链 Gas：')+formatEther(t.proof.gas)+(t.chain===56?' BNB':' USDC');card.append(fee);}
    if(t.proof?.destination&&!embedded){const d=t.proof.destination,p=document.createElement('p');p.textContent=text('Verified arrival: ','已核验到账：')+formatUnits(d.received,t.kind==='funding'&&t.targetChain===5042?6:18)+(t.kind==='bridge'?' WOTR':t.targetChain===5042?' USDC':' BNB');p.append(document.createElement('br'),txLink(t.targetChain,d.hash));card.append(p);}
    if(o.id===order?.id&&t.state!=='REJECTED'&&!t.hash){const input=document.createElement('input');input.placeholder=text('Original transaction hash from wallet activity','从钱包活动获取原交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Recover original hash','恢复原哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter the full original transaction hash.');t.hash=input.value.trim();t.state='SUBMITTED';await persist(o);await verify();});card.append(input,button);}
-   if(o.id===order?.id&&t.kind==='bridge'&&t.hash&&!t.proof?.destination){const input=document.createElement('input');input.placeholder=text('Destination hash if arrival indexing is unavailable','若到账索引不可用，填写目标交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Verify destination hash','核验目标哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter a full destination hash.');t.destinationHash=input.value.trim();await persist(o);await verify();});card.append(input,button);}
+   if(o.id===order?.id&&['bridge','buybridge'].includes(t.kind)&&t.hash&&!t.proof?.destination){const input=document.createElement('input');input.placeholder=text('Destination hash if arrival indexing is unavailable','若到账索引不可用，填写目标交易哈希');input.style.fontSize='14px';const button=document.createElement('button');button.textContent=text('Verify destination hash','核验目标哈希');button.onclick=()=>run(async()=>{if(!hashValid(input.value.trim()))throw Error('Enter a full destination hash.');t.destinationHash=input.value.trim();await persist(o);await verify();});card.append(input,button);}
   }
   $('orders').append(card);
  }
@@ -187,9 +195,12 @@ async function preview(){
  if(!account||!restored||order||working||previewing)return;
  const version=++quoteVersion,who=account;previewing=true;render();
  try{
-  const candidate=createOrder($('direction').value,who,$('amount').value.trim(),crypto.randomUUID());
-  const reader=new TradeEngine({providers,api,persist:async()=>{throw Error('Preview cannot write an order.');}});reader.setOrder(candidate);
-  const result=await reader.quote();
+  let result;
+  if(combinedDeployment)result=await api('/api/combined/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify({kind:$('direction').value,input:$('amount').value.trim()})});
+  else{
+   const candidate=createOrder($('direction').value,who,$('amount').value.trim(),crypto.randomUUID());
+   const reader=new TradeEngine({providers,api,persist:async()=>{throw Error('Preview cannot write an order.');}});reader.setOrder(candidate);result=await reader.quote();
+  }
   if(version===quoteVersion&&account===who&&!order){quote=result;message('','');}
  }catch(e){if(version===quoteVersion&&!order)$('message').textContent=explain(e);}
  finally{if(version===quoteVersion){previewing=false;render();}}
@@ -226,14 +237,16 @@ async function restore(){
   if(o.revision===remote.revision+1){await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(o)});}
   else if(o.revision>remote.revision)throw Error('Journal revisions disagree. Preserve both copies for recovery.');
  }
- orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);localStorage.setItem(cacheKey,stringify(orders));restored=true;void loadReported();render();
+ orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);localStorage.setItem(cacheKey,stringify(orders));
+ try{const config=await api('/api/combined/config');combinedDeployment=config.enabled&&config.uiReady?config.deployment:null;}catch{combinedDeployment=null;}
+ restored=true;void loadReported();render();
 }
 $('connect').onclick=()=>run(async()=>{if(embedded){if(!account){document.getElementById('header-connect').click();return;}await signIn();await restore();selectOrder(active());void balances();if(order)await verify();return;}if(!production)await restore();const choice=await pickWallet(lang==='en'?'en':'zh-CN');if(!choice)return;const [who]=await choice.provider.request({method:'eth_requestAccounts'});orders=[];reportedOrders=[];restored=false;selectOrder(null);useWallet(choice,who);await signIn();await restore();selectOrder(active());await balances();if(order)try{await verify();}catch(e){if(waitingForProof(e))flowStatus('waiting');else $('message').textContent=explain(e);}}).then(schedulePreview);
 $('language').onclick=()=>{lang=lang==='en'?'zh-CN':'en';if(production)sessionStorage.setItem('tevumi:trade-language',lang);render();};
 $('direction').onchange=()=>{clearQuote();$('amount').value=$('direction').value==='buy'?'1':'1000';render();};$('amount').oninput=clearQuote;
 $('refresh').onclick=()=>run(async()=>{
  quoteVersion++;previewing=false;
- if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
+ if(!order){const next=newOrder($('direction').value,account,$('amount').value.trim());await persist(next);selectOrder(next);}
  const version=++quoteVersion,who=account;
  const result=await engine.quote();if(version!==quoteVersion||account!==who)return;quote=result;message('','');
 });
@@ -241,8 +254,8 @@ $('send').onclick=()=>run(async()=>{
  const selected=quote;if(!selected)return;quote=null;quoteVersion++;previewing=false;
  flow=new AbortController();render();
  try{await withOrderLock(async()=>{
-  if(!order){const next=createOrder($('direction').value,account,$('amount').value.trim(),crypto.randomUUID());await persist(next);selectOrder(next);}
-  await continueTrade({engine,wallet,firstQuote:selected,signal:flow.signal,onQuote:q=>{quote=q;render();},onStatus:flowStatus});
+  if(!order){const next=newOrder($('direction').value,account,$('amount').value.trim());await persist(next);selectOrder(next);}
+  await continueTrade({engine,wallet,firstQuote:selected.previewOnly||order.version===2&&selected.kind==='preview'?null:selected,signal:flow.signal,onQuote:q=>{quote=q;render();},onStatus:flowStatus});
   void balances();
  });}finally{flow=null;render();}
 });
