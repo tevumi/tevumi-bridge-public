@@ -112,6 +112,13 @@ try{for(const mode of ['buy-en','sell-zh-mobile','sell-approved','reject','unkno
  if(['reject','unknown-reload','save-failure'].includes(mode)){
   await page.waitForFunction(()=>document.querySelector('#source-pause').hidden);
   assert.equal(r.counts().financialConfirmations,mode==='save-failure'?0:1);
+  if(mode==='reject'){
+   assert.equal(orders[0].state,'CANCELLED');assert(await page.locator('#source-cancel').isHidden());
+   await page.reload();
+   await page.waitForFunction(()=>document.querySelector('#source-orders').textContent.includes('Cancelled'));
+   assert.equal(r.counts().financialConfirmations,1,'Cancelled order must not request the wallet after reload.');
+   assert(await page.locator('#source-cancel').isHidden());
+  }
   if(mode==='unknown-reload'){await page.reload();await page.waitForFunction(()=>document.querySelector('#source-message').textContent.length>0);assert.equal(r.counts().financialConfirmations,1);assert(await page.locator('#source-send').isDisabled());}
  }else{
   await page.waitForFunction(()=>document.querySelector('#source-orders').textContent.includes('Completed')||document.querySelector('#source-orders').textContent.includes('已完成'),{},{timeout:25000});

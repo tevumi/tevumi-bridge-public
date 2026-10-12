@@ -115,6 +115,7 @@ export class CombinedTradeEngine extends TradeEngine{
     check(/^0x[0-9a-f]{64}$/i.test(record.hash),'Wallet returned no valid transaction hash.');record.state='SUBMITTED';await this.save();
    }catch(error){
     if(!record.hash)record.state=!requested||error?.code===4001||error?.code==='ACTION_REJECTED'?'REJECTED':'UNCERTAIN';
+    if((error?.code===4001||error?.code==='ACTION_REJECTED')&&o.transactions.every(t=>t.state==='REJECTED'&&!t.hash))o.state='CANCELLED';
     try{await this.save();}catch{}throw error;
    }
    return record;

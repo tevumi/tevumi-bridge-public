@@ -24,7 +24,7 @@ for(const mode of ['reject','unknown','failSave'])test(`${mode} stops the workfl
  const r=await combinedWalletRig({[mode]:true});await assert.rejects(start(r));
  assert.equal(r.counts().financialConfirmations,mode==='failSave'?0:1);
  if(mode==='unknown'){await assert.rejects(r.engine.verify(),/Recover the original/);await assert.rejects(start(r));assert.equal(r.counts().financialConfirmations,1);}
- if(mode==='reject')assert.equal(r.journal.transactions.at(-1).state,'REJECTED');
+ if(mode==='reject'){assert.equal(r.journal.transactions.at(-1).state,'REJECTED');assert.equal(r.journal.state,'CANCELLED');}
 });
 
 test('wrong executor, receiver, signature and stale quote never reach the wallet',async()=>{

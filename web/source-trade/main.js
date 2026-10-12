@@ -126,7 +126,7 @@ function renderEmbedded(){
  $('heading').textContent=text(`Swap ${input} for ${output} on Arc`,`在 Arc 将 ${input} 兑换为 ${output}`);
  $('intro').hidden=true;$('account').hidden=true;$('steps').hidden=true;$('quote').hidden=true;
  $('amount-label').textContent=text(`You sell · ${input}`,`卖出 · ${input}`);
- $('connect').hidden=!account||restored;$('next').hidden=!order||order.state!=='COMPLETED';$('cancel').hidden=!order||order.transactions.some(t=>t.state!=='REJECTED');
+ $('connect').hidden=!account||restored;$('next').hidden=!order||order.state!=='COMPLETED';$('cancel').hidden=true;
  host.querySelector('#source-input-token').textContent=input;host.querySelector('#source-input-symbol').textContent='Arc';host.querySelector('#source-output-token').textContent=output;
  host.querySelector('#source-output-label').textContent=text('Estimated receive','预计收到');
  $('orders-heading').textContent=text('Transaction history','交易记录');
@@ -188,7 +188,7 @@ function renderOrders(){
  }
  for(const item of unmatched){const card=document.createElement('div');card.className='order';card.textContent=`${item.input_asset||'?'} → ${item.output_asset||'?'} · `+text(item.status==='cancelled'?'Cancelled':item.status==='error'?'Operation failed':'Pending verification',item.status==='cancelled'?'已取消':item.status==='error'?'操作失败':'待核验');$('orders').append(card);}
 }
-async function run(action){if(working)return;working=true;render();try{await action();}catch(e){if(order)void saveOutcome('swap',order.account,`order:${order.id}`,{state:e?.code===4001||e?.code==='ACTION_REJECTED'?'cancelled':'error',operation:'exchange',input_asset:order.kind==='buy'?'USDC':'WOTR',output_asset:order.kind==='buy'?'WOTR':'USDC',input_amount:order.input});$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{working=false;render();}}
+async function run(action){if(working)return;working=true;render();try{await action();}catch(e){if(order&&(e?.code===4001||e?.code==='ACTION_REJECTED')&&order.state==='OPEN'&&order.transactions.length&&order.transactions.every(t=>t.state==='REJECTED'&&!t.hash)){order.state='CANCELLED';try{await persist(order);}catch{restored=false;}}if(order)void saveOutcome('swap',order.account,`order:${order.id}`,{state:e?.code===4001||e?.code==='ACTION_REJECTED'?'cancelled':'error',operation:'exchange',input_asset:order.kind==='buy'?'USDC':'WOTR',output_asset:order.kind==='buy'?'WOTR':'USDC',input_amount:order.input});$('message').textContent=order&&!order.transactions.some(t=>t.state!=='REJECTED')&&(e.code==='SERVER_ERROR'||/502|503|504|fetch|读取|service unavailable|service temporarily/i.test(e.message))?text('Quote unavailable; this order has not submitted a transaction. Refresh the quote to retry.','报价暂不可用，此订单尚未提交交易。请点击刷新下一步报价重试。'):explain(e);quote=null;}finally{if(order?.state==='CANCELLED')selectOrder(null);working=false;render();}}
 async function verify(){if(checking)return;checking=true;render();try{await engine.verify();message(order.state==='COMPLETED'?'Exchange completed. Arrival verified.':'Original transactions verified. Continue exchange when ready.',order.state==='COMPLETED'?'兑换完成，实际到账已核验。':'原交易已核验，可以继续兑换。');await balances();}finally{checking=false;render();}}
 function schedulePreview(){clearTimeout(previewTimer);if(account&&restored&&!order&&!working&&!previewing&&Date.now()>=previewRetryAt)previewTimer=setTimeout(()=>void preview(),600);}
 async function preview(){
@@ -237,6 +237,8 @@ async function restore(){
   if(o.revision===remote.revision+1){await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(o)});}
   else if(o.revision>remote.revision)throw Error('Journal revisions disagree. Preserve both copies for recovery.');
  }
+ orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);
+ for(const o of orders){if(o.state==='OPEN'&&o.transactions.length&&o.transactions.every(t=>t.state==='REJECTED'&&!t.hash)){const closed={...o,state:'CANCELLED',revision:o.revision+1};await api('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:stringify(closed)});}}
  orders=await api('/api/orders'+(production?'?account='+account:''));orders.forEach(validateOrder);localStorage.setItem(cacheKey,stringify(orders));
  try{const config=await api('/api/combined/config');combinedDeployment=config.enabled&&config.uiReady?config.deployment:null;}catch{combinedDeployment=null;}
  restored=true;void loadReported();render();
